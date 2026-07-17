@@ -1,0 +1,100 @@
+<?php
+
+declare(strict_types=1);
+
+use Joomla\CMS\Factory;
+use Joomla\CMS\Installer\InstallerAdapter;
+use Joomla\CMS\Installer\InstallerScriptInterface;
+use Joomla\Database\DatabaseInterface;
+
+\defined('_JEXEC') or die;
+
+/**
+ * Installer script for the Simple Stats administrator component.
+ */
+return new class implements InstallerScriptInterface
+{
+	/**
+	 * Creates the database schema during initial installation.
+	 */
+	public function install(InstallerAdapter $adapter): bool
+	{
+		return $this->createSchema();
+	}
+
+	/**
+	 * Repairs or creates the database schema during updates.
+	 */
+	public function update(InstallerAdapter $adapter): bool
+	{
+		return $this->createSchema();
+	}
+
+	/**
+	 * Removes all Simple Stats database tables during uninstallation.
+	 */
+	public function uninstall(InstallerAdapter $adapter): bool
+	{
+		$db = Factory::getContainer()->get(DatabaseInterface::class);
+		$db->setQuery('DROP TABLE IF EXISTS ' . $db->quoteName('#__simplestats_events'))->execute();
+
+		return true;
+	}
+
+	public function preflight(string $type, InstallerAdapter $adapter): bool
+	{
+		return true;
+	}
+
+	/**
+	 * Ensures the schema exists after install/update as a defensive fallback.
+	 */
+	public function postflight(string $type, InstallerAdapter $adapter): bool
+	{
+		if (!\in_array($type, ['install', 'update'], true))
+		{
+			return true;
+		}
+
+		return $this->createSchema();
+	}
+
+	/**
+	 * Creates the event table if it is missing.
+	 */
+	private function createSchema(): bool
+	{
+		$db = Factory::getContainer()->get(DatabaseInterface::class);
+		$query = <<<'SQL'
+CREATE TABLE IF NOT EXISTS `#__simplestats_events` (
+	`id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+	`visited_at` DATETIME NOT NULL,
+	`visit_date` DATE NOT NULL,
+	`visitor_hash` CHAR(32) NOT NULL,
+	`path` VARCHAR(1024) NOT NULL,
+	`component` VARCHAR(100) NOT NULL DEFAULT '',
+	`view_name` VARCHAR(100) NOT NULL DEFAULT '',
+	`referrer_host` VARCHAR(255) NOT NULL DEFAULT '',
+	`country_code` CHAR(2) NOT NULL DEFAULT 'ZZ',
+	`language_code` VARCHAR(16) NOT NULL DEFAULT '',
+	`device_type` VARCHAR(16) NOT NULL DEFAULT 'unknown',
+	`browser_family` VARCHAR(32) NOT NULL DEFAULT 'Other',
+	`is_bot` TINYINT(1) NOT NULL DEFAULT 0,
+	`bot_name` VARCHAR(64) NOT NULL DEFAULT '',
+	`event_type` VARCHAR(16) NOT NULL DEFAULT 'pageview',
+	PRIMARY KEY (`id`),
+	KEY `idx_simplestats_visited_at` (`visited_at`),
+	KEY `idx_simplestats_visit_date` (`visit_date`),
+	KEY `idx_simplestats_visitor_hash` (`visitor_hash`),
+	KEY `idx_simplestats_bot_date` (`is_bot`, `visit_date`),
+	KEY `idx_simplestats_country_date` (`country_code`, `visit_date`),
+	KEY `idx_simplestats_path` (`path`(191)),
+	KEY `idx_simplestats_referrer` (`referrer_host`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
+SQL;
+
+		$db->setQuery($db->replacePrefix($query))->execute();
+
+		return true;
+	}
+};

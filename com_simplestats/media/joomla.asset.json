@@ -1,0 +1,14 @@
+{
+	"$schema": "https://developer.joomla.org/schemas/json-schema/web_assets.json",
+	"name": "com_simplestats",
+	"version": "0.1.1",
+	"description": "Simple Stats administrator assets",
+	"license": "GPL-2.0-or-later",
+	"assets": [
+		{
+			"name": "com_simplestats.admin",
+			"type": "style",
+			"uri": "com_simplestats/css/admin.css"
+		}
+	]
+}

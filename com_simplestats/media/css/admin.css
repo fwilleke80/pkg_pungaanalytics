@@ -1,0 +1,56 @@
+.simplestats-toolbar-row
+{
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	margin-bottom: 1rem;
+}
+
+.simplestats-toolbar-row .form-select
+{
+	width: auto;
+	min-width: 12rem;
+}
+
+.simplestats-cards
+{
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+	gap: 1rem;
+	margin-bottom: 1rem;
+}
+
+.simplestats-card
+{
+	padding: 1rem 1.25rem;
+	border: 1px solid var(--border-color, #d8d8d8);
+	border-radius: 0.4rem;
+	background: var(--body-bg, #fff);
+}
+
+.simplestats-card__value
+{
+	font-size: 2rem;
+	font-weight: 700;
+	line-height: 1.1;
+}
+
+.simplestats-card__label
+{
+	margin-top: 0.35rem;
+	color: var(--secondary-color, #6c757d);
+}
+
+.simplestats-grid
+{
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+	gap: 1rem;
+}
+
+.simplestats-grid .card-header h2,
+.card-header h2
+{
+	margin: 0;
+	font-size: 1.1rem;
+}
