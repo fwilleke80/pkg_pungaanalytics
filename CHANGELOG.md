@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 — 2026-07-17
+
+- Fixed the Joomla update schema path. Update schema paths are resolved relative to the installed administrator component directory and therefore must use `sql/updates/mysql`, not `admin/sql/updates/mysql`.
+- Retained source-package-relative paths for initial install and uninstall SQL files.
+- Added a 0.1.2 schema update file as an additional repair path for missing installations.
+
 ## 0.1.1 — 2026-07-17
 
 - Initial Joomla 6 package.

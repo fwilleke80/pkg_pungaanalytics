@@ -2,7 +2,7 @@
 
 Simple Stats is a small, self-hosted statistics package for Joomla 6. It is intended for sites that need basic traffic information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-Version: **0.1.1**
+Version: **0.1.2**
 
 ## Package contents
 
@@ -70,7 +70,7 @@ IP-based country detection is necessarily approximate. VPNs, mobile carrier gate
 ## Installation
 
 1. In Joomla Administrator, open **System → Install → Extensions**.
-2. Upload `pkg_simplestats-0.1.1.zip`.
+2. Upload `pkg_simplestats-0.1.2.zip`.
 3. Open **Components → Simple Stats**.
 4. Click **Update German IP ranges**.
 5. Open **Options** and review retention and exclusion settings.
@@ -115,7 +115,7 @@ Enabling query-string storage can collect search terms and other user input. It 
 
 - Bot detection is based on User-Agent patterns and is not authoritative.
 - Visitor-days are estimates and are not equivalent to unique people.
-- German ranges are updated manually in version 0.1.1.
+- German ranges are updated manually in version 0.1.2.
 - Existing rows are not reclassified after a range update.
 - The local country mode distinguishes only Germany from unknown/non-Germany.
 - Requests served before the collector runs, for example by an earlier page-cache plugin, may not be recorded. Place the Simple Stats system plugin before a full-page cache plugin when necessary.

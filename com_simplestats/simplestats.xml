@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension type="component" method="upgrade">
 	<name>COM_SIMPLESTATS</name>
-	<version>0.1.1</version>
+	<version>0.1.2</version>
 	<targetplatform name="joomla" version="6.*" />
 	<creationDate>2026-07-17</creationDate>
 	<author>Frank Willeke</author>
@@ -44,7 +44,7 @@
 	</uninstall>
 	<update>
 		<schemas>
-			<schemapath type="mysql">admin/sql/updates/mysql</schemapath>
+			<schemapath type="mysql">sql/updates/mysql</schemapath>
 		</schemas>
 	</update>
 </extension>

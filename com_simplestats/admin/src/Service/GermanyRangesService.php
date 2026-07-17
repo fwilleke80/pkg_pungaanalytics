@@ -86,7 +86,7 @@ final class GermanyRangesService
 	 */
 	private function download(string $url): string
 	{
-		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Simple Stats/0.1.1'], 30);
+		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Simple Stats/0.1.2'], 30);
 
 		if ($response->code < 200 || $response->code >= 300)
 		{
