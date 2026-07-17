@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace FrankWilleke\Plugin\System\Simplestats\Extension;
 
+use FrankWilleke\Plugin\System\Simplestats\Service\CountryDatabaseMatcher;
 use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Date\Date;
 use Joomla\CMS\Factory;
@@ -11,8 +12,9 @@ use Joomla\CMS\Log\Log;
 use Joomla\CMS\Plugin\CMSPlugin;
 use Joomla\CMS\Uri\Uri;
 use Joomla\Database\DatabaseAwareTrait;
+use Joomla\Event\Event;
 use Joomla\Event\SubscriberInterface;
-use FrankWilleke\Plugin\System\Simplestats\Service\GermanyRangeMatcher;
+use Joomla\Registry\Registry;
 
 \defined('_JEXEC') or die;
 
@@ -35,11 +37,12 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 	{
 		return [
 			'onAfterRoute' => 'onAfterRoute',
+			'onSimpleStatsRecord' => 'onSimpleStatsRecord',
 		];
 	}
 
 	/**
-	 * Records a frontend page view after Joomla routing has completed.
+	 * Records an eligible frontend page view after Joomla routing.
 	 *
 	 * @return void
 	 */
@@ -47,24 +50,48 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 	{
 		try
 		{
-			$this->collect();
+			$this->collectPageView();
 		}
 		catch (\Throwable $exception)
 		{
-			Log::add(
-				'Simple Stats collection failed: ' . $exception->getMessage(),
-				Log::WARNING,
-				'plg_system_simplestats'
-			);
+			$this->logFailure($exception);
 		}
 	}
 
 	/**
-	 * Performs the actual collection operation.
+	 * Records a custom event emitted by another Joomla extension.
+	 *
+	 * Supported arguments:
+	 * - event_type: required machine name, for example audio.play
+	 * - component: source component, for example com_audioarchive
+	 * - view_name: optional Joomla view name
+	 * - path: optional public page path associated with the event
+	 * - item_type: optional entity type, for example audioarchive.clip
+	 * - item_id: optional stable entity identifier
+	 * - item_title: optional human-readable entity title
+	 *
+	 * @param Event $event Joomla event.
 	 *
 	 * @return void
 	 */
-	private function collect(): void
+	public function onSimpleStatsRecord(Event $event): void
+	{
+		try
+		{
+			$this->collectCustomEvent($event->getArguments());
+		}
+		catch (\Throwable $exception)
+		{
+			$this->logFailure($exception);
+		}
+	}
+
+	/**
+	 * Performs page-view collection.
+	 *
+	 * @return void
+	 */
+	private function collectPageView(): void
 	{
 		$app = $this->getApplication();
 
@@ -75,41 +102,12 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 
 		$params = ComponentHelper::getParams('com_simplestats');
 
-		if (!(bool) $params->get('enabled', 1))
+		if (!$this->isRequestTrackable($params, true))
 		{
 			return;
 		}
 
 		$input = $app->input;
-		$method = strtoupper($input->server->getString('REQUEST_METHOD', 'GET'));
-
-		if ($method !== 'GET')
-		{
-			return;
-		}
-
-		if ($input->getCmd('task', '') !== '')
-		{
-			return;
-		}
-
-		$format = strtolower($input->getCmd('format', 'html'));
-
-		if (!\in_array($format, ['', 'html'], true))
-		{
-			return;
-		}
-
-		if ((bool) $params->get('respect_dnt', 1) && $input->server->getString('HTTP_DNT') === '1')
-		{
-			return;
-		}
-
-		if ((bool) $params->get('exclude_logged_in', 1) && !$app->getIdentity()->guest)
-		{
-			return;
-		}
-
 		$component = $input->getCmd('option', '');
 		$excludedComponents = $this->parseCommaList((string) $params->get('exclude_components', 'com_ajax,com_users,com_simplestats'));
 
@@ -131,6 +129,149 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 			$path = $this->appendSafeQuery($path, $uri);
 		}
 
+		$this->insertEvent(
+			$params,
+			[
+				'event_type' => 'pageview',
+				'path' => $path,
+				'component' => $component,
+				'view_name' => $input->getCmd('view', ''),
+				'item_type' => '',
+				'item_id' => '',
+				'item_title' => '',
+			],
+			true
+		);
+	}
+
+	/**
+	 * Performs custom-event collection.
+	 *
+	 * @param array<string, mixed> $arguments Event arguments.
+	 *
+	 * @return void
+	 */
+	private function collectCustomEvent(array $arguments): void
+	{
+		$app = $this->getApplication();
+
+		if (!$app->isClient('site'))
+		{
+			return;
+		}
+
+		$params = ComponentHelper::getParams('com_simplestats');
+
+		if (!$this->isRequestTrackable($params, false))
+		{
+			return;
+		}
+
+		$eventType = strtolower(trim((string) ($arguments['event_type'] ?? '')));
+
+		if ($eventType === '' || $eventType === 'pageview' || preg_match('/^[a-z][a-z0-9._-]{0,63}$/', $eventType) !== 1)
+		{
+			return;
+		}
+
+		$input = $app->input;
+		$path = $this->normaliseEventPath((string) ($arguments['path'] ?? ''));
+
+		if ($path === '')
+		{
+			$path = $this->getInternalReferrerPath();
+		}
+
+		if ($path === '')
+		{
+			$path = '/' . ltrim((string) Uri::getInstance()->getPath(), '/');
+		}
+
+		$this->insertEvent(
+			$params,
+			[
+				'event_type' => $eventType,
+				'path' => $path,
+				'component' => (string) ($arguments['component'] ?? $input->getCmd('option', '')),
+				'view_name' => (string) ($arguments['view_name'] ?? $input->getCmd('view', '')),
+				'item_type' => (string) ($arguments['item_type'] ?? ''),
+				'item_id' => (string) ($arguments['item_id'] ?? ''),
+				'item_title' => (string) ($arguments['item_title'] ?? ''),
+			],
+			false
+		);
+	}
+
+	/**
+	 * Returns whether collection is allowed for the current request and user.
+	 *
+	 * @param Registry $params          Component parameters.
+	 * @param bool     $requirePageView Whether ordinary page-view request rules apply.
+	 *
+	 * @return bool
+	 */
+	private function isRequestTrackable(Registry $params, bool $requirePageView): bool
+	{
+		if (!(bool) $params->get('enabled', 1))
+		{
+			return false;
+		}
+
+		$app = $this->getApplication();
+		$input = $app->input;
+
+		if ((bool) $params->get('respect_dnt', 1) && $input->server->getString('HTTP_DNT') === '1')
+		{
+			return false;
+		}
+
+		$user = $app->getIdentity();
+
+		if (!$user->guest)
+		{
+			if (!(bool) $params->get('track_authenticated', 1))
+			{
+				return false;
+			}
+
+			$excludedUserIds = $this->parseIntegerList((string) $params->get('excluded_user_ids', ''));
+
+			if (\in_array((int) $user->id, $excludedUserIds, true))
+			{
+				return false;
+			}
+		}
+
+		if (!$requirePageView)
+		{
+			return true;
+		}
+
+		$method = strtoupper($input->server->getString('REQUEST_METHOD', 'GET'));
+
+		if ($method !== 'GET' || $input->getCmd('task', '') !== '')
+		{
+			return false;
+		}
+
+		$format = strtolower($input->getCmd('format', 'html'));
+
+		return \in_array($format, ['', 'html'], true);
+	}
+
+	/**
+	 * Inserts one event using privacy-minimal request context.
+	 *
+	 * @param Registry             $params          Component parameters.
+	 * @param array<string,string> $eventData       Event-specific values.
+	 * @param bool                 $includeReferrer Whether to store an external referrer.
+	 *
+	 * @return void
+	 */
+	private function insertEvent(Registry $params, array $eventData, bool $includeReferrer): void
+	{
+		$app = $this->getApplication();
+		$input = $app->input;
 		$ipAddress = $this->getClientIp((string) $params->get('trusted_ip_header', ''));
 		$userAgent = substr($input->server->getString('HTTP_USER_AGENT', ''), 0, 2048);
 		[$isBot, $botName] = $this->classifyBot($userAgent);
@@ -139,22 +280,31 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 		$visitDate = $localDate->format('Y-m-d');
 		$secret = (string) $app->get('secret', '');
 		$visitorHash = substr(hash_hmac('sha256', $ipAddress . "\n" . $userAgent . "\n" . $visitDate, $secret), 0, 32);
+		$currentUri = Uri::getInstance();
 
 		$row = (object) [
 			'visited_at' => Factory::getDate('now', 'UTC')->toSql(),
 			'visit_date' => $visitDate,
 			'visitor_hash' => $visitorHash,
-			'path' => mb_substr($path, 0, 1024),
-			'component' => mb_substr($component, 0, 100),
-			'view_name' => mb_substr($input->getCmd('view', ''), 0, 100),
-			'referrer_host' => $this->getExternalReferrerHost($uri),
-			'country_code' => $this->getCountryCode($ipAddress, (string) $params->get('country_detection', 'local_de'), (string) $params->get('trusted_country_header', 'HTTP_CF_IPCOUNTRY')),
+			'path' => mb_substr((string) $eventData['path'], 0, 1024),
+			'component' => mb_substr((string) $eventData['component'], 0, 100),
+			'view_name' => mb_substr((string) $eventData['view_name'], 0, 100),
+			'referrer_host' => $includeReferrer ? $this->getExternalReferrerHost($currentUri) : '',
+			'country_code' => $this->getCountryCode(
+				$ipAddress,
+				(string) $params->get('country_detection', 'local_dbip'),
+				(string) $params->get('trusted_country_header', 'HTTP_CF_IPCOUNTRY')
+			),
 			'language_code' => $this->getPrimaryLanguage(),
 			'device_type' => $this->classifyDevice($userAgent, $isBot),
 			'browser_family' => $this->classifyBrowser($userAgent),
+			'is_authenticated' => $app->getIdentity()->guest ? 0 : 1,
 			'is_bot' => $isBot ? 1 : 0,
 			'bot_name' => mb_substr($botName, 0, 64),
-			'event_type' => 'pageview',
+			'event_type' => mb_substr((string) $eventData['event_type'], 0, 64),
+			'item_type' => mb_substr((string) $eventData['item_type'], 0, 64),
+			'item_id' => mb_substr((string) $eventData['item_id'], 0, 128),
+			'item_title' => mb_substr((string) $eventData['item_title'], 0, 255),
 		];
 
 		$this->getDatabase()->insertObject('#__simplestats_events', $row);
@@ -191,9 +341,9 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 	/**
 	 * Returns a two-letter country code without calling an external API.
 	 *
-	 * @param string $ipAddress    Visitor IP address.
-	 * @param string $method       Detection method.
-	 * @param string $headerName   Trusted country server variable.
+	 * @param string $ipAddress  Visitor IP address.
+	 * @param string $method     Detection method.
+	 * @param string $headerName Trusted country server variable.
 	 *
 	 * @return string
 	 */
@@ -206,9 +356,9 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 			return preg_match('/^[A-Z]{2}$/', $value) === 1 ? $value : 'ZZ';
 		}
 
-		if ($method === 'local_de')
+		if (\in_array($method, ['local_dbip', 'local_de'], true))
 		{
-			return (new GermanyRangeMatcher())->isGerman($ipAddress) ? 'DE' : 'ZZ';
+			return (new CountryDatabaseMatcher())->lookup($ipAddress);
 		}
 
 		return 'ZZ';
@@ -353,6 +503,66 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 	}
 
 	/**
+	 * Returns the public path of an internal referrer.
+	 *
+	 * @return string
+	 */
+	private function getInternalReferrerPath(): string
+	{
+		$referrer = $this->getApplication()->input->server->getString('HTTP_REFERER', '');
+
+		if ($referrer === '')
+		{
+			return '';
+		}
+
+		$host = strtolower((string) parse_url($referrer, PHP_URL_HOST));
+		$currentHost = strtolower((string) Uri::getInstance()->getHost());
+
+		if ($host === '' || $host !== $currentHost)
+		{
+			return '';
+		}
+
+		$path = (string) parse_url($referrer, PHP_URL_PATH);
+
+		return $path === '' ? '/' : '/' . ltrim($path, '/');
+	}
+
+	/**
+	 * Sanitises a page path supplied with a custom event.
+	 *
+	 * @param string $value Supplied path or same-site URL.
+	 *
+	 * @return string
+	 */
+	private function normaliseEventPath(string $value): string
+	{
+		$value = trim($value);
+
+		if ($value === '')
+		{
+			return '';
+		}
+
+		$host = (string) parse_url($value, PHP_URL_HOST);
+
+		if ($host !== '' && strtolower($host) !== strtolower((string) Uri::getInstance()->getHost()))
+		{
+			return '';
+		}
+
+		$path = (string) parse_url($value, PHP_URL_PATH);
+
+		if ($path === '')
+		{
+			$path = $value;
+		}
+
+		return '/' . ltrim($path, '/');
+	}
+
+	/**
 	 * Tests path exclusions.
 	 *
 	 * @param string $path       Request path.
@@ -388,6 +598,30 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 			static fn(string $item): string => strtolower(trim($item)),
 			explode(',', $value)
 		)));
+	}
+
+	/**
+	 * Parses a comma-separated positive integer list.
+	 *
+	 * @param string $value Configured value.
+	 *
+	 * @return array<int, int>
+	 */
+	private function parseIntegerList(string $value): array
+	{
+		$result = [];
+
+		foreach (preg_split('/[\s,;]+/', trim($value)) ?: [] as $item)
+		{
+			$id = (int) $item;
+
+			if ($id > 0)
+			{
+				$result[] = $id;
+			}
+		}
+
+		return array_values(array_unique($result));
 	}
 
 	/**
@@ -440,5 +674,21 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 			->where($db->quoteName('visited_at') . ' < :cutoff')
 			->bind(':cutoff', $cutoff);
 		$db->setQuery($query)->execute();
+	}
+
+	/**
+	 * Writes a non-fatal collection error to Joomla logging.
+	 *
+	 * @param \Throwable $exception Failure.
+	 *
+	 * @return void
+	 */
+	private function logFailure(\Throwable $exception): void
+	{
+		Log::add(
+			'Simple Stats collection failed: ' . $exception->getMessage(),
+			Log::WARNING,
+			'plg_system_simplestats'
+		);
 	}
 }

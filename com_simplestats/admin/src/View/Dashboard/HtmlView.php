@@ -9,7 +9,7 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Toolbar\ToolbarHelper;
-use FrankWilleke\Component\Simplestats\Administrator\Service\GermanyRangesService;
+use FrankWilleke\Component\Simplestats\Administrator\Service\CountryDatabaseService;
 
 \defined('_JEXEC') or die;
 
@@ -22,7 +22,10 @@ final class HtmlView extends BaseHtmlView
 	public array $data = [];
 
 	/** @var array<string, mixed> */
-	public array $rangeStatus = [];
+	public array $countryStatus = [];
+
+	/** @var string */
+	public string $version = 'unknown';
 
 	/** @var int */
 	public int $days = 30;
@@ -48,7 +51,8 @@ final class HtmlView extends BaseHtmlView
 		/** @var \FrankWilleke\Component\Simplestats\Administrator\Model\DashboardModel $model */
 		$model = $this->getModel();
 		$this->data = $model->getDashboardData($this->days);
-		$this->rangeStatus = (new GermanyRangesService())->getStatus();
+		$this->countryStatus = (new CountryDatabaseService())->getStatus();
+		$this->version = $model->getInstalledVersion();
 
 		$document = $app->getDocument();
 		$document->getWebAssetManager()->useStyle('com_simplestats.admin');
@@ -66,10 +70,10 @@ final class HtmlView extends BaseHtmlView
 	{
 		ToolbarHelper::title(Text::_('COM_SIMPLESTATS'), 'chart');
 		ToolbarHelper::custom(
-			'dashboard.updateRanges',
+			'dashboard.updateCountryDatabase',
 			'refresh',
 			'refresh',
-			'COM_SIMPLESTATS_UPDATE_RANGES',
+			'COM_SIMPLESTATS_UPDATE_COUNTRY_DATABASE',
 			false
 		);
 		ToolbarHelper::custom(

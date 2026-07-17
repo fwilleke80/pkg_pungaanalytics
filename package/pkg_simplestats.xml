@@ -2,7 +2,7 @@
 <extension type="package" method="upgrade">
 	<name>PKG_SIMPLESTATS</name>
 	<packagename>simplestats</packagename>
-	<version>0.1.2</version>
+	<version>0.2.1</version>
 	<targetplatform name="joomla" version="6.*" />
 	<creationDate>2026-07-17</creationDate>
 	<author>Frank Willeke</author>

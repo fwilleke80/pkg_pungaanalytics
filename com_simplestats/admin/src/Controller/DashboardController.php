@@ -9,7 +9,7 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Controller\BaseController;
 use Joomla\CMS\Router\Route;
 use Joomla\CMS\Session\Session;
-use FrankWilleke\Component\Simplestats\Administrator\Service\GermanyRangesService;
+use FrankWilleke\Component\Simplestats\Administrator\Service\CountryDatabaseService;
 
 \defined('_JEXEC') or die;
 
@@ -19,21 +19,21 @@ use FrankWilleke\Component\Simplestats\Administrator\Service\GermanyRangesServic
 final class DashboardController extends BaseController
 {
 	/**
-	 * Downloads and compiles the current German IPv4 and IPv6 ranges.
+	 * Downloads and compiles the current DB-IP Lite country database.
 	 *
 	 * @return void
 	 */
-	public function updateRanges(): void
+	public function updateCountryDatabase(): void
 	{
 		Session::checkToken('request') or jexit(Text::_('JINVALID_TOKEN'));
 		$this->assertManagePermission();
 
 		try
 		{
-			$result = (new GermanyRangesService())->update();
+			$result = (new CountryDatabaseService())->update();
 			$this->setMessage(
 				Text::sprintf(
-					'COM_SIMPLESTATS_RANGES_UPDATED',
+					'COM_SIMPLESTATS_COUNTRY_DATABASE_UPDATED',
 					$result['ipv4_count'],
 					$result['ipv6_count']
 				)
@@ -41,7 +41,7 @@ final class DashboardController extends BaseController
 		}
 		catch (\Throwable $exception)
 		{
-			$this->setMessage(Text::sprintf('COM_SIMPLESTATS_RANGES_UPDATE_FAILED', $exception->getMessage()), 'error');
+			$this->setMessage(Text::sprintf('COM_SIMPLESTATS_COUNTRY_DATABASE_UPDATE_FAILED', $exception->getMessage()), 'error');
 		}
 
 		$this->setRedirect(Route::_('index.php?option=com_simplestats', false));

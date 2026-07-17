@@ -5,14 +5,15 @@
 			<option value="0">JNO</option>
 			<option value="1">JYES</option>
 		</field>
-		<field name="respect_dnt" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_SIMPLESTATS_CONFIG_RESPECT_DNT">
+		<field name="respect_dnt" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_SIMPLESTATS_CONFIG_RESPECT_DNT" description="COM_SIMPLESTATS_CONFIG_RESPECT_DNT_DESC">
 			<option value="0">JNO</option>
 			<option value="1">JYES</option>
 		</field>
-		<field name="exclude_logged_in" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_SIMPLESTATS_CONFIG_EXCLUDE_LOGGED_IN">
+		<field name="track_authenticated" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_SIMPLESTATS_CONFIG_TRACK_AUTHENTICATED" description="COM_SIMPLESTATS_CONFIG_TRACK_AUTHENTICATED_DESC">
 			<option value="0">JNO</option>
 			<option value="1">JYES</option>
 		</field>
+		<field name="excluded_user_ids" type="text" default="" label="COM_SIMPLESTATS_CONFIG_EXCLUDED_USER_IDS" description="COM_SIMPLESTATS_CONFIG_EXCLUDED_USER_IDS_DESC" />
 		<field name="exclude_components" type="text" default="com_ajax,com_users,com_simplestats" label="COM_SIMPLESTATS_CONFIG_EXCLUDE_COMPONENTS" description="COM_SIMPLESTATS_CONFIG_EXCLUDE_COMPONENTS_DESC" />
 		<field name="exclude_paths" type="textarea" rows="6" default="/administrator&#10;/api" label="COM_SIMPLESTATS_CONFIG_EXCLUDE_PATHS" description="COM_SIMPLESTATS_CONFIG_EXCLUDE_PATHS_DESC" />
 		<field name="store_query" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_SIMPLESTATS_CONFIG_STORE_QUERY" description="COM_SIMPLESTATS_CONFIG_STORE_QUERY_DESC">
@@ -26,9 +27,9 @@
 		<field name="trusted_ip_header" type="text" default="" label="COM_SIMPLESTATS_CONFIG_TRUSTED_IP_HEADER" description="COM_SIMPLESTATS_CONFIG_TRUSTED_IP_HEADER_DESC" />
 	</fieldset>
 	<fieldset name="country" label="COM_SIMPLESTATS_CONFIG_COUNTRY">
-		<field name="country_detection" type="list" default="local_de" label="COM_SIMPLESTATS_CONFIG_COUNTRY_DETECTION" description="COM_SIMPLESTATS_CONFIG_COUNTRY_DETECTION_DESC">
+		<field name="country_detection" type="list" default="local_dbip" label="COM_SIMPLESTATS_CONFIG_COUNTRY_DETECTION" description="COM_SIMPLESTATS_CONFIG_COUNTRY_DETECTION_DESC">
 			<option value="disabled">COM_SIMPLESTATS_CONFIG_COUNTRY_DISABLED</option>
-			<option value="local_de">COM_SIMPLESTATS_CONFIG_COUNTRY_LOCAL_DE</option>
+			<option value="local_dbip">COM_SIMPLESTATS_CONFIG_COUNTRY_LOCAL_DBIP</option>
 			<option value="header">COM_SIMPLESTATS_CONFIG_COUNTRY_HEADER</option>
 		</field>
 		<field name="trusted_country_header" type="text" default="HTTP_CF_IPCOUNTRY" label="COM_SIMPLESTATS_CONFIG_TRUSTED_COUNTRY_HEADER" description="COM_SIMPLESTATS_CONFIG_TRUSTED_COUNTRY_HEADER_DESC" />
