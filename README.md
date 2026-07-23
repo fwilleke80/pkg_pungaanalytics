@@ -2,7 +2,7 @@
 
 Simple Stats is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.3.3`
+> **Current version:** `0.3.4`
 > **Package:** `pkg_simplestats`
 
 ## Package contents
@@ -254,7 +254,7 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 ## Installation and update
 
 1. Open **System → Install → Extensions** in Joomla Administrator.
-2. Upload `pkg_simplestats-0.3.3.zip`.
+2. Upload `pkg_simplestats-0.3.4.zip`.
 3. Open **Components → Simple Stats**.
 4. Click **Update country database**.
 5. Review the options and optionally exclude the site owner's Joomla user ID.
@@ -263,10 +263,10 @@ Install newer versions directly over the existing package. Version 0.3.0 also
 repairs the Joomla database-maintenance definition for `event_type`; it does not
 alter or remove collected statistics.
 
-Versions 0.3.1 through 0.3.3 use versioned administrator stylesheets to bypass
+Versions 0.3.1 through 0.3.4 use versioned administrator stylesheets to bypass
 stale browser and server caches. Version 0.3.2 also renders the browser
 language, device, and browser doughnut charts as SVG so they work under
-restrictive content security policies. Version 0.3.3 registers its stylesheet
+restrictive content security policies. Version 0.3.3 and later register their stylesheet
 under a version-specific asset name to avoid stale Joomla asset-registry entries.
 
 ## Resetting statistics

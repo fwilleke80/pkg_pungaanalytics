@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4 — 2026-07-23
+
+- Added a compact doughnut chart with color-and-percentage legend to the Countries panel.
+- Used localized country names in chart tooltips and legends while retaining ISO country codes in the detailed table.
+
 ## 0.3.3 — 2026-07-23
 
 - Registered the administrator stylesheet under a version-specific asset name to bypass stale Joomla asset-registry entries.

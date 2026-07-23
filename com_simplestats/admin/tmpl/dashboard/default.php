@@ -22,7 +22,7 @@ $number = static fn(mixed $value): string => number_format((int) $value);
 $escape = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 $siteRoot = rtrim(Uri::root(), '/');
 $displayLocale = str_replace('-', '_', Factory::getApplication()->getLanguage()->getTag());
-$countryLabel = static function (string $code) use ($escape, $displayLocale): string
+$countryName = static function (string $code) use ($displayLocale): string
 {
 	$code = strtoupper(trim($code));
 
@@ -38,7 +38,19 @@ $countryLabel = static function (string $code) use ($escape, $displayLocale): st
 		$name = (string) Locale::getDisplayRegion('-' . $code, $displayLocale);
 	}
 
-	return $name !== '' && $name !== $code ? $escape($name) . ' <span class="ss-code">' . $escape($code) . '</span>' : $escape($code);
+	return $name !== '' && $name !== $code ? $name : $code;
+};
+$countryLabel = static function (string $code) use ($countryName, $escape): string
+{
+	$code = strtoupper(trim($code));
+	$name = $countryName($code);
+
+	if ($code === '' || $code === 'ZZ')
+	{
+		return $escape($name);
+	}
+
+	return $name !== $code ? $escape($name) . ' <span class="ss-code">' . $escape($code) . '</span>' : $escape($code);
 };
 $eventItemLabel = static function (object $row) use ($escape): string
 {
@@ -298,7 +310,7 @@ $showCountryWarning = $this->countryStatus !== []
 		<div class="ss-grid">
 			<?php
 			$dimensionTables = [
-				[Text::_('COM_SIMPLESTATS_COUNTRIES'), $this->data['countries'], 'country'],
+				[Text::_('COM_SIMPLESTATS_COUNTRIES'), $this->data['countries'], 'country-pie'],
 				[Text::_('COM_SIMPLESTATS_REFERRERS'), $this->data['referrers'], 'plain'],
 				[Text::_('COM_SIMPLESTATS_LANGUAGES'), $this->data['languages'], 'pie'],
 				[Text::_('COM_SIMPLESTATS_DEVICES'), $this->data['devices'], 'pie'],
@@ -307,18 +319,20 @@ $showCountryWarning = $this->countryStatus !== []
 				[Text::_('COM_SIMPLESTATS_CUSTOM_EVENTS'), $this->data['eventTypes'], 'plain'],
 			];
 			foreach ($dimensionTables as [$title, $rows, $mode]) :
+				$isCountry = $mode === 'country-pie';
+				$isPie = \in_array($mode, ['pie', 'country-pie'], true);
 			?>
 				<section class="ss-panel ss-panel--compact">
 					<header class="ss-panel__header"><h3><?php echo $escape($title); ?></h3></header>
 					<div class="ss-panel__body ss-panel__body--flush">
 						<?php if ($rows === []) : ?><div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_DATA'); ?></div><?php else : ?>
-						<?php if ($mode === 'country' && $showCountryWarning) : ?>
+						<?php if ($isCountry && $showCountryWarning) : ?>
 							<div class="alert alert-warning ss-country-warning"><?php echo Text::_('COM_SIMPLESTATS_COUNTRY_ONLY_UNKNOWN'); ?></div>
 						<?php endif; ?>
-						<?php if ($mode === 'country') : ?>
+						<?php if ($isCountry) : ?>
 							<p class="ss-panel-note"><?php echo Text::_('COM_SIMPLESTATS_COUNTRY_NEW_EVENTS_ONLY'); ?></p>
 						<?php endif; ?>
-						<?php if ($mode === 'pie') :
+						<?php if ($isPie) :
 							$pieTotal = array_sum(array_map(static fn(object $row): int => (int) $row->count, $rows));
 							$pieOffset = 0.0;
 						?>
@@ -329,6 +343,7 @@ $showCountryWarning = $this->countryStatus !== []
 										<?php foreach ($rows as $rowIndex => $row) :
 											$piePercentage = $pieTotal > 0 ? (((int) $row->count / $pieTotal) * 100.0) : 0.0;
 											$pieRemainder = max(0.0, 100.0 - $piePercentage);
+											$rowLabel = $isCountry ? $countryName((string) $row->label) : (string) $row->label;
 										?>
 											<circle cx="60"
 												cy="60"
@@ -340,7 +355,7 @@ $showCountryWarning = $this->countryStatus !== []
 												stroke-dasharray="<?php echo number_format($piePercentage, 4, '.', ''); ?> <?php echo number_format($pieRemainder, 4, '.', ''); ?>"
 												stroke-dashoffset="<?php echo number_format(-$pieOffset, 4, '.', ''); ?>"
 												transform="rotate(-90 60 60)">
-												<title><?php echo $escape($row->label . ': ' . $number($row->count)); ?></title>
+												<title><?php echo $escape($rowLabel . ': ' . $number($row->count)); ?></title>
 											</circle>
 										<?php
 											$pieOffset += $piePercentage;
@@ -353,12 +368,13 @@ $showCountryWarning = $this->countryStatus !== []
 									<?php foreach ($rows as $rowIndex => $row) :
 										$piePercentage = $pieTotal > 0 ? (((int) $row->count / $pieTotal) * 100.0) : 0.0;
 										$pieColor = $piePalette[$rowIndex % \count($piePalette)];
+										$rowLabel = $isCountry ? $countryName((string) $row->label) : (string) $row->label;
 									?>
 										<li>
 											<svg class="ss-pie-legend__swatch" width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" focusable="false">
 												<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($pieColor); ?>"></circle>
 											</svg>
-											<span><?php echo $escape($row->label); ?></span>
+											<span><?php echo $escape($rowLabel); ?></span>
 											<strong><?php echo number_format($piePercentage, 1); ?>%</strong>
 										</li>
 									<?php endforeach; ?>
@@ -369,12 +385,12 @@ $showCountryWarning = $this->countryStatus !== []
 						<?php foreach ($rows as $rowIndex => $row) : ?>
 							<tr>
 								<td class="text-break">
-									<?php if ($mode === 'pie') : ?>
+									<?php if ($isPie) : ?>
 										<svg class="ss-legend-dot" width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" focusable="false">
 											<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($piePalette[$rowIndex % \count($piePalette)]); ?>"></circle>
 										</svg>
 									<?php endif; ?>
-									<?php echo $mode === 'country' ? $countryLabel((string) $row->label) : $escape($row->label); ?>
+									<?php echo $isCountry ? $countryLabel((string) $row->label) : $escape($row->label); ?>
 								</td>
 								<td class="text-end ss-count"><?php echo $number($row->count); ?></td>
 							</tr>
