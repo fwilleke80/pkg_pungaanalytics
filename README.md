@@ -2,7 +2,7 @@
 
 Simple Stats is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.2.1`  
+> **Current version:** `0.3.2`
 > **Package:** `pkg_simplestats`
 
 ## Package contents
@@ -72,7 +72,62 @@ Supported event arguments:
 | `item_id` | No | Stable entity identifier |
 | `item_title` | No | Human-readable entity title |
 
-Example:
+Complete example:
+
+```php
+use Joomla\CMS\Event\GenericEvent;
+use Joomla\CMS\Factory;
+
+/**
+ * Records an optional Simple Stats event without creating a package dependency.
+ *
+ * @param string $eventType Event type.
+ * @param object $clip      Audio Archive clip.
+ *
+ * @return void
+ */
+private function recordSimpleStatsEvent(string $eventType, object $clip): void
+{
+	$eventName = 'onSimpleStatsRecord';
+	$dispatcher = Factory::getApplication()->getDispatcher();
+
+	$dispatcher->dispatch(
+		$eventName,
+		new GenericEvent(
+			$eventName,
+			[
+				'subject' => $this,
+				'event_type' => $eventType,
+				'component' => 'com_audioarchive',
+				'view_name' => 'clip',
+				'item_type' => 'audioarchive.clip',
+				'item_id' => (string) $clip->id,
+				'item_title' => (string) $clip->title,
+			]
+		)
+	);
+}
+```
+
+Then call the helper at the two successful server-side action points:
+
+```php
+$this->recordSimpleStatsEvent('audio.play', $clip);
+$this->recordSimpleStatsEvent('audio.download', $clip);
+```
+
+For Audio Archive, `audio.play` belongs in the controller or Ajax endpoint that
+accepts the player’s confirmed play-counter request. `audio.download` belongs
+in the download controller after the clip and access permission have been
+validated, immediately before the file response is sent.
+
+The event bridge runs in PHP. A browser’s HTMLMediaElement `play` event does not
+reach Joomla by itself, so the Audio Archive player must already make a request
+to its counter endpoint or add one. Do not dispatch `audio.play` merely while
+rendering a player; that would count impressions rather than actual plays.
+
+The following shorter form is equivalent when the dispatcher is already
+available:
 
 ```php
 use Joomla\CMS\Event\GenericEvent;
@@ -82,6 +137,7 @@ $dispatcher->dispatch(
 	new GenericEvent(
 		'onSimpleStatsRecord',
 		[
+			'subject' => $this,
 			'event_type' => 'audio.play',
 			'component' => 'com_audioarchive',
 			'view_name' => 'clip',
@@ -99,6 +155,10 @@ Recommended Audio Archive event types are:
 - `audio.download`
 
 Audio Archive can dispatch these events next to its existing aggregate play/download counter updates. If Simple Stats is not installed, the Joomla event is simply dispatched without a listener and Audio Archive continues normally.
+
+Any event type matching `[a-z][a-z0-9._-]{0,63}` can be used. `pageview` is
+reserved. Every dispatch creates one row; the source extension decides what
+constitutes one event and should avoid duplicate dispatches.
 
 ## Logged-in users
 
@@ -118,6 +178,18 @@ cache/com_simplestats/
 
 Visitor IP addresses never leave the server. Only the administrator-triggered database download contacts DB-IP.
 
+IPv4-mapped IPv6 addresses are normalised before lookup. When the web server
+reports a private or reserved reverse-proxy address in `REMOTE_ADDR`, Simple
+Stats can automatically use the rightmost public address from
+`X-Forwarded-For`. With a proxy that has a public address, configure the exact
+server variable under **Trusted client-IP header** so the collector never
+blindly trusts a client-supplied forwarding header.
+
+Country resolution is forward-only. Updating the database cannot repair old
+`Unknown` rows because their original IP addresses were deliberately never
+stored. The dashboard now verifies that the compiled files match the installed
+metadata and explains how to diagnose an all-Unknown report.
+
 The dashboard reports country codes and, when PHP's Internationalisation extension is available, readable country names. IP geolocation is approximate and can be affected by VPNs, proxies, mobile gateways, privacy relays, and stale allocations.
 
 DB-IP Lite is updated monthly and licensed under Creative Commons Attribution 4.0. Attribution is displayed in the dashboard.
@@ -128,21 +200,20 @@ The redesigned administrator dashboard includes:
 
 - Installed Simple Stats version
 - Selectable 7, 30, 90, 365-day, and all-time ranges
-- Human visitor-days and page views
+- Compact tabular overview of human visitor-days and page views
 - Logged-in frontend page views
 - Audio plays and downloads received through custom events
 - Bot page views
-- Recent daily activity
+- Grouped bar chart and exact table for recent daily activity
 - Most viewed pages
 - Most played and downloaded items
 - Countries
 - External referrers
-- Browser languages
-- Device categories
-- Browser families
+- Browser-language, device-category, and browser-family doughnut charts with exact tables
 - Detected bots
 - Custom event types
 - Retention and country-database status
+- Confirmed toolbar action for permanently resetting all collected statistics
 
 ## Default configuration
 
@@ -172,19 +243,37 @@ Task and non-GET requests may still create a **custom event** when an extension 
 
 ### Reverse proxies
 
-By default, Simple Stats uses `REMOTE_ADDR`. A trusted client-IP header may be configured only when a reverse proxy controlled by the site operator overwrites that header. Never trust an arbitrary client-supplied forwarding header.
+By default, Simple Stats uses `REMOTE_ADDR`. It considers `X-Forwarded-For`
+automatically only when the direct address is private or reserved and chooses
+the rightmost public address. A different trusted client-IP header may be
+configured only when a reverse proxy controlled by the site operator overwrites
+that header. Never configure an arbitrary client-supplied forwarding header.
 
 A trusted two-letter country header can be used instead of the local DB-IP database when a trusted proxy supplies and overwrites it.
 
 ## Installation and update
 
 1. Open **System → Install → Extensions** in Joomla Administrator.
-2. Upload `pkg_simplestats-0.2.1.zip`.
+2. Upload `pkg_simplestats-0.3.2.zip`.
 3. Open **Components → Simple Stats**.
 4. Click **Update country database**.
 5. Review the options and optionally exclude the site owner's Joomla user ID.
 
-Install newer versions directly over the existing package. Version 0.2.1 fixes the DB-IP Country Lite CSV compiler and does not alter or remove collected statistics.
+Install newer versions directly over the existing package. Version 0.3.0 also
+repairs the Joomla database-maintenance definition for `event_type`; it does not
+alter or remove collected statistics.
+
+Versions 0.3.1 and 0.3.2 use new administrator stylesheet filenames to bypass
+stale browser and server caches. Version 0.3.2 also renders the browser
+language, device, and browser doughnut charts as SVG so they work under
+restrictive content security policies.
+
+## Resetting statistics
+
+Use **Components → Simple Stats → Reset all statistics** in the toolbar to
+permanently remove every collected page view and custom event. A confirmation
+dialog is shown before anything is deleted. Configuration and the downloaded
+country database are retained.
 
 ## Uninstallation
 
@@ -215,7 +304,7 @@ Enabling query-string storage can collect search terms and other user input. It 
 
 - Bot detection is based on User-Agent patterns and is not authoritative.
 - Visitor-days are estimates, not unique people.
-- Existing rows are not reclassified after a country-database update.
+- Existing Unknown country rows cannot be reclassified after a country-database update because raw IP addresses are not stored.
 - Country data must currently be updated manually.
 - Requests served before the collector runs, for example by an earlier full-page cache plugin, may not be recorded.
 - Simple Stats cannot infer a media play from a page view; the media extension must emit a custom event.

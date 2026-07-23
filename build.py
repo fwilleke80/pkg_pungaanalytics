@@ -9,18 +9,26 @@ import shutil
 import zipfile
 from pathlib import Path
 
-VERSION = "0.2.1"
+VERSION = "0.3.2"
 ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT.parent
 BUILD = ROOT / ".build"
+EXCLUDED_PARTS = {".build", ".git", "__MACOSX", "__pycache__"}
 
 
 def add_tree(archive: zipfile.ZipFile, source: Path) -> None:
     """Add a directory tree with paths relative to that directory."""
 
     for path in sorted(source.rglob("*")):
-        if path.is_file():
-            archive.write(path, path.relative_to(source).as_posix())
+        relative = path.relative_to(source)
+
+        if (
+            path.is_file()
+            and not any(part in EXCLUDED_PARTS for part in relative.parts)
+            and path.name != ".DS_Store"
+            and path.suffix != ".pyc"
+        ):
+            archive.write(path, relative.as_posix())
 
 
 def create_zip(source: Path, destination: Path) -> None:
@@ -65,7 +73,12 @@ def main() -> None:
 
     with zipfile.ZipFile(source_output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         for path in sorted(ROOT.rglob("*")):
-            if not path.is_file() or ".build" in path.parts:
+            if (
+                not path.is_file()
+                or any(part in EXCLUDED_PARTS for part in path.parts)
+                or path.name == ".DS_Store"
+                or path.suffix == ".pyc"
+            ):
                 continue
 
             archive.write(path, (Path(f"pkg_simplestats-{VERSION}") / path.relative_to(ROOT)).as_posix())

@@ -63,13 +63,51 @@ $eventItemLabel = static function (object $row) use ($escape): string
 
 	return Text::_('COM_SIMPLESTATS_UNKNOWN_ITEM');
 };
+$summaryMetrics = [
+	['human_visits', 'COM_SIMPLESTATS_HUMAN_VISITS', 'icon-users'],
+	['human_pageviews', 'COM_SIMPLESTATS_HUMAN_PAGEVIEWS', 'icon-eye'],
+	['plays', 'COM_SIMPLESTATS_AUDIO_PLAYS', 'icon-play'],
+	['downloads', 'COM_SIMPLESTATS_AUDIO_DOWNLOADS', 'icon-download'],
+	['authenticated_pageviews', 'COM_SIMPLESTATS_AUTHENTICATED_PAGEVIEWS', 'icon-user'],
+	['bot_pageviews', 'COM_SIMPLESTATS_BOT_PAGEVIEWS', 'icon-cogs'],
+];
+$chartSeries = [
+	['visits', Text::_('COM_SIMPLESTATS_VISITS'), '#6f42c1'],
+	['pageviews', Text::_('COM_SIMPLESTATS_PAGEVIEWS'), '#2a69b8'],
+	['plays', Text::_('COM_SIMPLESTATS_AUDIO_PLAYS'), '#198754'],
+	['downloads', Text::_('COM_SIMPLESTATS_AUDIO_DOWNLOADS'), '#d99000'],
+	['bots', Text::_('COM_SIMPLESTATS_BOTS'), '#c94b54'],
+];
+$piePalette = ['#2a69b8', '#6f42c1', '#198754', '#d99000', '#c94b54', '#0f8b8d', '#dd6e42', '#607d8b', '#8e6c88', '#6c8e3f', '#b36b00', '#5c6bc0'];
 $dailyRows = array_reverse($this->data['daily']);
-$maxDailyPageviews = 1;
+$maxDailyValue = 1;
 
 foreach ($dailyRows as $row)
 {
-	$maxDailyPageviews = max($maxDailyPageviews, (int) $row->pageviews);
+	foreach ($chartSeries as [$property])
+	{
+		$maxDailyValue = max($maxDailyValue, (int) ($row->{$property} ?? 0));
+	}
 }
+
+$dailyChartWidth = 1200;
+$dailyChartHeight = 240;
+$dailyPlotLeft = 54.0;
+$dailyPlotRight = 16.0;
+$dailyPlotTop = 12.0;
+$dailyPlotHeight = 190.0;
+$dailyGroupWidth = ($dailyChartWidth - $dailyPlotLeft - $dailyPlotRight) / max(1, \count($dailyRows));
+$dailyBarGap = 0.8;
+$dailyBarWidth = max(2.8, min(7.0, (($dailyGroupWidth - 4.0) / \count($chartSeries)) - $dailyBarGap));
+$dailyBarsWidth = (\count($chartSeries) * $dailyBarWidth) + ((\count($chartSeries) - 1) * $dailyBarGap);
+$dailyLabelStep = max(1, (int) ceil(\count($dailyRows) / 8));
+$knownCountryRows = array_filter(
+	$this->data['countries'],
+	static fn(object $row): bool => !\in_array(strtoupper(trim((string) $row->label)), ['', 'ZZ'], true)
+);
+$showCountryWarning = $this->countryStatus !== []
+	&& $this->data['countries'] !== []
+	&& $knownCountryRows === [];
 ?>
 <form action="<?php echo Route::_('index.php?option=com_simplestats'); ?>" method="post" id="adminForm" name="adminForm">
 	<input type="hidden" name="option" value="com_simplestats">
@@ -98,31 +136,25 @@ foreach ($dailyRows as $row)
 			<?php endforeach; ?>
 		</nav>
 
-		<section class="ss-metrics" aria-label="<?php echo Text::_('COM_SIMPLESTATS_OVERVIEW'); ?>">
-			<article class="ss-metric">
-				<span class="icon-users" aria-hidden="true"></span>
-				<div><strong><?php echo $number($summary->human_visits ?? 0); ?></strong><span><?php echo Text::_('COM_SIMPLESTATS_HUMAN_VISITS'); ?></span></div>
-			</article>
-			<article class="ss-metric">
-				<span class="icon-eye" aria-hidden="true"></span>
-				<div><strong><?php echo $number($summary->human_pageviews ?? 0); ?></strong><span><?php echo Text::_('COM_SIMPLESTATS_HUMAN_PAGEVIEWS'); ?></span></div>
-			</article>
-			<article class="ss-metric">
-				<span class="icon-play" aria-hidden="true"></span>
-				<div><strong><?php echo $number($summary->plays ?? 0); ?></strong><span><?php echo Text::_('COM_SIMPLESTATS_AUDIO_PLAYS'); ?></span></div>
-			</article>
-			<article class="ss-metric">
-				<span class="icon-download" aria-hidden="true"></span>
-				<div><strong><?php echo $number($summary->downloads ?? 0); ?></strong><span><?php echo Text::_('COM_SIMPLESTATS_AUDIO_DOWNLOADS'); ?></span></div>
-			</article>
-			<article class="ss-metric">
-				<span class="icon-user" aria-hidden="true"></span>
-				<div><strong><?php echo $number($summary->authenticated_pageviews ?? 0); ?></strong><span><?php echo Text::_('COM_SIMPLESTATS_AUTHENTICATED_PAGEVIEWS'); ?></span></div>
-			</article>
-			<article class="ss-metric">
-				<span class="icon-cogs" aria-hidden="true"></span>
-				<div><strong><?php echo $number($summary->bot_pageviews ?? 0); ?></strong><span><?php echo Text::_('COM_SIMPLESTATS_BOT_PAGEVIEWS'); ?></span></div>
-			</article>
+		<section class="ss-panel ss-summary" aria-label="<?php echo Text::_('COM_SIMPLESTATS_OVERVIEW'); ?>">
+			<div class="table-responsive">
+				<table class="table mb-0">
+					<thead>
+						<tr>
+						<?php foreach ($summaryMetrics as [, $label, $icon]) : ?>
+							<th><span class="<?php echo $escape($icon); ?>" aria-hidden="true"></span><?php echo Text::_($label); ?></th>
+						<?php endforeach; ?>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+						<?php foreach ($summaryMetrics as [$property]) : ?>
+							<td><?php echo $number($summary->{$property} ?? 0); ?></td>
+						<?php endforeach; ?>
+						</tr>
+					</tbody>
+				</table>
+			</div>
 		</section>
 
 		<section class="ss-panel ss-panel--wide">
@@ -134,11 +166,65 @@ foreach ($dailyRows as $row)
 				<?php if ($dailyRows === []) : ?>
 					<div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_DATA'); ?></div>
 				<?php else : ?>
+					<div class="ss-daily-chart">
+						<div class="ss-chart-legend" aria-hidden="true">
+							<?php foreach ($chartSeries as $seriesIndex => [, $label]) : ?>
+								<span class="ss-series-<?php echo $seriesIndex; ?>"><i></i><?php echo $escape($label); ?></span>
+							<?php endforeach; ?>
+						</div>
+						<div class="ss-chart-scroll">
+							<svg class="ss-daily-chart__svg"
+								viewBox="0 0 <?php echo $dailyChartWidth; ?> <?php echo $dailyChartHeight; ?>"
+								preserveAspectRatio="xMidYMid meet"
+								role="img"
+								aria-label="<?php echo Text::_('COM_SIMPLESTATS_DAILY_CHART_LABEL'); ?>">
+								<?php for ($line = 0; $line <= 4; $line++) :
+									$lineY = $dailyPlotTop + ($line * ($dailyPlotHeight / 4.0));
+									$lineValue = (int) round($maxDailyValue * ((4 - $line) / 4));
+								?>
+									<line class="ss-chart-gridline"
+										x1="<?php echo $dailyPlotLeft; ?>"
+										y1="<?php echo number_format($lineY, 1, '.', ''); ?>"
+										x2="<?php echo $dailyChartWidth - $dailyPlotRight; ?>"
+										y2="<?php echo number_format($lineY, 1, '.', ''); ?>"></line>
+									<text class="ss-chart-axis-label"
+										x="<?php echo $dailyPlotLeft - 8; ?>"
+										y="<?php echo number_format($lineY + 4, 1, '.', ''); ?>"
+										text-anchor="end"><?php echo $lineValue; ?></text>
+								<?php endfor; ?>
+								<?php foreach ($dailyRows as $rowIndex => $row) :
+									$groupStart = $dailyPlotLeft + ($rowIndex * $dailyGroupWidth);
+									$groupX = $groupStart + (($dailyGroupWidth - $dailyBarsWidth) / 2.0);
+								?>
+									<?php foreach ($chartSeries as $seriesIndex => [$property, $label, $color]) :
+										$value = (int) ($row->{$property} ?? 0);
+										$height = $value > 0 ? max(1.0, ($value / $maxDailyValue) * $dailyPlotHeight) : 0.0;
+										$x = $groupX + ($seriesIndex * ($dailyBarWidth + $dailyBarGap));
+										$y = $dailyPlotTop + $dailyPlotHeight - $height;
+									?>
+										<rect x="<?php echo number_format($x, 1, '.', ''); ?>"
+											y="<?php echo number_format($y, 1, '.', ''); ?>"
+											width="<?php echo number_format($dailyBarWidth, 1, '.', ''); ?>"
+											height="<?php echo number_format($height, 1, '.', ''); ?>"
+											rx="1.2"
+											fill="<?php echo $escape($color); ?>">
+											<title><?php echo $escape($row->visit_date . ' · ' . $label . ': ' . $number($value)); ?></title>
+										</rect>
+									<?php endforeach; ?>
+									<?php if ($rowIndex % $dailyLabelStep === 0 || $rowIndex === \count($dailyRows) - 1) : ?>
+										<text class="ss-chart-date-label"
+											x="<?php echo number_format($groupStart + ($dailyGroupWidth / 2.0), 1, '.', ''); ?>"
+											y="<?php echo $dailyPlotTop + $dailyPlotHeight + 23; ?>"
+											text-anchor="middle"><?php echo $escape(substr((string) $row->visit_date, 5)); ?></text>
+									<?php endif; ?>
+								<?php endforeach; ?>
+							</svg>
+						</div>
+					</div>
 					<div class="table-responsive">
 						<table class="table ss-table mb-0">
 							<thead><tr>
 								<th><?php echo Text::_('JDATE'); ?></th>
-								<th><?php echo Text::_('COM_SIMPLESTATS_ACTIVITY'); ?></th>
 								<th class="text-end"><?php echo Text::_('COM_SIMPLESTATS_VISITS'); ?></th>
 								<th class="text-end"><?php echo Text::_('COM_SIMPLESTATS_PAGEVIEWS'); ?></th>
 								<th class="text-end"><?php echo Text::_('COM_SIMPLESTATS_AUDIO_PLAYS'); ?></th>
@@ -146,12 +232,9 @@ foreach ($dailyRows as $row)
 								<th class="text-end"><?php echo Text::_('COM_SIMPLESTATS_BOTS'); ?></th>
 							</tr></thead>
 							<tbody>
-							<?php foreach ($dailyRows as $row) :
-								$width = max(2, min(100, (int) round(((int) $row->pageviews / $maxDailyPageviews) * 100)));
-							?>
+							<?php foreach ($dailyRows as $row) : ?>
 								<tr>
 									<td class="text-nowrap"><?php echo $escape($row->visit_date); ?></td>
-									<td class="ss-activity-cell"><span class="ss-bar"><span style="width: <?php echo $width; ?>%"></span></span></td>
 									<td class="text-end"><?php echo $number($row->visits); ?></td>
 									<td class="text-end"><?php echo $number($row->pageviews); ?></td>
 									<td class="text-end"><?php echo $number($row->plays); ?></td>
@@ -212,9 +295,9 @@ foreach ($dailyRows as $row)
 			$dimensionTables = [
 				[Text::_('COM_SIMPLESTATS_COUNTRIES'), $this->data['countries'], 'country'],
 				[Text::_('COM_SIMPLESTATS_REFERRERS'), $this->data['referrers'], 'plain'],
-				[Text::_('COM_SIMPLESTATS_LANGUAGES'), $this->data['languages'], 'plain'],
-				[Text::_('COM_SIMPLESTATS_DEVICES'), $this->data['devices'], 'plain'],
-				[Text::_('COM_SIMPLESTATS_BROWSERS'), $this->data['browsers'], 'plain'],
+				[Text::_('COM_SIMPLESTATS_LANGUAGES'), $this->data['languages'], 'pie'],
+				[Text::_('COM_SIMPLESTATS_DEVICES'), $this->data['devices'], 'pie'],
+				[Text::_('COM_SIMPLESTATS_BROWSERS'), $this->data['browsers'], 'pie'],
 				[Text::_('COM_SIMPLESTATS_BOT_NAMES'), $this->data['bots'], 'plain'],
 				[Text::_('COM_SIMPLESTATS_CUSTOM_EVENTS'), $this->data['eventTypes'], 'plain'],
 			];
@@ -224,9 +307,54 @@ foreach ($dailyRows as $row)
 					<header class="ss-panel__header"><h3><?php echo $escape($title); ?></h3></header>
 					<div class="ss-panel__body ss-panel__body--flush">
 						<?php if ($rows === []) : ?><div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_DATA'); ?></div><?php else : ?>
+						<?php if ($mode === 'country' && $showCountryWarning) : ?>
+							<div class="alert alert-warning ss-country-warning"><?php echo Text::_('COM_SIMPLESTATS_COUNTRY_ONLY_UNKNOWN'); ?></div>
+						<?php endif; ?>
+						<?php if ($mode === 'country') : ?>
+							<p class="ss-panel-note"><?php echo Text::_('COM_SIMPLESTATS_COUNTRY_NEW_EVENTS_ONLY'); ?></p>
+						<?php endif; ?>
+						<?php if ($mode === 'pie') :
+							$pieTotal = array_sum(array_map(static fn(object $row): int => (int) $row->count, $rows));
+							$pieOffset = 0.0;
+						?>
+							<div class="ss-pie-wrap">
+								<div class="ss-donut">
+									<svg viewBox="0 0 120 120" role="img" aria-label="<?php echo $escape($title); ?>">
+										<circle class="ss-donut__track" cx="60" cy="60" r="46" pathLength="100"></circle>
+										<?php foreach ($rows as $rowIndex => $row) :
+											$piePercentage = $pieTotal > 0 ? (((int) $row->count / $pieTotal) * 100.0) : 0.0;
+											$pieRemainder = max(0.0, 100.0 - $piePercentage);
+										?>
+											<circle cx="60"
+												cy="60"
+												r="46"
+												pathLength="100"
+												fill="none"
+												stroke="<?php echo $escape($piePalette[$rowIndex % \count($piePalette)]); ?>"
+												stroke-width="20"
+												stroke-dasharray="<?php echo number_format($piePercentage, 4, '.', ''); ?> <?php echo number_format($pieRemainder, 4, '.', ''); ?>"
+												stroke-dashoffset="<?php echo number_format(-$pieOffset, 4, '.', ''); ?>"
+												transform="rotate(-90 60 60)">
+												<title><?php echo $escape($row->label . ': ' . $number($row->count)); ?></title>
+											</circle>
+										<?php
+											$pieOffset += $piePercentage;
+										endforeach;
+										?>
+									</svg>
+									<div><strong><?php echo $number($pieTotal); ?></strong><span><?php echo Text::_('COM_SIMPLESTATS_TOTAL'); ?></span></div>
+								</div>
+							</div>
+						<?php endif; ?>
 						<table class="table ss-table mb-0"><tbody>
-						<?php foreach ($rows as $row) : ?>
-							<tr><td class="text-break"><?php echo $mode === 'country' ? $countryLabel((string) $row->label) : $escape($row->label); ?></td><td class="text-end ss-count"><?php echo $number($row->count); ?></td></tr>
+						<?php foreach ($rows as $rowIndex => $row) : ?>
+							<tr>
+								<td class="text-break">
+									<?php if ($mode === 'pie') : ?><i class="ss-legend-dot ss-pie-color-<?php echo $rowIndex % \count($piePalette); ?>"></i><?php endif; ?>
+									<?php echo $mode === 'country' ? $countryLabel((string) $row->label) : $escape($row->label); ?>
+								</td>
+								<td class="text-end ss-count"><?php echo $number($row->count); ?></td>
+							</tr>
 						<?php endforeach; ?>
 						</tbody></table>
 						<?php endif; ?>
@@ -247,9 +375,13 @@ foreach ($dailyRows as $row)
 				<p><?php echo Text::_('COM_SIMPLESTATS_PRIVACY_NOTE'); ?></p>
 				<?php if ($this->countryStatus !== []) : ?>
 					<p><?php echo Text::sprintf('COM_SIMPLESTATS_COUNTRY_DATABASE_STATUS', $escape($this->countryStatus['updated_at'] ?? ''), (int) ($this->countryStatus['ipv4_count'] ?? 0), (int) ($this->countryStatus['ipv6_count'] ?? 0)); ?></p>
+					<?php if (!(bool) ($this->countryStatus['files_ready'] ?? false)) : ?>
+						<div class="alert alert-danger mb-3"><?php echo Text::_('COM_SIMPLESTATS_COUNTRY_DATABASE_UNREADABLE'); ?></div>
+					<?php endif; ?>
 				<?php else : ?>
 					<div class="alert alert-warning mb-3"><?php echo Text::_('COM_SIMPLESTATS_COUNTRY_DATABASE_MISSING'); ?></div>
 				<?php endif; ?>
+				<p><?php echo Text::_('COM_SIMPLESTATS_COUNTRY_DATABASE_FORWARD_ONLY'); ?></p>
 				<p class="small text-muted mb-0"><?php echo Text::_('COM_SIMPLESTATS_DBIP_ATTRIBUTION'); ?></p>
 			</div>
 		</section>

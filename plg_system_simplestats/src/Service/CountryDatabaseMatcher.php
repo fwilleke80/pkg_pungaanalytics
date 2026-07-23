@@ -23,6 +23,8 @@ final class CountryDatabaseMatcher
 	 */
 	public function lookup(string $ipAddress): string
 	{
+		$ipAddress = $this->normaliseIpAddress($ipAddress);
+
 		if (filter_var($ipAddress, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false)
 		{
 			return $this->match($ipAddress, 'country-ipv4.bin', self::IPV4_RECORD_SIZE, 4);
@@ -34,6 +36,35 @@ final class CountryDatabaseMatcher
 		}
 
 		return 'ZZ';
+	}
+
+	/**
+	 * Converts IPv4-mapped IPv6 addresses to ordinary IPv4 notation.
+	 *
+	 * Some reverse proxies expose addresses such as ::ffff:203.0.113.10.
+	 * DB-IP stores those visitors in its IPv4 table, so they must be
+	 * normalised before choosing the compiled lookup file.
+	 *
+	 * @param string $ipAddress IP address supplied by the web server.
+	 *
+	 * @return string Normalised IP address.
+	 */
+	private function normaliseIpAddress(string $ipAddress): string
+	{
+		$packed = @inet_pton($ipAddress);
+		$mappedPrefix = str_repeat("\0", 10) . "\xff\xff";
+
+		if ($packed !== false && strlen($packed) === 16 && substr($packed, 0, 12) === $mappedPrefix)
+		{
+			$ipv4 = @inet_ntop(substr($packed, 12, 4));
+
+			if ($ipv4 !== false)
+			{
+				return $ipv4;
+			}
+		}
+
+		return $ipAddress;
 	}
 
 	/**

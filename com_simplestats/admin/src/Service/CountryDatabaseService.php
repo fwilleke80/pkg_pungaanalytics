@@ -84,7 +84,8 @@ final class CountryDatabaseService
 	 */
 	public function getStatus(): array
 	{
-		$path = $this->getStorageDirectory() . '/metadata.json';
+		$directory = $this->getStorageDirectory();
+		$path = $directory . '/metadata.json';
 
 		if (!is_file($path))
 		{
@@ -93,7 +94,43 @@ final class CountryDatabaseService
 
 		$data = json_decode((string) file_get_contents($path), true);
 
-		return is_array($data) ? $data : [];
+		if (!is_array($data))
+		{
+			return [];
+		}
+
+		$data['files_ready'] = $this->isCompiledFileReady(
+			$directory . '/country-ipv4.bin',
+			self::IPV4_RECORD_SIZE,
+			(int) ($data['ipv4_count'] ?? 0)
+		) && $this->isCompiledFileReady(
+			$directory . '/country-ipv6.bin',
+			self::IPV6_RECORD_SIZE,
+			(int) ($data['ipv6_count'] ?? 0)
+		);
+
+		return $data;
+	}
+
+	/**
+	 * Checks that one compiled lookup file is readable and matches metadata.
+	 *
+	 * @param string $path       Compiled file path.
+	 * @param int    $recordSize Fixed record size.
+	 * @param int    $count      Expected record count.
+	 *
+	 * @return bool
+	 */
+	private function isCompiledFileReady(string $path, int $recordSize, int $count): bool
+	{
+		if ($count < 1 || !is_file($path) || !is_readable($path))
+		{
+			return false;
+		}
+
+		$size = filesize($path);
+
+		return $size !== false && $size === $count * $recordSize;
 	}
 
 	/**
@@ -171,7 +208,7 @@ final class CountryDatabaseService
 			@unlink($destination);
 		}
 
-		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Simple Stats/0.2.1'], 90);
+		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Simple Stats/0.3.2'], 90);
 
 		if ($response->code < 200 || $response->code >= 300)
 		{

@@ -334,8 +334,44 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 				$candidate = $firstValue;
 			}
 		}
+		elseif (!$this->isPublicIp($candidate))
+		{
+			$forwarded = $input->server->getString('HTTP_X_FORWARDED_FOR', '');
+
+			foreach (array_reverse(explode(',', $forwarded)) as $forwardedAddress)
+			{
+				$forwardedAddress = trim($forwardedAddress);
+
+				if ($this->isPublicIp($forwardedAddress))
+				{
+					$candidate = $forwardedAddress;
+					break;
+				}
+			}
+		}
 
 		return filter_var($candidate, FILTER_VALIDATE_IP) !== false ? $candidate : '0.0.0.0';
+	}
+
+	/**
+	 * Returns whether an address is publicly routable.
+	 *
+	 * The automatic X-Forwarded-For fallback is used only when Joomla sees a
+	 * private or reserved reverse-proxy address as REMOTE_ADDR. Sites whose
+	 * public proxy address supplies a client-IP header must still explicitly
+	 * configure that trusted header.
+	 *
+	 * @param string $ipAddress Candidate IP address.
+	 *
+	 * @return bool
+	 */
+	private function isPublicIp(string $ipAddress): bool
+	{
+		return filter_var(
+			$ipAddress,
+			FILTER_VALIDATE_IP,
+			FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+		) !== false;
 	}
 
 	/**

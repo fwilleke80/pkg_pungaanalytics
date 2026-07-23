@@ -116,7 +116,7 @@ SQL;
 
 		$db->setQuery(
 			'ALTER TABLE ' . $db->quoteName($table)
-			. ' MODIFY COLUMN ' . $db->quoteName('event_type')
+			. ' MODIFY ' . $db->quoteName('event_type')
 			. " VARCHAR(64) NOT NULL DEFAULT 'pageview'"
 		)->execute();
 

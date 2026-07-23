@@ -8,6 +8,7 @@ use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
+use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 use FrankWilleke\Component\Simplestats\Administrator\Service\CountryDatabaseService;
 
@@ -83,6 +84,12 @@ final class HtmlView extends BaseHtmlView
 			'COM_SIMPLESTATS_PURGE_EXPIRED',
 			false
 		);
+		Toolbar::getInstance('toolbar')
+			->confirmButton('resetStats', 'COM_SIMPLESTATS_RESET_STATS', 'dashboard.resetStats')
+			->icon('trash')
+			->buttonClass('btn btn-danger')
+			->message(Text::_('COM_SIMPLESTATS_RESET_CONFIRM'))
+			->listCheck(false);
 
 		if (Factory::getApplication()->getIdentity()->authorise('core.admin', 'com_simplestats'))
 		{

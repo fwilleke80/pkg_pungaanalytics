@@ -67,6 +67,24 @@ final class DashboardController extends BaseController
 	}
 
 	/**
+	 * Permanently removes all collected statistics.
+	 *
+	 * @return void
+	 */
+	public function resetStats(): void
+	{
+		Session::checkToken('request') or jexit(Text::_('JINVALID_TOKEN'));
+		$this->assertManagePermission();
+
+		/** @var \FrankWilleke\Component\Simplestats\Administrator\Model\DashboardModel $model */
+		$model = $this->getModel('Dashboard');
+		$count = $model->resetStats();
+
+		$this->setMessage(Text::sprintf('COM_SIMPLESTATS_RESET_COMPLETE', $count));
+		$this->setRedirect(Route::_('index.php?option=com_simplestats', false));
+	}
+
+	/**
 	 * Verifies component management permission.
 	 *
 	 * @return void

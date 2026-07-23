@@ -87,6 +87,22 @@ final class DashboardModel extends BaseDatabaseModel
 	}
 
 	/**
+	 * Permanently removes all collected statistics events.
+	 *
+	 * @return int Number of removed rows.
+	 */
+	public function resetStats(): int
+	{
+		$db = $this->getDatabase();
+		$query = $db->getQuery(true)
+			->delete($db->quoteName('#__simplestats_events'));
+
+		$db->setQuery($query)->execute();
+
+		return $db->getAffectedRows();
+	}
+
+	/**
 	 * Returns summary metrics.
 	 *
 	 * @param string $from Inclusive date.
