@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension type="component" method="upgrade">
 	<name>COM_SIMPLESTATS</name>
-	<version>0.3.4</version>
+	<version>0.4.0</version>
 	<targetplatform name="joomla" version="6.*" />
 	<creationDate>2026-07-23</creationDate>
 	<author>Frank Willeke</author>
 	<copyright>Copyright (C) 2026 Frank Willeke</copyright>
 	<license>GNU General Public License version 2 or later</license>
 	<description>COM_SIMPLESTATS_XML_DESCRIPTION</description>
-	<namespace path="src">FrankWilleke\Component\Simplestats</namespace>
+	<namespace path="src">Willeke\Component\Simplestats</namespace>
 	<scriptfile>script.php</scriptfile>
 	<administration>
 		<menu img="class:chart">COM_SIMPLESTATS</menu>

@@ -9,7 +9,7 @@ use Joomla\CMS\Extension\Service\Provider\MVCFactory;
 use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Joomla\DI\Container;
 use Joomla\DI\ServiceProviderInterface;
-use FrankWilleke\Component\Simplestats\Administrator\Extension\SimplestatsComponent;
+use Willeke\Component\Simplestats\Administrator\Extension\SimplestatsComponent;
 
 \defined('_JEXEC') or die;
 
@@ -24,8 +24,8 @@ return new class implements ServiceProviderInterface
 	 */
 	public function register(Container $container): void
 	{
-		$container->registerServiceProvider(new MVCFactory('\\FrankWilleke\\Component\\Simplestats'));
-		$container->registerServiceProvider(new ComponentDispatcherFactory('\\FrankWilleke\\Component\\Simplestats'));
+		$container->registerServiceProvider(new MVCFactory('\\Willeke\\Component\\Simplestats'));
+		$container->registerServiceProvider(new ComponentDispatcherFactory('\\Willeke\\Component\\Simplestats'));
 
 		$container->set(
 			ComponentInterface::class,

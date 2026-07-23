@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace FrankWilleke\Plugin\System\Simplestats\Service;
+namespace Willeke\Plugin\System\Simplestats\Service;
 
 \defined('_JEXEC') or die;
 

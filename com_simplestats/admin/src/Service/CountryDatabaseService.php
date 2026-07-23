@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace FrankWilleke\Component\Simplestats\Administrator\Service;
+namespace Willeke\Component\Simplestats\Administrator\Service;
 
 use Joomla\Http\HttpFactory;
 
@@ -208,7 +208,7 @@ final class CountryDatabaseService
 			@unlink($destination);
 		}
 
-		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Simple Stats/0.3.4'], 90);
+		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Simple Stats/0.4.0'], 90);
 
 		if ($response->code < 200 || $response->code >= 300)
 		{

@@ -2,7 +2,7 @@
 
 Simple Stats is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.3.4`
+> **Current version:** `0.4.0`
 > **Package:** `pkg_simplestats`
 
 ## Package contents
@@ -42,6 +42,26 @@ It does **not** store:
 - Arbitrary custom-event metadata
 
 The visitor hash is an HMAC of the visitor IP address, User-Agent, site-local date, and Joomla site secret. It changes every local calendar day. The dashboard therefore reports **visitor-days**, not exact people or persistent sessions.
+
+## Retention and permanent reports
+
+Detailed raw events are retained for the configured number of complete
+site-local calendar days. When cleanup runs, Simple Stats first converts every
+expired complete day into permanent aggregate reports inside one database
+transaction. Only after every aggregate succeeds are the corresponding raw
+event rows removed.
+
+The permanent reports preserve:
+
+- Daily visitor-day, page-view, play, download, authenticated-view, and bot totals
+- Countries, pages, referrers, browser languages, devices, browsers, and detected bots
+- Custom-event types and item-level play/download totals
+
+Dashboard queries combine retained raw events with the permanent reports.
+Cleanup therefore does not reduce all-time totals, rewrite older charts, or
+change dimension breakdowns. The cleanup probability only controls how soon an
+eligible request performs this archival work; it does not decide which
+statistics survive.
 
 ## Page views
 
@@ -207,7 +227,7 @@ The redesigned administrator dashboard includes:
 - Grouped bar chart and exact table for recent daily activity
 - Most viewed pages
 - Most played and downloaded items
-- Countries
+- Countries doughnut chart, localized country names, Unicode flags, and exact table
 - External referrers
 - Browser-language, device-category, and browser-family doughnut charts with exact tables
 - Detected bots
@@ -222,8 +242,8 @@ The redesigned administrator dashboard includes:
 - Logged-in frontend users counted
 - No user IDs excluded
 - Query strings not stored
-- Retention: 180 days
-- Opportunistic cleanup probability: 2 percent per eligible event
+- Detailed raw-event retention: 180 complete local calendar days
+- Opportunistic archival probability: 2 percent per recorded event
 - Country detection: local DB-IP Lite database
 - Excluded components: `com_ajax`, `com_users`, `com_simplestats`
 - Excluded paths: `/administrator`, `/api`
@@ -254,7 +274,7 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 ## Installation and update
 
 1. Open **System → Install → Extensions** in Joomla Administrator.
-2. Upload `pkg_simplestats-0.3.4.zip`.
+2. Upload `pkg_simplestats-0.4.0.zip`.
 3. Open **Components → Simple Stats**.
 4. Click **Update country database**.
 5. Review the options and optionally exclude the site owner's Joomla user ID.
@@ -263,24 +283,32 @@ Install newer versions directly over the existing package. Version 0.3.0 also
 repairs the Joomla database-maintenance definition for `event_type`; it does not
 alter or remove collected statistics.
 
-Versions 0.3.1 through 0.3.4 use versioned administrator stylesheets to bypass
+Versions 0.3.1 and later use versioned administrator stylesheets to bypass
 stale browser and server caches. Version 0.3.2 also renders the browser
 language, device, and browser doughnut charts as SVG so they work under
 restrictive content security policies. Version 0.3.3 and later register their stylesheet
 under a version-specific asset name to avoid stale Joomla asset-registry entries.
 
+Version 0.4.0 creates permanent daily aggregate tables. Existing raw events are
+left untouched during the update and remain fully visible. On the next eligible
+cleanup, expired complete days are archived before their raw rows are removed.
+Data already deleted by an earlier Simple Stats version cannot be reconstructed.
+
 ## Resetting statistics
 
 Use **Components → Simple Stats → Reset all statistics** in the toolbar to
-permanently remove every collected page view and custom event. A confirmation
-dialog is shown before anything is deleted. Configuration and the downloaded
-country database are retained.
+permanently remove every detailed raw event and every permanent aggregate
+report. A confirmation dialog is shown before anything is deleted.
+Configuration and the downloaded country database are retained.
 
 ## Uninstallation
 
 Uninstalling the package removes:
 
 - `#__simplestats_events`
+- `#__simplestats_daily`
+- `#__simplestats_daily_dimensions`
+- `#__simplestats_daily_items`
 - Compiled country files and metadata under `cache/com_simplestats/`
 - The component and system plugin
 
@@ -298,7 +326,8 @@ Enabling query-string storage can collect search terms and other user input. It 
 - License: GPL-2.0-or-later
 - Runtime JavaScript: none required
 - Composer dependencies: none bundled
-- Data table: `#__simplestats_events`
+- Raw-event table: `#__simplestats_events`
+- Permanent report tables: `#__simplestats_daily`, `#__simplestats_daily_dimensions`, and `#__simplestats_daily_items`
 - Country source: DB-IP Lite CSV
 
 ## Known limitations

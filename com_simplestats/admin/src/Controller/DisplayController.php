@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace FrankWilleke\Component\Simplestats\Administrator\Controller;
+namespace Willeke\Component\Simplestats\Administrator\Controller;
 
 use Joomla\CMS\MVC\Controller\BaseController;
 

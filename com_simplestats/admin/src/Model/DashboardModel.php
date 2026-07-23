@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace FrankWilleke\Component\Simplestats\Administrator\Model;
+namespace Willeke\Component\Simplestats\Administrator\Model;
 
+use Willeke\Component\Simplestats\Administrator\Service\StatisticsArchiveService;
 use Joomla\CMS\Date\Date;
 use Joomla\CMS\Factory;
 use Joomla\CMS\MVC\Model\BaseDatabaseModel;
@@ -65,41 +66,28 @@ final class DashboardModel extends BaseDatabaseModel
 	}
 
 	/**
-	 * Removes data older than the configured retention period.
+	 * Archives raw events older than the configured retention period.
 	 *
 	 * @param int $retentionDays Retention period in days.
 	 *
-	 * @return int Number of removed rows.
+	 * @return int Number of archived and removed raw events.
 	 */
 	public function purgeExpired(int $retentionDays): int
 	{
-		$retentionDays = max(1, $retentionDays);
-		$cutoff = Factory::getDate('now', 'UTC')->modify('-' . $retentionDays . ' days')->toSql();
-		$db = $this->getDatabase();
-		$query = $db->getQuery(true)
-			->delete($db->quoteName('#__simplestats_events'))
-			->where($db->quoteName('visited_at') . ' < :cutoff')
-			->bind(':cutoff', $cutoff);
-
-		$db->setQuery($query)->execute();
-
-		return $db->getAffectedRows();
+		return (new StatisticsArchiveService($this->getDatabase()))->archiveExpired(
+			$retentionDays,
+			(string) Factory::getApplication()->get('offset', 'UTC')
+		);
 	}
 
 	/**
-	 * Permanently removes all collected statistics events.
+	 * Permanently removes all raw events and archived reports.
 	 *
-	 * @return int Number of removed rows.
+	 * @return int Number of removed database rows.
 	 */
 	public function resetStats(): int
 	{
-		$db = $this->getDatabase();
-		$query = $db->getQuery(true)
-			->delete($db->quoteName('#__simplestats_events'));
-
-		$db->setQuery($query)->execute();
-
-		return $db->getAffectedRows();
+		return (new StatisticsArchiveService($this->getDatabase()))->resetAll();
 	}
 
 	/**
@@ -131,8 +119,40 @@ final class DashboardModel extends BaseDatabaseModel
 
 		$this->applyDateRange($query, $from, $to);
 		$db->setQuery($query);
+		$raw = $db->loadObject() ?: (object) [];
+		$aggregateQuery = $db->getQuery(true)
+			->select([
+				'SUM(' . $db->quoteName('human_visits') . ') AS ' . $db->quoteName('human_visits'),
+				'SUM(' . $db->quoteName('human_pageviews') . ') AS ' . $db->quoteName('human_pageviews'),
+				'SUM(' . $db->quoteName('authenticated_pageviews') . ') AS ' . $db->quoteName('authenticated_pageviews'),
+				'SUM(' . $db->quoteName('german_visits') . ') AS ' . $db->quoteName('german_visits'),
+				'SUM(' . $db->quoteName('bot_pageviews') . ') AS ' . $db->quoteName('bot_pageviews'),
+				'SUM(' . $db->quoteName('plays') . ') AS ' . $db->quoteName('plays'),
+				'SUM(' . $db->quoteName('downloads') . ') AS ' . $db->quoteName('downloads'),
+				'SUM(' . $db->quoteName('custom_events') . ') AS ' . $db->quoteName('custom_events'),
+			])
+			->from($db->quoteName('#__simplestats_daily'));
 
-		return $db->loadObject() ?: (object) [];
+		$this->applyDateRange($aggregateQuery, $from, $to);
+		$db->setQuery($aggregateQuery);
+		$aggregate = $db->loadObject() ?: (object) [];
+		$result = (object) [];
+
+		foreach ([
+			'human_visits',
+			'human_pageviews',
+			'authenticated_pageviews',
+			'german_visits',
+			'bot_pageviews',
+			'plays',
+			'downloads',
+			'custom_events',
+		] as $field)
+		{
+			$result->{$field} = (int) ($raw->{$field} ?? 0) + (int) ($aggregate->{$field} ?? 0);
+		}
+
+		return $result;
 	}
 
 	/**
@@ -164,8 +184,23 @@ final class DashboardModel extends BaseDatabaseModel
 
 		$this->applyDateRange($query, $from, $to);
 		$db->setQuery($query, 0, 31);
+		$raw = $db->loadObjectList();
+		$aggregateQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				$db->quoteName('human_visits') . ' AS ' . $db->quoteName('visits'),
+				$db->quoteName('human_pageviews') . ' AS ' . $db->quoteName('pageviews'),
+				$db->quoteName('plays'),
+				$db->quoteName('downloads'),
+				$db->quoteName('bot_pageviews') . ' AS ' . $db->quoteName('bots'),
+			])
+			->from($db->quoteName('#__simplestats_daily'))
+			->order($db->quoteName('visit_date') . ' DESC');
 
-		return $db->loadObjectList();
+		$this->applyDateRange($aggregateQuery, $from, $to);
+		$db->setQuery($aggregateQuery, 0, 31);
+
+		return $this->mergeDailyRows($raw, $db->loadObjectList(), 31);
 	}
 
 	/**
@@ -193,9 +228,13 @@ final class DashboardModel extends BaseDatabaseModel
 			->order($db->quoteName('count') . ' DESC');
 
 		$this->applyDateRange($query, $from, $to);
-		$db->setQuery($query, 0, $limit);
+		$db->setQuery($query);
 
-		return $db->loadObjectList();
+		return $this->mergeCountRows(
+			$db->loadObjectList(),
+			$this->getArchivedDimensionRows('country', $from, $to),
+			$limit
+		);
 	}
 
 	/**
@@ -247,9 +286,22 @@ final class DashboardModel extends BaseDatabaseModel
 		}
 
 		$this->applyDateRange($query, $from, $to);
-		$db->setQuery($query, 0, $limit);
+		$db->setQuery($query);
+		$dimensionKeys = [
+			'path' => 'path',
+			'referrer_host' => 'referrer',
+			'country_code' => 'country',
+			'language_code' => 'language',
+			'device_type' => 'device',
+			'browser_family' => 'browser',
+			'bot_name' => 'bot',
+		];
 
-		return $db->loadObjectList();
+		return $this->mergeCountRows(
+			$db->loadObjectList(),
+			$this->getArchivedDimensionRows($dimensionKeys[$field], $from, $to),
+			$limit
+		);
 	}
 
 	/**
@@ -286,9 +338,30 @@ final class DashboardModel extends BaseDatabaseModel
 			->bind(':eventType', $eventType);
 
 		$this->applyDateRange($query, $from, $to);
-		$db->setQuery($query, 0, $limit);
+		$db->setQuery($query);
+		$raw = $db->loadObjectList();
+		$aggregateQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('item_title'),
+				$db->quoteName('item_id'),
+				$db->quoteName('item_type'),
+				$db->quoteName('path'),
+				'SUM(' . $db->quoteName('event_count') . ') AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__simplestats_daily_items'))
+			->where($db->quoteName('event_type') . ' = :archivedEventType')
+			->group([
+				$db->quoteName('item_title'),
+				$db->quoteName('item_id'),
+				$db->quoteName('item_type'),
+				$db->quoteName('path'),
+			])
+			->bind(':archivedEventType', $eventType);
 
-		return $db->loadObjectList();
+		$this->applyDateRange($aggregateQuery, $from, $to);
+		$db->setQuery($aggregateQuery);
+
+		return $this->mergeItemRows($raw, $db->loadObjectList(), $limit);
 	}
 
 	/**
@@ -315,9 +388,178 @@ final class DashboardModel extends BaseDatabaseModel
 			->order($db->quoteName('count') . ' DESC');
 
 		$this->applyDateRange($query, $from, $to);
-		$db->setQuery($query, 0, $limit);
+		$db->setQuery($query);
+
+		return $this->mergeCountRows(
+			$db->loadObjectList(),
+			$this->getArchivedDimensionRows('event_type', $from, $to),
+			$limit
+		);
+	}
+
+	/**
+	 * Returns archived counts for one named dashboard dimension.
+	 *
+	 * @param string $dimensionKey Aggregate dimension identifier.
+	 * @param string $from         Inclusive date.
+	 * @param string $to           Inclusive date.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getArchivedDimensionRows(string $dimensionKey, string $from, string $to): array
+	{
+		$db = $this->getDatabase();
+		$query = $db->getQuery(true)
+			->select([
+				$db->quoteName('label'),
+				'SUM(' . $db->quoteName('event_count') . ') AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__simplestats_daily_dimensions'))
+			->where($db->quoteName('dimension_key') . ' = :dimensionKey')
+			->group($db->quoteName('label'))
+			->bind(':dimensionKey', $dimensionKey);
+
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
 
 		return $db->loadObjectList();
+	}
+
+	/**
+	 * Merges raw and archived daily counters.
+	 *
+	 * @param array<int, object> $raw       Raw-event rows.
+	 * @param array<int, object> $archived  Archived report rows.
+	 * @param int                $limit     Maximum result rows.
+	 *
+	 * @return array<int, object>
+	 */
+	private function mergeDailyRows(array $raw, array $archived, int $limit): array
+	{
+		$rows = [];
+		$fields = ['visits', 'pageviews', 'plays', 'downloads', 'bots'];
+
+		foreach (array_merge($raw, $archived) as $source)
+		{
+			$date = (string) ($source->visit_date ?? '');
+
+			if ($date === '')
+			{
+				continue;
+			}
+
+			if (!isset($rows[$date]))
+			{
+				$rows[$date] = (object) ['visit_date' => $date];
+
+				foreach ($fields as $field)
+				{
+					$rows[$date]->{$field} = 0;
+				}
+			}
+
+			foreach ($fields as $field)
+			{
+				$rows[$date]->{$field} += (int) ($source->{$field} ?? 0);
+			}
+		}
+
+		krsort($rows, SORT_STRING);
+
+		return array_slice(array_values($rows), 0, $limit);
+	}
+
+	/**
+	 * Merges rows containing a label and count.
+	 *
+	 * @param array<int, object> $raw       Raw-event rows.
+	 * @param array<int, object> $archived  Archived report rows.
+	 * @param int                $limit     Maximum result rows.
+	 *
+	 * @return array<int, object>
+	 */
+	private function mergeCountRows(array $raw, array $archived, int $limit): array
+	{
+		$rows = [];
+
+		foreach (array_merge($raw, $archived) as $row)
+		{
+			$label = (string) ($row->label ?? '');
+			$key = mb_strtolower($label, 'UTF-8');
+
+			if (!isset($rows[$key]))
+			{
+				$rows[$key] = (object) [
+					'label' => $label,
+					'count' => 0,
+				];
+			}
+
+			$rows[$key]->count += (int) ($row->count ?? 0);
+		}
+
+		$rows = array_values($rows);
+		usort(
+			$rows,
+			static fn(object $left, object $right): int =>
+				((int) $right->count <=> (int) $left->count)
+				?: strnatcasecmp((string) $left->label, (string) $right->label)
+		);
+
+		return array_slice($rows, 0, $limit);
+	}
+
+	/**
+	 * Merges raw and archived custom-event item rows.
+	 *
+	 * @param array<int, object> $raw       Raw-event rows.
+	 * @param array<int, object> $archived  Archived report rows.
+	 * @param int                $limit     Maximum result rows.
+	 *
+	 * @return array<int, object>
+	 */
+	private function mergeItemRows(array $raw, array $archived, int $limit): array
+	{
+		$rows = [];
+
+		foreach (array_merge($raw, $archived) as $source)
+		{
+			$values = [
+				(string) ($source->item_title ?? ''),
+				(string) ($source->item_id ?? ''),
+				(string) ($source->item_type ?? ''),
+				(string) ($source->path ?? ''),
+			];
+			$keyValues = array_map(
+				static fn(string $value): string => mb_strtolower($value, 'UTF-8'),
+				$values
+			);
+			$key = json_encode($keyValues, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+				?: implode("\0", $keyValues);
+
+			if (!isset($rows[$key]))
+			{
+				$rows[$key] = (object) [
+					'item_title' => $values[0],
+					'item_id' => $values[1],
+					'item_type' => $values[2],
+					'path' => $values[3],
+					'count' => 0,
+				];
+			}
+
+			$rows[$key]->count += (int) ($source->count ?? 0);
+		}
+
+		$rows = array_values($rows);
+		usort(
+			$rows,
+			static fn(object $left, object $right): int =>
+				((int) $right->count <=> (int) $left->count)
+				?: strnatcasecmp((string) $left->item_title, (string) $right->item_title)
+		);
+
+		return array_slice($rows, 0, $limit);
 	}
 
 	/**

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 — 2026-07-23
+
+- Added transactional archival of expired raw events into permanent daily totals, dimension breakdowns, and custom-event item reports.
+- Serialised maintenance with a site-specific database advisory lock to prevent concurrent cleanup requests from aggregating the same events twice.
+- Updated every dashboard query to combine retained raw events with archived reports, preserving all-time totals, charts, countries, top pages, referrers, device/browser data, and audio engagement statistics after cleanup.
+- Changed automatic and manual cleanup to remove raw rows only after their aggregates have been stored successfully.
+- Extended Reset all statistics and uninstallation to remove the aggregate tables as well as raw events.
+- Clarified the raw-event retention and cleanup-probability settings in English and German.
+- Added Unicode country flags beside localized country names in the Countries table.
+- Standardised component and plugin namespaces on the `Willeke` vendor prefix used by Audio Archive.
+- Added a 0.4.0 schema update that creates the three permanent report tables without altering existing event data.
+
 ## 0.3.4 — 2026-07-23
 
 - Added a compact doughnut chart with color-and-percentage legend to the Countries panel.

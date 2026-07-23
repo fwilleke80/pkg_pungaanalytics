@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace FrankWilleke\Component\Simplestats\Administrator\Controller;
+namespace Willeke\Component\Simplestats\Administrator\Controller;
 
 use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Controller\BaseController;
 use Joomla\CMS\Router\Route;
 use Joomla\CMS\Session\Session;
-use FrankWilleke\Component\Simplestats\Administrator\Service\CountryDatabaseService;
+use Willeke\Component\Simplestats\Administrator\Service\CountryDatabaseService;
 
 \defined('_JEXEC') or die;
 
@@ -48,7 +48,7 @@ final class DashboardController extends BaseController
 	}
 
 	/**
-	 * Removes events older than the configured retention period.
+	 * Archives raw events older than the configured retention period.
 	 *
 	 * @return void
 	 */
@@ -57,7 +57,7 @@ final class DashboardController extends BaseController
 		Session::checkToken('request') or jexit(Text::_('JINVALID_TOKEN'));
 		$this->assertManagePermission();
 
-		/** @var \FrankWilleke\Component\Simplestats\Administrator\Model\DashboardModel $model */
+		/** @var \Willeke\Component\Simplestats\Administrator\Model\DashboardModel $model */
 		$model = $this->getModel('Dashboard');
 		$retentionDays = ComponentHelper::getParams('com_simplestats')->get('retention_days', 180);
 		$count = $model->purgeExpired((int) $retentionDays);
@@ -67,7 +67,7 @@ final class DashboardController extends BaseController
 	}
 
 	/**
-	 * Permanently removes all collected statistics.
+	 * Permanently removes raw events and archived reports.
 	 *
 	 * @return void
 	 */
@@ -76,7 +76,7 @@ final class DashboardController extends BaseController
 		Session::checkToken('request') or jexit(Text::_('JINVALID_TOKEN'));
 		$this->assertManagePermission();
 
-		/** @var \FrankWilleke\Component\Simplestats\Administrator\Model\DashboardModel $model */
+		/** @var \Willeke\Component\Simplestats\Administrator\Model\DashboardModel $model */
 		$model = $this->getModel('Dashboard');
 		$count = $model->resetStats();
 

@@ -40,7 +40,19 @@ $countryName = static function (string $code) use ($displayLocale): string
 
 	return $name !== '' && $name !== $code ? $name : $code;
 };
-$countryLabel = static function (string $code) use ($countryName, $escape): string
+$countryFlag = static function (string $code): string
+{
+	$code = strtoupper(trim($code));
+
+	if (preg_match('/^[A-Z]{2}$/', $code) !== 1 || $code === 'ZZ')
+	{
+		return '';
+	}
+
+	return mb_chr(0x1F1E6 + ord($code[0]) - ord('A'), 'UTF-8')
+		. mb_chr(0x1F1E6 + ord($code[1]) - ord('A'), 'UTF-8');
+};
+$countryLabel = static function (string $code) use ($countryName, $countryFlag, $escape): string
 {
 	$code = strtoupper(trim($code));
 	$name = $countryName($code);
@@ -50,7 +62,12 @@ $countryLabel = static function (string $code) use ($countryName, $escape): stri
 		return $escape($name);
 	}
 
-	return $name !== $code ? $escape($name) . ' <span class="ss-code">' . $escape($code) . '</span>' : $escape($code);
+	$flag = $countryFlag($code);
+	$flagMarkup = $flag === '' ? '' : ' <span class="ss-country-flag" aria-hidden="true">' . $escape($flag) . '</span>';
+
+	return $name !== $code
+		? $escape($name) . $flagMarkup . ' <span class="ss-code">' . $escape($code) . '</span>'
+		: $escape($code) . $flagMarkup;
 };
 $eventItemLabel = static function (object $row) use ($escape): string
 {

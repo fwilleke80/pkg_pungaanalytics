@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace FrankWilleke\Plugin\System\Simplestats\Extension;
+namespace Willeke\Plugin\System\Simplestats\Extension;
 
-use FrankWilleke\Plugin\System\Simplestats\Service\CountryDatabaseMatcher;
+use Willeke\Component\Simplestats\Administrator\Service\StatisticsArchiveService;
+use Willeke\Plugin\System\Simplestats\Service\CountryDatabaseMatcher;
 use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Date\Date;
 use Joomla\CMS\Factory;
@@ -687,10 +688,10 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 	}
 
 	/**
-	 * Occasionally deletes rows older than the configured retention period.
+	 * Occasionally archives and removes raw rows older than the retention period.
 	 *
 	 * @param int $retentionDays Retention in days.
-	 * @param int $probability   Percentage chance per request.
+	 * @param int $probability   Percentage chance per recorded event.
 	 *
 	 * @return void
 	 */
@@ -703,13 +704,10 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 			return;
 		}
 
-		$cutoff = Factory::getDate('now', 'UTC')->modify('-' . max(1, $retentionDays) . ' days')->toSql();
-		$db = $this->getDatabase();
-		$query = $db->getQuery(true)
-			->delete($db->quoteName('#__simplestats_events'))
-			->where($db->quoteName('visited_at') . ' < :cutoff')
-			->bind(':cutoff', $cutoff);
-		$db->setQuery($query)->execute();
+		(new StatisticsArchiveService($this->getDatabase()))->archiveExpired(
+			$retentionDays,
+			(string) $this->getApplication()->get('offset', 'UTC')
+		);
 	}
 
 	/**

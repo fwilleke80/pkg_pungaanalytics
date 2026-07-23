@@ -9,7 +9,7 @@ use Joomla\Database\DatabaseInterface;
 use Joomla\DI\Container;
 use Joomla\DI\ServiceProviderInterface;
 use Joomla\Event\DispatcherInterface;
-use FrankWilleke\Plugin\System\Simplestats\Extension\Simplestats;
+use Willeke\Plugin\System\Simplestats\Extension\Simplestats;
 
 \defined('_JEXEC') or die;
 

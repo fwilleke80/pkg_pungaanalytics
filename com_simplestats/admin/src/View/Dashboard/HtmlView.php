@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace FrankWilleke\Component\Simplestats\Administrator\View\Dashboard;
+namespace Willeke\Component\Simplestats\Administrator\View\Dashboard;
 
 use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Factory;
@@ -10,7 +10,7 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
-use FrankWilleke\Component\Simplestats\Administrator\Service\CountryDatabaseService;
+use Willeke\Component\Simplestats\Administrator\Service\CountryDatabaseService;
 
 \defined('_JEXEC') or die;
 
@@ -49,7 +49,7 @@ final class HtmlView extends BaseHtmlView
 		$this->days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 30;
 		$this->retentionDays = (int) ComponentHelper::getParams('com_simplestats')->get('retention_days', 180);
 
-		/** @var \FrankWilleke\Component\Simplestats\Administrator\Model\DashboardModel $model */
+		/** @var \Willeke\Component\Simplestats\Administrator\Model\DashboardModel $model */
 		$model = $this->getModel();
 		$this->data = $model->getDashboardData($this->days);
 		$this->countryStatus = (new CountryDatabaseService())->getStatus();
@@ -57,9 +57,9 @@ final class HtmlView extends BaseHtmlView
 
 		$document = $app->getDocument();
 		$document->getWebAssetManager()->registerAndUseStyle(
-			'com_simplestats.admin.0.3.4',
-			'com_simplestats/css/admin-0.3.4.css',
-			['version' => '0.3.4']
+			'com_simplestats.admin.0.4.0',
+			'com_simplestats/css/admin-0.4.0.css',
+			['version' => '0.4.0']
 		);
 
 		$this->addToolbar();

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace FrankWilleke\Component\Simplestats\Administrator\Extension;
+namespace Willeke\Component\Simplestats\Administrator\Extension;
 
 use Joomla\CMS\Extension\MVCComponent;
 
