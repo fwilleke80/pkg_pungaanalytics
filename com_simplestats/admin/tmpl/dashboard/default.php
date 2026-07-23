@@ -168,8 +168,13 @@ $showCountryWarning = $this->countryStatus !== []
 				<?php else : ?>
 					<div class="ss-daily-chart">
 						<div class="ss-chart-legend" aria-hidden="true">
-							<?php foreach ($chartSeries as $seriesIndex => [, $label]) : ?>
-								<span class="ss-series-<?php echo $seriesIndex; ?>"><i></i><?php echo $escape($label); ?></span>
+							<?php foreach ($chartSeries as $seriesIndex => [, $label, $color]) : ?>
+								<span class="ss-series-<?php echo $seriesIndex; ?>">
+									<svg class="ss-chart-legend__swatch" width="11" height="11" viewBox="0 0 11 11" focusable="false">
+										<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($color); ?>"></circle>
+									</svg>
+									<?php echo $escape($label); ?>
+								</span>
 							<?php endforeach; ?>
 						</div>
 						<div class="ss-chart-scroll">
@@ -319,7 +324,7 @@ $showCountryWarning = $this->countryStatus !== []
 						?>
 							<div class="ss-pie-wrap">
 								<div class="ss-donut">
-									<svg viewBox="0 0 120 120" role="img" aria-label="<?php echo $escape($title); ?>">
+									<svg width="200" height="200" viewBox="0 0 120 120" role="img" aria-label="<?php echo $escape($title); ?>">
 										<circle class="ss-donut__track" cx="60" cy="60" r="46" pathLength="100"></circle>
 										<?php foreach ($rows as $rowIndex => $row) :
 											$piePercentage = $pieTotal > 0 ? (((int) $row->count / $pieTotal) * 100.0) : 0.0;
@@ -344,13 +349,31 @@ $showCountryWarning = $this->countryStatus !== []
 									</svg>
 									<div><strong><?php echo $number($pieTotal); ?></strong><span><?php echo Text::_('COM_SIMPLESTATS_TOTAL'); ?></span></div>
 								</div>
+								<ul class="ss-pie-legend">
+									<?php foreach ($rows as $rowIndex => $row) :
+										$piePercentage = $pieTotal > 0 ? (((int) $row->count / $pieTotal) * 100.0) : 0.0;
+										$pieColor = $piePalette[$rowIndex % \count($piePalette)];
+									?>
+										<li>
+											<svg class="ss-pie-legend__swatch" width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" focusable="false">
+												<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($pieColor); ?>"></circle>
+											</svg>
+											<span><?php echo $escape($row->label); ?></span>
+											<strong><?php echo number_format($piePercentage, 1); ?>%</strong>
+										</li>
+									<?php endforeach; ?>
+								</ul>
 							</div>
 						<?php endif; ?>
 						<table class="table ss-table mb-0"><tbody>
 						<?php foreach ($rows as $rowIndex => $row) : ?>
 							<tr>
 								<td class="text-break">
-									<?php if ($mode === 'pie') : ?><i class="ss-legend-dot ss-pie-color-<?php echo $rowIndex % \count($piePalette); ?>"></i><?php endif; ?>
+									<?php if ($mode === 'pie') : ?>
+										<svg class="ss-legend-dot" width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" focusable="false">
+											<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($piePalette[$rowIndex % \count($piePalette)]); ?>"></circle>
+										</svg>
+									<?php endif; ?>
 									<?php echo $mode === 'country' ? $countryLabel((string) $row->label) : $escape($row->label); ?>
 								</td>
 								<td class="text-end ss-count"><?php echo $number($row->count); ?></td>

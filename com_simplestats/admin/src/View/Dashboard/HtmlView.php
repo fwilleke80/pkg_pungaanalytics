@@ -56,7 +56,11 @@ final class HtmlView extends BaseHtmlView
 		$this->version = $model->getInstalledVersion();
 
 		$document = $app->getDocument();
-		$document->getWebAssetManager()->useStyle('com_simplestats.admin');
+		$document->getWebAssetManager()->registerAndUseStyle(
+			'com_simplestats.admin.0.3.3',
+			'com_simplestats/css/admin-0.3.3.css',
+			['version' => '0.3.3']
+		);
 
 		$this->addToolbar();
 		parent::display($tpl);

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3 — 2026-07-23
+
+- Registered the administrator stylesheet under a version-specific asset name to bypass stale Joomla asset-registry entries.
+- Fixed doughnut charts at 12.5 rem (normally 200 × 200 pixels), with intrinsic SVG dimensions as a cache-resistant fallback.
+- Added compact color-and-percentage legends below the browser-language, device, and browser charts.
+- Added intrinsic SVG color swatches to the daily chart legend and dimension tables.
+
 ## 0.3.2 — 2026-07-23
 
 - Replaced inline-CSS doughnut charts with server-rendered SVG charts so browser languages, devices, and browsers render reliably under Joomla's content security policy.

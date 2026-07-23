@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension type="component" method="upgrade">
 	<name>COM_SIMPLESTATS</name>
-	<version>0.3.2</version>
+	<version>0.3.3</version>
 	<targetplatform name="joomla" version="6.*" />
 	<creationDate>2026-07-23</creationDate>
 	<author>Frank Willeke</author>
