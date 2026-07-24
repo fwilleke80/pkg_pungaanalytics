@@ -87,9 +87,9 @@ final class HtmlView extends BaseHtmlView
 		$this->pagination->setAdditionalUrlParam('direction', $this->direction);
 
 		$app->getDocument()->getWebAssetManager()->registerAndUseStyle(
-			'com_simplestats.admin.0.5.5',
-			'com_simplestats/css/admin-0.5.5.css',
-			['version' => '0.5.5']
+			'com_simplestats.admin.0.5.6',
+			'com_simplestats/css/admin-0.5.6.css',
+			['version' => '0.5.6']
 		);
 
 		ToolbarHelper::title(

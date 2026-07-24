@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.6 — 2026-07-24
+
+- Reorganized Overview, Traffic, Time distribution, Content, Engagement, Audience and technology, and System into clean collapsible cards.
+- Used native `details` and `summary` elements so every card works with keyboard and assistive technology without JavaScript.
+- Kept Overview and Traffic open initially while leaving detailed report groups compact.
+- Automatically reopened the relevant card after sorting one of its tables.
+- Automatically opened System when the country database is missing or unreadable.
+- Added distinct section icons, modern card headers, clear focus states, responsive spacing, and contained inner report panels.
+- Removed an extra malformed table closing tag from the Top pages panel.
+- Registered a fresh versioned stylesheet so the redesigned dashboard loads immediately.
+
 ## 0.5.5 — 2026-07-24
 
 - Rendered the active ascending or descending arrow directly in each sortable heading instead of relying on generated CSS content.

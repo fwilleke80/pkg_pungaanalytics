@@ -397,6 +397,11 @@ $knownCountryRows = array_filter(
 $showCountryWarning = $this->countryStatus !== []
 	&& $this->data['countries'] !== []
 	&& $knownCountryRows === [];
+$timeSortTables = ['hours', 'weekdays'];
+$engagementSortTables = ['plays', 'downloads'];
+$audienceSortTables = ['countries', 'referrers', 'languages', 'devices', 'browsers', 'bots', 'events'];
+$systemNeedsAttention = $this->countryStatus === []
+	|| !(bool) ($this->countryStatus['files_ready'] ?? false);
 ?>
 <form action="<?php echo Route::_('index.php?option=com_simplestats'); ?>" method="post" id="adminForm" name="adminForm">
 	<input type="hidden" name="option" value="com_simplestats">
@@ -425,147 +430,163 @@ $showCountryWarning = $this->countryStatus !== []
 			<?php endforeach; ?>
 			</nav>
 
-			<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_OVERVIEW'); ?></h2>
-			<section class="ss-panel ss-summary" aria-label="<?php echo Text::_('COM_SIMPLESTATS_OVERVIEW'); ?>">
-			<div class="table-responsive">
-				<table class="table mb-0">
-					<thead>
-						<tr>
-						<?php foreach ($summaryMetrics as [, $label, $icon]) : ?>
-							<th><span class="<?php echo $escape($icon); ?>" aria-hidden="true"></span><?php echo Text::_($label); ?></th>
-						<?php endforeach; ?>
-						</tr>
-					</thead>
-					<tbody>
-						<tr>
-						<?php foreach ($summaryMetrics as [$property]) : ?>
-							<td><?php echo $number($summary->{$property} ?? 0); ?></td>
-						<?php endforeach; ?>
-						</tr>
-					</tbody>
-				</table>
-			</div>
-			</section>
-
-				<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_TRAFFIC'); ?></h2>
-				<section class="ss-panel ss-panel--wide">
-					<header class="ss-panel__header">
-						<h3><?php echo Text::_('COM_SIMPLESTATS_ACTIVITY_TREND'); ?></h3>
-					<div class="ss-panel__tools">
-						<span class="ss-panel__meta"><?php echo Text::sprintf('COM_SIMPLESTATS_TREND_GRANULARITY', Text::_($trendGranularityKey)); ?></span>
-						<a class="ss-view-all" href="<?php echo $reportUrl('activity'); ?>"><?php echo Text::_('COM_SIMPLESTATS_VIEW_ALL'); ?></a>
-					</div>
-				</header>
-				<div class="ss-panel__body ss-panel__body--flush">
-					<?php if ($trendRows === []) : ?>
-						<div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_DATA'); ?></div>
-					<?php else : ?>
-					<div class="ss-daily-chart">
-						<div class="ss-chart-legend" aria-hidden="true">
-							<?php foreach ($chartSeries as [$property, $label, $color]) : ?>
-								<span class="ss-series-<?php echo $escape($property); ?>">
-									<svg class="ss-chart-legend__swatch" width="11" height="11" viewBox="0 0 11 11" focusable="false">
-										<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($color); ?>"></circle>
-									</svg>
-									<?php echo $escape($label); ?>
-								</span>
-							<?php endforeach; ?>
-						</div>
-							<div class="ss-chart-scroll">
-								<svg class="ss-daily-chart__svg"
-									viewBox="0 0 <?php echo $trendChartWidth; ?> <?php echo $trendChartHeight; ?>"
-									preserveAspectRatio="xMidYMid meet"
-									role="img"
-									aria-label="<?php echo Text::_('COM_SIMPLESTATS_TREND_CHART_LABEL'); ?>">
-									<?php for ($line = 0; $line <= 4; $line++) :
-										$lineY = $trendPlotTop + ($line * ($trendPlotHeight / 4.0));
-										$lineValue = (int) round($maxTrendValue * ((4 - $line) / 4));
-									?>
-										<line class="ss-chart-gridline"
-											x1="<?php echo $trendPlotLeft; ?>"
-											y1="<?php echo number_format($lineY, 1, '.', ''); ?>"
-											x2="<?php echo $trendChartWidth - $trendPlotRight; ?>"
-											y2="<?php echo number_format($lineY, 1, '.', ''); ?>"></line>
-										<text class="ss-chart-axis-label"
-											x="<?php echo $trendPlotLeft - 8; ?>"
-											y="<?php echo number_format($lineY + 4, 1, '.', ''); ?>"
-											text-anchor="end"><?php echo $lineValue; ?></text>
-									<?php endfor; ?>
-									<?php foreach ($trendRows as $rowIndex => $row) :
-										$groupStart = $trendPlotLeft + ($rowIndex * $trendGroupWidth);
-										$groupCenter = $groupStart + ($trendGroupWidth / 2.0);
-										$groupX = $groupCenter - ($trendBarsWidth / 2.0);
-									?>
-										<?php foreach ($chartSeries as $seriesIndex => [$property, $label, $color]) :
-											$value = (int) ($row->{$property} ?? 0);
-											$height = $value > 0 ? max(1.0, ($value / $maxTrendValue) * $trendPlotHeight) : 0.0;
-											$x = $groupX + ($seriesIndex * ($trendBarWidth + $trendBarGap));
-											$y = $trendPlotTop + $trendPlotHeight - $height;
-										?>
-											<rect x="<?php echo number_format($x, 1, '.', ''); ?>"
-												y="<?php echo number_format($y, 1, '.', ''); ?>"
-												width="<?php echo number_format($trendBarWidth, 1, '.', ''); ?>"
-												height="<?php echo number_format($height, 1, '.', ''); ?>"
-												rx="1.2"
-												fill="<?php echo $escape($color); ?>">
-												<title><?php echo $escape($row->period_label . ' · ' . $label . ': ' . $number($value)); ?></title>
-											</rect>
-										<?php endforeach; ?>
-										<?php if (isset($trendLabelIndexes[$rowIndex])) : ?>
-											<line class="ss-chart-date-tick"
-												x1="<?php echo number_format($groupCenter, 1, '.', ''); ?>"
-												y1="<?php echo $trendPlotTop + $trendPlotHeight + 3; ?>"
-												x2="<?php echo number_format($groupCenter, 1, '.', ''); ?>"
-												y2="<?php echo $trendPlotTop + $trendPlotHeight + 8; ?>"></line>
-											<text class="ss-chart-date-label"
-												x="<?php echo number_format($groupCenter, 1, '.', ''); ?>"
-												y="<?php echo $trendPlotTop + $trendPlotHeight + 23; ?>"
-												text-anchor="middle"><?php echo $escape((string) $row->period_label); ?></text>
-										<?php endif; ?>
-								<?php endforeach; ?>
-							</svg>
-						</div>
-					</div>
+			<details class="ss-dashboard-section" id="ss-section-overview" open>
+				<summary class="ss-dashboard-section__summary">
+					<h2><span class="icon-dashboard" aria-hidden="true"></span><?php echo Text::_('COM_SIMPLESTATS_OVERVIEW'); ?></h2>
+				</summary>
+				<div class="ss-dashboard-section__content">
+					<section class="ss-panel ss-summary" aria-label="<?php echo Text::_('COM_SIMPLESTATS_OVERVIEW'); ?>">
 						<div class="table-responsive">
-							<table class="table ss-table mb-0" id="ss-table-activity">
+							<table class="table mb-0">
 								<thead>
 									<tr>
-										<?php echo $sortableHeading('activity', 'period', Text::_('COM_SIMPLESTATS_PERIOD'), 'desc'); ?>
-										<?php echo $sortableHeading('activity', 'visits', Text::_('COM_SIMPLESTATS_VISITS'), 'desc', 'text-end'); ?>
-										<?php echo $sortableHeading('activity', 'pageviews', Text::_('COM_SIMPLESTATS_PAGEVIEWS'), 'desc', 'text-end'); ?>
-										<?php if ($features['audioPlays']) : ?>
-											<?php echo $sortableHeading('activity', 'plays', Text::_('COM_SIMPLESTATS_AUDIO_PLAYS'), 'desc', 'text-end'); ?>
-										<?php endif; ?>
-										<?php if ($features['audioDownloads']) : ?>
-											<?php echo $sortableHeading('activity', 'downloads', Text::_('COM_SIMPLESTATS_AUDIO_DOWNLOADS'), 'desc', 'text-end'); ?>
-										<?php endif; ?>
-										<?php echo $sortableHeading('activity', 'bots', Text::_('COM_SIMPLESTATS_BOTS'), 'desc', 'text-end'); ?>
+									<?php foreach ($summaryMetrics as [, $label, $icon]) : ?>
+										<th><span class="<?php echo $escape($icon); ?>" aria-hidden="true"></span><?php echo Text::_($label); ?></th>
+									<?php endforeach; ?>
 									</tr>
 								</thead>
 								<tbody>
-								<?php foreach ($dashboardTrendRows as $row) : ?>
 									<tr>
-										<td class="text-nowrap" data-sort-value="<?php echo $escape($row->period_start); ?>"><?php echo $escape($row->period_label); ?></td>
-										<td class="text-end" data-sort-value="<?php echo (int) $row->visits; ?>"><?php echo $number($row->visits); ?></td>
-										<td class="text-end" data-sort-value="<?php echo (int) $row->pageviews; ?>"><?php echo $number($row->pageviews); ?></td>
-										<?php if ($features['audioPlays']) : ?>
-											<td class="text-end" data-sort-value="<?php echo (int) $row->plays; ?>"><?php echo $number($row->plays); ?></td>
-										<?php endif; ?>
-										<?php if ($features['audioDownloads']) : ?>
-											<td class="text-end" data-sort-value="<?php echo (int) $row->downloads; ?>"><?php echo $number($row->downloads); ?></td>
-										<?php endif; ?>
-										<td class="text-end" data-sort-value="<?php echo (int) $row->bots; ?>"><?php echo $number($row->bots); ?></td>
+									<?php foreach ($summaryMetrics as [$property]) : ?>
+										<td><?php echo $number($summary->{$property} ?? 0); ?></td>
+									<?php endforeach; ?>
 									</tr>
-								<?php endforeach; ?>
 								</tbody>
 							</table>
-					</div>
-				<?php endif; ?>
+						</div>
+					</section>
 				</div>
-				</section>
+			</details>
 
-				<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_TIME_OF_DAY'); ?></h2>
-				<div class="ss-grid ss-grid--time">
+			<details class="ss-dashboard-section" id="ss-section-traffic" open>
+				<summary class="ss-dashboard-section__summary">
+					<h2><span class="icon-chart" aria-hidden="true"></span><?php echo Text::_('COM_SIMPLESTATS_TRAFFIC'); ?></h2>
+				</summary>
+				<div class="ss-dashboard-section__content">
+					<section class="ss-panel ss-panel--wide">
+						<header class="ss-panel__header">
+							<h3><?php echo Text::_('COM_SIMPLESTATS_ACTIVITY_TREND'); ?></h3>
+							<div class="ss-panel__tools">
+								<span class="ss-panel__meta"><?php echo Text::sprintf('COM_SIMPLESTATS_TREND_GRANULARITY', Text::_($trendGranularityKey)); ?></span>
+								<a class="ss-view-all" href="<?php echo $reportUrl('activity'); ?>"><?php echo Text::_('COM_SIMPLESTATS_VIEW_ALL'); ?></a>
+							</div>
+						</header>
+						<div class="ss-panel__body ss-panel__body--flush">
+							<?php if ($trendRows === []) : ?>
+								<div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_DATA'); ?></div>
+							<?php else : ?>
+								<div class="ss-daily-chart">
+									<div class="ss-chart-legend" aria-hidden="true">
+										<?php foreach ($chartSeries as [$property, $label, $color]) : ?>
+											<span class="ss-series-<?php echo $escape($property); ?>">
+												<svg class="ss-chart-legend__swatch" width="11" height="11" viewBox="0 0 11 11" focusable="false">
+													<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($color); ?>"></circle>
+												</svg>
+												<?php echo $escape($label); ?>
+											</span>
+										<?php endforeach; ?>
+									</div>
+									<div class="ss-chart-scroll">
+										<svg class="ss-daily-chart__svg"
+											viewBox="0 0 <?php echo $trendChartWidth; ?> <?php echo $trendChartHeight; ?>"
+											preserveAspectRatio="xMidYMid meet"
+											role="img"
+											aria-label="<?php echo Text::_('COM_SIMPLESTATS_TREND_CHART_LABEL'); ?>">
+											<?php for ($line = 0; $line <= 4; $line++) :
+												$lineY = $trendPlotTop + ($line * ($trendPlotHeight / 4.0));
+												$lineValue = (int) round($maxTrendValue * ((4 - $line) / 4));
+											?>
+												<line class="ss-chart-gridline"
+													x1="<?php echo $trendPlotLeft; ?>"
+													y1="<?php echo number_format($lineY, 1, '.', ''); ?>"
+													x2="<?php echo $trendChartWidth - $trendPlotRight; ?>"
+													y2="<?php echo number_format($lineY, 1, '.', ''); ?>"></line>
+												<text class="ss-chart-axis-label"
+													x="<?php echo $trendPlotLeft - 8; ?>"
+													y="<?php echo number_format($lineY + 4, 1, '.', ''); ?>"
+													text-anchor="end"><?php echo $lineValue; ?></text>
+											<?php endfor; ?>
+											<?php foreach ($trendRows as $rowIndex => $row) :
+												$groupStart = $trendPlotLeft + ($rowIndex * $trendGroupWidth);
+												$groupCenter = $groupStart + ($trendGroupWidth / 2.0);
+												$groupX = $groupCenter - ($trendBarsWidth / 2.0);
+											?>
+												<?php foreach ($chartSeries as $seriesIndex => [$property, $label, $color]) :
+													$value = (int) ($row->{$property} ?? 0);
+													$height = $value > 0 ? max(1.0, ($value / $maxTrendValue) * $trendPlotHeight) : 0.0;
+													$x = $groupX + ($seriesIndex * ($trendBarWidth + $trendBarGap));
+													$y = $trendPlotTop + $trendPlotHeight - $height;
+												?>
+													<rect x="<?php echo number_format($x, 1, '.', ''); ?>"
+														y="<?php echo number_format($y, 1, '.', ''); ?>"
+														width="<?php echo number_format($trendBarWidth, 1, '.', ''); ?>"
+														height="<?php echo number_format($height, 1, '.', ''); ?>"
+														rx="1.2"
+														fill="<?php echo $escape($color); ?>">
+														<title><?php echo $escape($row->period_label . ' · ' . $label . ': ' . $number($value)); ?></title>
+													</rect>
+												<?php endforeach; ?>
+												<?php if (isset($trendLabelIndexes[$rowIndex])) : ?>
+													<line class="ss-chart-date-tick"
+														x1="<?php echo number_format($groupCenter, 1, '.', ''); ?>"
+														y1="<?php echo $trendPlotTop + $trendPlotHeight + 3; ?>"
+														x2="<?php echo number_format($groupCenter, 1, '.', ''); ?>"
+														y2="<?php echo $trendPlotTop + $trendPlotHeight + 8; ?>"></line>
+													<text class="ss-chart-date-label"
+														x="<?php echo number_format($groupCenter, 1, '.', ''); ?>"
+														y="<?php echo $trendPlotTop + $trendPlotHeight + 23; ?>"
+														text-anchor="middle"><?php echo $escape((string) $row->period_label); ?></text>
+												<?php endif; ?>
+											<?php endforeach; ?>
+										</svg>
+									</div>
+								</div>
+								<div class="table-responsive">
+									<table class="table ss-table mb-0" id="ss-table-activity">
+										<thead>
+											<tr>
+												<?php echo $sortableHeading('activity', 'period', Text::_('COM_SIMPLESTATS_PERIOD'), 'desc'); ?>
+												<?php echo $sortableHeading('activity', 'visits', Text::_('COM_SIMPLESTATS_VISITS'), 'desc', 'text-end'); ?>
+												<?php echo $sortableHeading('activity', 'pageviews', Text::_('COM_SIMPLESTATS_PAGEVIEWS'), 'desc', 'text-end'); ?>
+												<?php if ($features['audioPlays']) : ?>
+													<?php echo $sortableHeading('activity', 'plays', Text::_('COM_SIMPLESTATS_AUDIO_PLAYS'), 'desc', 'text-end'); ?>
+												<?php endif; ?>
+												<?php if ($features['audioDownloads']) : ?>
+													<?php echo $sortableHeading('activity', 'downloads', Text::_('COM_SIMPLESTATS_AUDIO_DOWNLOADS'), 'desc', 'text-end'); ?>
+												<?php endif; ?>
+												<?php echo $sortableHeading('activity', 'bots', Text::_('COM_SIMPLESTATS_BOTS'), 'desc', 'text-end'); ?>
+											</tr>
+										</thead>
+										<tbody>
+										<?php foreach ($dashboardTrendRows as $row) : ?>
+											<tr>
+												<td class="text-nowrap" data-sort-value="<?php echo $escape($row->period_start); ?>"><?php echo $escape($row->period_label); ?></td>
+												<td class="text-end" data-sort-value="<?php echo (int) $row->visits; ?>"><?php echo $number($row->visits); ?></td>
+												<td class="text-end" data-sort-value="<?php echo (int) $row->pageviews; ?>"><?php echo $number($row->pageviews); ?></td>
+												<?php if ($features['audioPlays']) : ?>
+													<td class="text-end" data-sort-value="<?php echo (int) $row->plays; ?>"><?php echo $number($row->plays); ?></td>
+												<?php endif; ?>
+												<?php if ($features['audioDownloads']) : ?>
+													<td class="text-end" data-sort-value="<?php echo (int) $row->downloads; ?>"><?php echo $number($row->downloads); ?></td>
+												<?php endif; ?>
+												<td class="text-end" data-sort-value="<?php echo (int) $row->bots; ?>"><?php echo $number($row->bots); ?></td>
+											</tr>
+										<?php endforeach; ?>
+										</tbody>
+									</table>
+								</div>
+							<?php endif; ?>
+						</div>
+					</section>
+				</div>
+			</details>
+
+			<details class="ss-dashboard-section" id="ss-section-time"<?php echo \in_array($this->sortTable, $timeSortTables, true) ? ' open' : ''; ?>>
+				<summary class="ss-dashboard-section__summary">
+					<h2><span class="icon-clock" aria-hidden="true"></span><?php echo Text::_('COM_SIMPLESTATS_TIME_OF_DAY'); ?></h2>
+				</summary>
+				<div class="ss-dashboard-section__content">
+					<div class="ss-grid ss-grid--time">
 					<section class="ss-panel">
 							<header class="ss-panel__header">
 								<h3><?php echo Text::_('COM_SIMPLESTATS_BY_HOUR'); ?></h3>
@@ -651,10 +672,16 @@ $showCountryWarning = $this->countryStatus !== []
 						</table>
 					</div>
 				</section>
-			</div>
+					</div>
+				</div>
+			</details>
 
-			<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_CONTENT'); ?></h2>
-			<div class="ss-grid ss-grid--content">
+			<details class="ss-dashboard-section" id="ss-section-content"<?php echo $this->sortTable === 'pages' ? ' open' : ''; ?>>
+				<summary class="ss-dashboard-section__summary">
+					<h2><span class="icon-file" aria-hidden="true"></span><?php echo Text::_('COM_SIMPLESTATS_CONTENT'); ?></h2>
+				</summary>
+				<div class="ss-dashboard-section__content">
+					<div class="ss-grid ss-grid--content">
 				<section class="ss-panel">
 					<header class="ss-panel__header">
 						<h3><?php echo Text::_('COM_SIMPLESTATS_TOP_PAGES'); ?></h3>
@@ -681,11 +708,17 @@ $showCountryWarning = $this->countryStatus !== []
 					<?php endif; ?>
 				</div>
 			</section>
-		</div>
+					</div>
+				</div>
+			</details>
 
 			<?php if ($features['audioPlays'] || $features['audioDownloads']) : ?>
-				<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_ENGAGEMENT'); ?></h2>
-				<div class="ss-grid ss-grid--content">
+				<details class="ss-dashboard-section" id="ss-section-engagement"<?php echo \in_array($this->sortTable, $engagementSortTables, true) ? ' open' : ''; ?>>
+					<summary class="ss-dashboard-section__summary">
+						<h2><span class="icon-play" aria-hidden="true"></span><?php echo Text::_('COM_SIMPLESTATS_ENGAGEMENT'); ?></h2>
+					</summary>
+					<div class="ss-dashboard-section__content">
+						<div class="ss-grid ss-grid--content">
 				<?php if ($features['audioPlays']) : ?>
 					<section class="ss-panel">
 					<header class="ss-panel__header">
@@ -743,11 +776,17 @@ $showCountryWarning = $this->countryStatus !== []
 				</div>
 					</section>
 				<?php endif; ?>
-		</div>
+						</div>
+					</div>
+				</details>
 			<?php endif; ?>
 
-			<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_AUDIENCE_TECHNOLOGY'); ?></h2>
-			<div class="ss-grid">
+			<details class="ss-dashboard-section" id="ss-section-audience"<?php echo \in_array($this->sortTable, $audienceSortTables, true) ? ' open' : ''; ?>>
+				<summary class="ss-dashboard-section__summary">
+					<h2><span class="icon-users" aria-hidden="true"></span><?php echo Text::_('COM_SIMPLESTATS_AUDIENCE_TECHNOLOGY'); ?></h2>
+				</summary>
+				<div class="ss-dashboard-section__content">
+					<div class="ss-grid">
 				<?php
 				$dimensionTables = [
 					[Text::_('COM_SIMPLESTATS_COUNTRIES'), $this->data['countries'], 'country-pie', 'countries'],
@@ -852,10 +891,16 @@ $showCountryWarning = $this->countryStatus !== []
 					</div>
 				</section>
 				<?php endforeach; ?>
-			</div>
+					</div>
+				</div>
+			</details>
 
-			<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_SYSTEM'); ?></h2>
-			<section class="ss-panel ss-system">
+			<details class="ss-dashboard-section" id="ss-section-system"<?php echo $systemNeedsAttention ? ' open' : ''; ?>>
+				<summary class="ss-dashboard-section__summary">
+					<h2><span class="icon-cog" aria-hidden="true"></span><?php echo Text::_('COM_SIMPLESTATS_SYSTEM'); ?></h2>
+				</summary>
+				<div class="ss-dashboard-section__content">
+					<section class="ss-panel ss-system">
 				<header class="ss-panel__header"><h3><?php echo Text::_('COM_SIMPLESTATS_PRIVACY_STATUS'); ?></h3></header>
 			<div class="ss-system__grid">
 				<div><span><?php echo Text::_('COM_SIMPLESTATS_VERSION'); ?></span><strong><?php echo $escape($this->version); ?></strong></div>
@@ -876,6 +921,8 @@ $showCountryWarning = $this->countryStatus !== []
 				<p><?php echo Text::_('COM_SIMPLESTATS_COUNTRY_DATABASE_FORWARD_ONLY'); ?></p>
 				<p class="small text-muted mb-0"><?php echo Text::_('COM_SIMPLESTATS_DBIP_ATTRIBUTION'); ?></p>
 			</div>
-		</section>
+					</section>
+				</div>
+			</details>
 	</div>
 </form>
