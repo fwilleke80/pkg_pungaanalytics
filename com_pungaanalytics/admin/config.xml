@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+	<fieldset name="collection" label="COM_PUNGAANALYTICS_CONFIG_COLLECTION">
+		<field name="enabled" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_PUNGAANALYTICS_CONFIG_ENABLED">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+		<field name="respect_dnt" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_PUNGAANALYTICS_CONFIG_RESPECT_DNT" description="COM_PUNGAANALYTICS_CONFIG_RESPECT_DNT_DESC">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+		<field name="track_authenticated" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_PUNGAANALYTICS_CONFIG_TRACK_AUTHENTICATED" description="COM_PUNGAANALYTICS_CONFIG_TRACK_AUTHENTICATED_DESC">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+		<field name="excluded_user_ids" type="text" default="" label="COM_PUNGAANALYTICS_CONFIG_EXCLUDED_USER_IDS" description="COM_PUNGAANALYTICS_CONFIG_EXCLUDED_USER_IDS_DESC" />
+		<field name="exclude_components" type="text" default="com_ajax,com_users,com_pungaanalytics" label="COM_PUNGAANALYTICS_CONFIG_EXCLUDE_COMPONENTS" description="COM_PUNGAANALYTICS_CONFIG_EXCLUDE_COMPONENTS_DESC" />
+		<field name="exclude_paths" type="textarea" rows="6" default="/administrator&#10;/api" label="COM_PUNGAANALYTICS_CONFIG_EXCLUDE_PATHS" description="COM_PUNGAANALYTICS_CONFIG_EXCLUDE_PATHS_DESC" />
+		<field name="store_query" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_PUNGAANALYTICS_CONFIG_STORE_QUERY" description="COM_PUNGAANALYTICS_CONFIG_STORE_QUERY_DESC">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+	</fieldset>
+	<fieldset name="privacy" label="COM_PUNGAANALYTICS_CONFIG_PRIVACY">
+		<field name="retention_days" type="number" default="180" min="1" max="3650" label="COM_PUNGAANALYTICS_CONFIG_RETENTION_DAYS" description="COM_PUNGAANALYTICS_CONFIG_RETENTION_DAYS_DESC" />
+		<field name="cleanup_probability" type="number" default="2" min="0" max="100" label="COM_PUNGAANALYTICS_CONFIG_CLEANUP_PROBABILITY" description="COM_PUNGAANALYTICS_CONFIG_CLEANUP_PROBABILITY_DESC" />
+		<field name="trusted_ip_header" type="text" default="" label="COM_PUNGAANALYTICS_CONFIG_TRUSTED_IP_HEADER" description="COM_PUNGAANALYTICS_CONFIG_TRUSTED_IP_HEADER_DESC" />
+	</fieldset>
+	<fieldset name="dashboard" label="COM_PUNGAANALYTICS_CONFIG_DASHBOARD">
+		<field name="dashboard_activity_rows" type="number" default="8" min="0" max="100" label="COM_PUNGAANALYTICS_CONFIG_DASHBOARD_ACTIVITY_ROWS" description="COM_PUNGAANALYTICS_CONFIG_DASHBOARD_ACTIVITY_ROWS_DESC" />
+	</fieldset>
+	<fieldset name="custom_events" label="COM_PUNGAANALYTICS_CONFIG_CUSTOM_EVENTS">
+		<field name="custom_event_policy" type="list" default="all" label="COM_PUNGAANALYTICS_CONFIG_CUSTOM_EVENT_POLICY" description="COM_PUNGAANALYTICS_CONFIG_CUSTOM_EVENT_POLICY_DESC">
+			<option value="all">COM_PUNGAANALYTICS_CONFIG_CUSTOM_EVENT_POLICY_ALL</option>
+			<option value="configured">COM_PUNGAANALYTICS_CONFIG_CUSTOM_EVENT_POLICY_CONFIGURED</option>
+		</field>
+		<field
+			name="custom_event_definitions"
+			type="subform"
+			formsource="administrator/components/com_pungaanalytics/forms/custom_event_definition.xml"
+			multiple="true"
+			layout="joomla.form.field.subform.repeatable"
+			groupByFieldset="true"
+			label="COM_PUNGAANALYTICS_CONFIG_CUSTOM_EVENT_DEFINITIONS"
+			description="COM_PUNGAANALYTICS_CONFIG_CUSTOM_EVENT_DEFINITIONS_DESC"
+		/>
+	</fieldset>
+	<fieldset name="country" label="COM_PUNGAANALYTICS_CONFIG_COUNTRY">
+		<field name="country_detection" type="list" default="local_dbip" label="COM_PUNGAANALYTICS_CONFIG_COUNTRY_DETECTION" description="COM_PUNGAANALYTICS_CONFIG_COUNTRY_DETECTION_DESC">
+			<option value="disabled">COM_PUNGAANALYTICS_CONFIG_COUNTRY_DISABLED</option>
+			<option value="local_dbip">COM_PUNGAANALYTICS_CONFIG_COUNTRY_LOCAL_DBIP</option>
+			<option value="header">COM_PUNGAANALYTICS_CONFIG_COUNTRY_HEADER</option>
+		</field>
+		<field name="trusted_country_header" type="text" default="HTTP_CF_IPCOUNTRY" label="COM_PUNGAANALYTICS_CONFIG_TRUSTED_COUNTRY_HEADER" description="COM_PUNGAANALYTICS_CONFIG_TRUSTED_COUNTRY_HEADER_DESC" />
+	</fieldset>
+	<fieldset name="permissions" label="JCONFIG_PERMISSIONS_LABEL" description="JCONFIG_PERMISSIONS_DESC">
+		<field name="rules" type="rules" label="JCONFIG_PERMISSIONS_LABEL" filter="rules" validate="rules" component="com_pungaanalytics" section="component" />
+	</fieldset>
+</config>

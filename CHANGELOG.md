@@ -1,11 +1,22 @@
 # Changelog
 
+## 0.7.0 — 2026-07-24
+
+- Rebranded the package, component, plugin, dashboard, assets, language keys, database identifiers, and documentation as Punga Analytics.
+- Moved PHP namespaces from `Willeke\...` to `Punga\Component\PungaAnalytics` and `Punga\Plugin\System\PungaAnalytics`.
+- Added an automatic migration for existing SimpleStats tables, parameters, compiled country data, and extension records.
+- Added the `onPungaAnalyticsRecord` bridge and retained `onSimpleStatsRecord` as a backward-compatible listener for existing integrations.
+- Replaced the plain date-range links with a native no-script dropdown that clearly displays the selected range.
+- Added a dashboard download that packages all core CSV reports and configured event-ranking CSVs into one ZIP.
+- Expanded the event-definition summary-icon choices.
+- Removed the duplicate version badge from the dashboard header; version information remains in System.
+
 ## 0.6.0 — 2026-07-24
 
 - Added repeatable generic custom-event definitions in the component options.
 - Added open or configured-only recording policies, per-event recording switches, and optional source-component restrictions.
 - Made Overview totals, activity chart/table series, hour and weekday columns, item-ranking cards, full reports, sorting, and CSV exports independently configurable per event.
-- Added the generic `#__simplestats_daily_event_time` archive so configured event time reports survive raw-event cleanup.
+- Added the generic `#__pungaanalytics_daily_event_time` archive so configured event time reports survive raw-event cleanup.
 - Migrated already-recorded custom event types into editable generic ranking definitions on update.
 - Removed runtime Audio Archive special cases; Audio Archive now uses the same public bridge and configuration model as every other producer.
 - Documented the complete definition workflow and producer payload contract.
@@ -72,7 +83,7 @@
 - Added permanent hourly and weekday aggregates so time-of-day reports survive raw-event cleanup.
 - Added full paginated reports for activity, time, pages, audio items, countries, referrers, languages, devices, browsers, bots, and custom event types.
 - Added UTF-8 CSV export for every full report and the complete selected date range.
-- Added `simplestats_recorded` bridge acknowledgement for diagnostics and verified the custom-event dispatch, validation, insertion, archival, and reporting path.
+- Added `pungaanalytics_recorded` bridge acknowledgement for diagnostics and verified the custom-event dispatch, validation, insertion, archival, and reporting path.
 - Reconstructed weekdays for existing raw events and permanent daily reports while leaving historical hour values explicitly unknown.
 - Updated the package, component, plugin, administrator assets, language strings, schema, and documentation to version 0.5.0.
 
@@ -85,7 +96,7 @@
 - Extended Reset all statistics and uninstallation to remove the aggregate tables as well as raw events.
 - Clarified the raw-event retention and cleanup-probability settings in English and German.
 - Added Unicode country flags beside localized country names in the Countries table.
-- Standardised component and plugin namespaces on the `Willeke` vendor prefix used by Audio Archive.
+- Standardised component and plugin namespaces on the `Punga` vendor prefix used by Audio Archive.
 - Added a 0.4.0 schema update that creates the three permanent report tables without altering existing event data.
 
 ## 0.3.4 — 2026-07-23
@@ -137,7 +148,7 @@
 ## 0.2.0 — 2026-07-17
 
 - Added local all-country detection through the monthly DB-IP Country Lite CSV database.
-- Added generic `onSimpleStatsRecord` custom events for integrations such as audio plays and downloads.
+- Added generic `onPungaAnalyticsRecord` custom events for integrations such as audio plays and downloads.
 - Added custom-event fields for event type, item type, item ID, and item title.
 - Counted authenticated frontend visitors by default while retaining configurable user exclusions.
 - Redesigned the administrator dashboard and added the installed extension version.

@@ -1,20 +1,20 @@
-# Simple Stats for Joomla
+# Punga Analytics for Joomla
 
-Simple Stats is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
+Punga Analytics is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.6.0`
-> **Package:** `pkg_simplestats`
+> **Current version:** `0.7.0`
+> **Package:** `pkg_pungaanalytics`
 
 ## Package contents
 
-- `com_simplestats` — administrator dashboard, configuration, database schema, and country-database maintenance
-- `plg_system_simplestats` — frontend page-view collector and custom-event listener
+- `com_pungaanalytics` — administrator dashboard, configuration, database schema, and country-database maintenance
+- `plg_system_pungaanalytics` — frontend page-view collector and custom-event listener
 
 The system plugin is enabled automatically when the package is installed.
 
 ## Collected information
 
-For eligible frontend page views and custom events, Simple Stats stores:
+For eligible frontend page views and custom events, Punga Analytics stores:
 
 - UTC timestamp, site-local calendar date, hour, and weekday
 - Daily rotating visitor hash
@@ -37,7 +37,7 @@ It does **not** store:
 - Complete referrer URLs
 - Joomla user IDs with events
 - Usernames or email addresses
-- Persistent cross-day visitor identifiers
+- Persistent cropa-day visitor identifiers
 - Analytics cookies
 - Arbitrary custom-event metadata
 
@@ -46,7 +46,7 @@ The visitor hash is an HMAC of the visitor IP address, User-Agent, site-local da
 ## Retention and permanent reports
 
 Detailed raw events are retained for the configured number of complete
-site-local calendar days. When cleanup runs, Simple Stats first converts every
+site-local calendar days. When cleanup runs, Punga Analytics first converts every
 expired complete day into permanent aggregate reports inside one database
 transaction. Only after every aggregate succeeds are the corresponding raw
 event rows removed.
@@ -79,12 +79,12 @@ A page view does not prove that embedded audio was played. Play and download cou
 
 ## Custom event bridge
 
-Other Joomla extensions can record a semantic event by dispatching `onSimpleStatsRecord`. Simple Stats listens when installed and enabled. The emitting extension does not need to require or import any Simple Stats PHP class.
+Other Joomla extensions can record a semantic event by dispatching `onPungaAnalyticsRecord`. Punga Analytics listens when installed and enabled. The emitting extension does not need to require or import any Punga Analytics PHP class.
 
 Event production and event presentation are deliberately separate:
 
 - The source extension decides when a real action happened and dispatches the event.
-- Simple Stats options decide whether that identifier is accepted and where its totals appear.
+- Punga Analytics options decide whether that identifier is accepted and where its totals appear.
 - Adding a definition does not create a browser listener or infer an action from a page view.
 
 Supported event arguments:
@@ -106,16 +106,16 @@ use Joomla\CMS\Event\GenericEvent;
 use Joomla\CMS\Factory;
 
 /**
- * Records an optional Simple Stats event without creating a package dependency.
+ * Records an optional Punga Analytics event without creating a package dependency.
  *
  * @param string $eventType Event type.
  * @param object $clip      Audio Archive clip.
  *
  * @return void
  */
-private function recordSimpleStatsEvent(string $eventType, object $clip): void
+private function recordPungaAnalyticsEvent(string $eventType, object $clip): void
 {
-	$eventName = 'onSimpleStatsRecord';
+	$eventName = 'onPungaAnalyticsRecord';
 	$dispatcher = Factory::getApplication()->getDispatcher();
 
 	$statsEvent = new GenericEvent(
@@ -134,15 +134,15 @@ private function recordSimpleStatsEvent(string $eventType, object $clip): void
 	$dispatcher->dispatch($eventName, $statsEvent);
 
 	// Optional diagnostic only. A missing listener leaves this argument unset.
-	$recorded = (bool) $statsEvent->getArgument('simplestats_recorded', false);
+	$recorded = (bool) $statsEvent->getArgument('pungaanalytics_recorded', false);
 }
 ```
 
 Then call the helper at the two successful server-side action points:
 
 ```php
-$this->recordSimpleStatsEvent('audio.play', $clip);
-$this->recordSimpleStatsEvent('audio.download', $clip);
+$this->recordPungaAnalyticsEvent('audio.play', $clip);
+$this->recordPungaAnalyticsEvent('audio.download', $clip);
 ```
 
 For Audio Archive, `audio.play` belongs in the controller or Ajax endpoint that
@@ -162,9 +162,9 @@ available:
 use Joomla\CMS\Event\GenericEvent;
 
 $dispatcher->dispatch(
-	'onSimpleStatsRecord',
+	'onPungaAnalyticsRecord',
 	new GenericEvent(
-		'onSimpleStatsRecord',
+		'onPungaAnalyticsRecord',
 		[
 			'subject' => $this,
 			'event_type' => 'audio.play',
@@ -183,18 +183,18 @@ Recommended Audio Archive event types are:
 - `audio.play`
 - `audio.download`
 
-Audio Archive can dispatch these events next to its existing aggregate play/download counter updates. If Simple Stats is not installed, the Joomla event is simply dispatched without a listener and Audio Archive continues normally.
+Audio Archive can dispatch these events next to its existing aggregate play/download counter updates. If Punga Analytics is not installed, the Joomla event is simply dispatched without a listener and Audio Archive continues normally.
 
 ### Configuring generic event definitions
 
-Open **Components → Simple Stats → Options → Custom events**. The
+Open **Components → Punga Analytics → Options → Custom events**. The
 **Recording policy** has two modes:
 
 - **Record all valid custom events** preserves the open bridge. A valid event
   is stored even if it has no definition; it remains visible in **Custom event
   types**.
 - **Record configured events only** turns the definitions into an allowlist.
-  Undefined identifiers are rejected and `simplestats_recorded` is `false`.
+  Undefined identifiers are rejected and `pungaanalytics_recorded` is `false`.
 
 Add one repeatable **Event definition** for every event that needs dedicated
 presentation. The fields have these meanings:
@@ -236,34 +236,40 @@ Any event type matching `[a-z][a-z0-9._-]{0,63}` can be used. `pageview` is
 reserved. Every dispatch creates one row; the source extension decides what
 constitutes one event and should avoid duplicate dispatches.
 
-Simple Stats writes the boolean `simplestats_recorded` argument back onto the
+Punga Analytics writes the boolean `pungaanalytics_recorded` argument back onto the
 mutable `GenericEvent`. It is `true` when the event was accepted and stored and
-`false` when Simple Stats rejected it or an insert failed. This is useful for
+`false` when Punga Analytics rejected it or an insert failed. This is useful for
 diagnostics and integration tests. Audio Archive should not make its own
 playback or download behavior depend on the flag because it is absent when
-Simple Stats is not installed or the plugin is disabled.
+Punga Analytics is not installed or the plugin is disabled.
+
+Version 0.7.0 also listens for the former `onSimpleStatsRecord` event and writes
+its former `simplestats_recorded` acknowledgement. This compatibility alias
+keeps existing integrations working through the rebrand. New and updated
+integrations should dispatch `onPungaAnalyticsRecord` and read
+`pungaanalytics_recorded`.
 
 ## Logged-in users
 
 Authenticated users on the public website are counted by default. Administrator backend requests are never collected.
 
-The event table stores only whether the visitor was authenticated. It does not store their Joomla user ID. Specific accounts can be excluded under **Components → Simple Stats → Options → Collection → Excluded Joomla user IDs**. This is useful for excluding the site owner while retaining statistics from ordinary registered visitors.
+The event table stores only whether the visitor was authenticated. It does not store their Joomla user ID. Specific accounts can be excluded under **Components → Punga Analytics → Options → Collection → Excluded Joomla user IDs**. This is useful for excluding the site owner while retaining statistics from ordinary registered visitors.
 
 ## Country detection
 
-Simple Stats can resolve all countries locally using the free monthly DB-IP Lite IP-to-Country database.
+Punga Analytics can resolve all countries locally using the free monthly DB-IP Lite IP-to-Country database.
 
-Use **Components → Simple Stats → Update country database** after installation. The action downloads the compressed CSV, streams it into compact fixed-record IPv4 and IPv6 lookup files, and stores them under:
+Use **Components → Punga Analytics → Update country database** after installation. The action downloads the compressed CSV, streams it into compact fixed-record IPv4 and IPv6 lookup files, and stores them under:
 
 ```text
-cache/com_simplestats/
+cache/com_pungaanalytics/
 ```
 
 Visitor IP addresses never leave the server. Only the administrator-triggered database download contacts DB-IP.
 
 IPv4-mapped IPv6 addresses are normalised before lookup. When the web server
-reports a private or reserved reverse-proxy address in `REMOTE_ADDR`, Simple
-Stats can automatically use the rightmost public address from
+reports a private or reserved reverse-proxy address in `REMOTE_ADDR`, Punga
+Analytics can automatically use the rightmost public address from
 `X-Forwarded-For`. With a proxy that has a public address, configure the exact
 server variable under **Trusted client-IP header** so the collector never
 blindly trusts a client-supplied forwarding header.
@@ -281,8 +287,8 @@ DB-IP Lite is updated monthly and licensed under Creative Commons Attribution 4.
 
 The redesigned administrator dashboard includes:
 
-- Installed Simple Stats version
-- Selectable 7, 30, 90, 365-day, and all-time ranges
+- Installed Punga Analytics version
+- Modern range picker for 7, 30, 90, 365-day, and all-time reports
 - Compact tabular overview of human visitor-days and page views
 - Logged-in frontend page views
 - Configurable custom-event overview totals
@@ -299,6 +305,7 @@ The redesigned administrator dashboard includes:
 - Custom event types
 - Clearly labeled paginated full-report links on dashboard panels
 - CSV export of every full report and the complete selected range
+- One-click ZIP download containing every core CSV plus configured event-ranking CSVs
 - Configurable row count for dashboard activity and custom-event ranking tables
 - Retention and country-database status
 - Confirmed toolbar action for permanently resetting all collected statistics
@@ -312,9 +319,9 @@ The redesigned administrator dashboard includes:
 - Query strings not stored
 - Detailed raw-event retention: 180 complete local calendar days
 - Opportunistic archival probability: 2 percent per recorded event
-- Dashboard activity and audio tables: 8 rows
+- Dashboard activity and custom-event ranking tables: 8 rows
 - Country detection: local DB-IP Lite database
-- Excluded components: `com_ajax`, `com_users`, `com_simplestats`
+- Excluded components: `com_ajax`, `com_users`, `com_pungaanalytics`
 - Excluded paths: `/administrator`, `/api`
 
 ### Requests excluded from ordinary page-view collection
@@ -328,11 +335,11 @@ The redesigned administrator dashboard includes:
 - Authenticated users when that optional collection setting is disabled
 - Explicitly excluded Joomla user IDs
 
-Task and non-GET requests may still create a **custom event** when an extension intentionally dispatches `onSimpleStatsRecord`. This allows AJAX playback counters and download controllers to report engagement without being misclassified as page views.
+Task and non-GET requests may still create a **custom event** when an extension intentionally dispatches `onPungaAnalyticsRecord`. This allows AJAX playback counters and download controllers to report engagement without being misclassified as page views.
 
 ### Reverse proxies
 
-By default, Simple Stats uses `REMOTE_ADDR`. It considers `X-Forwarded-For`
+By default, Punga Analytics uses `REMOTE_ADDR`. It considers `X-Forwarded-For`
 automatically only when the direct address is private or reserved and chooses
 the rightmost public address. A different trusted client-IP header may be
 configured only when a reverse proxy controlled by the site operator overwrites
@@ -343,14 +350,21 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 ## Installation and update
 
 1. Open **System → Install → Extensions** in Joomla Administrator.
-2. Upload `pkg_simplestats-0.6.0.zip`.
-3. Open **Components → Simple Stats**.
+2. Upload `pkg_pungaanalytics-0.7.0.zip`.
+3. Open **Components → Punga Analytics**.
 4. Click **Update country database**.
 5. Review the options and optionally exclude the site owner's Joomla user ID.
 
 Install newer versions directly over the existing package. Version 0.3.0 also
 repairs the Joomla database-maintenance definition for `event_type`; it does not
 alter or remove collected statistics.
+
+When 0.7.0 is installed over SimpleStats, the package automatically migrates the
+statistics tables, component options, and local country database,
+enables the Punga Analytics collector, and removes the old component, plugin,
+and package records. Existing raw events and permanent reports remain intact.
+The legacy custom-event name remains accepted so an integration can be updated
+independently.
 
 Versions 0.3.1 and later use versioned administrator stylesheets to bypass
 stale browser and server caches. Version 0.3.2 also renders the browser
@@ -361,7 +375,7 @@ under a version-specific asset name to avoid stale Joomla asset-registry entries
 Version 0.4.0 creates permanent daily aggregate tables. Existing raw events are
 left untouched during the update and remain fully visible. On the next eligible
 cleanup, expired complete days are archived before their raw rows are removed.
-Data already deleted by an earlier Simple Stats version cannot be reconstructed.
+Data already deleted by an earlier Punga Analytics version cannot be reconstructed.
 
 Version 0.5.0 adds permanent site-local hour and weekday aggregates, adaptive
 long-term trends, full paginated reports, and CSV export. Weekdays are
@@ -389,7 +403,7 @@ section headings.
 Version 0.5.4 replaces dashboard JavaScript sorting with the same server-side
 URL pattern used by Audio Archive. Sort links preserve the selected date range,
 reload at the affected table, and expose the active direction through both a
-small arrow and `aria-sort`. Simple Stats no longer ships dashboard JavaScript.
+small arrow and `aria-sort`. Punga Analytics no longer ships dashboard JavaScript.
 
 Version 0.5.5 renders sort arrows as explicit HTML so they remain visible
 independently of generated CSS content. It also gives every activity-chart
@@ -413,9 +427,17 @@ data now use a generic permanent archive table. Existing recorded event types
 are converted into editable ranking definitions during update; no statistics
 are deleted.
 
+Version 0.7.0 rebrands the complete extension as Punga Analytics. Component,
+plugin, package, language, media, namespace, cache, and database identifiers now
+use `pungaanalytics`, with PHP classes under `Punga\Component\PungaAnalytics`
+and `Punga\Plugin\System\PungaAnalytics`. The dashboard adds a selected-state
+range dropdown, an all-reports CSV ZIP, and a larger set of event-summary
+icons. The version remains available in the System card but is no longer
+repeated in the dashboard header.
+
 ## Resetting statistics
 
-Use **Components → Simple Stats → Reset all statistics** in the toolbar to
+Use **Components → Punga Analytics → Reset all statistics** in the toolbar to
 permanently remove every detailed raw event and every permanent aggregate
 report. A confirmation dialog is shown before anything is deleted.
 Configuration and the downloaded country database are retained.
@@ -424,18 +446,18 @@ Configuration and the downloaded country database are retained.
 
 Uninstalling the package removes:
 
-- `#__simplestats_events`
-- `#__simplestats_daily`
-- `#__simplestats_daily_dimensions`
-- `#__simplestats_daily_items`
-- `#__simplestats_daily_time`
-- `#__simplestats_daily_event_time`
-- Compiled country files and metadata under `cache/com_simplestats/`
+- `#__pungaanalytics_events`
+- `#__pungaanalytics_daily`
+- `#__pungaanalytics_daily_dimensions`
+- `#__pungaanalytics_daily_items`
+- `#__pungaanalytics_daily_time`
+- `#__pungaanalytics_daily_event_time`
+- Compiled country files and metadata under `cache/com_pungaanalytics/`
 - The component and system plugin
 
 ## Privacy notes
 
-Simple Stats is designed for data minimisation, but it does not claim automatic legal compliance. A daily visitor hash can still be considered pseudonymous personal data. Document the processing in the site's privacy notice, select an appropriate retention period, and assess the configuration for the site's circumstances.
+Punga Analytics is designed for data minimisation, but it does not claim automatic legal compliance. A daily visitor hash can still be considered pseudonymous personal data. Document the processing in the site's privacy notice, select an appropriate retention period, and assess the configuration for the site's circumstances.
 
 Enabling query-string storage can collect search terms and other user input. It is disabled by default. A short list of obviously sensitive parameter names is removed when enabled, but no generic filter can identify every application-specific sensitive value.
 
@@ -447,8 +469,8 @@ Enabling query-string storage can collect search terms and other user input. It 
 - License: GPL-2.0-or-later
 - Runtime JavaScript: none required
 - Composer dependencies: none bundled
-- Raw-event table: `#__simplestats_events`
-- Permanent report tables: `#__simplestats_daily`, `#__simplestats_daily_dimensions`, `#__simplestats_daily_items`, `#__simplestats_daily_time`, and `#__simplestats_daily_event_time`
+- Raw-event table: `#__pungaanalytics_events`
+- Permanent report tables: `#__pungaanalytics_daily`, `#__pungaanalytics_daily_dimensions`, `#__pungaanalytics_daily_items`, `#__pungaanalytics_daily_time`, and `#__pungaanalytics_daily_event_time`
 - Country source: DB-IP Lite CSV
 
 ## Known limitations
@@ -458,5 +480,5 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Existing Unknown country rows cannot be reclassified after a country-database update because raw IP addresses are not stored.
 - Country data must currently be updated manually.
 - Requests served before the collector runs, for example by an earlier full-page cache plugin, may not be recorded.
-- Simple Stats cannot infer a media play from a page view; the media extension must emit a custom event.
+- Punga Analytics cannot infer a media play from a page view; the media extension must emit a custom event.
 - Exact hour-of-day data is unavailable for events recorded before version 0.5.0.

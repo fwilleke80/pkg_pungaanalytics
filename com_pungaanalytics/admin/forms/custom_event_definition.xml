@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<form>
+	<fieldset name="identity" label="COM_PUNGAANALYTICS_CONFIG_EVENT_IDENTITY">
+		<field name="event_type" type="text" required="true" maxlength="64" label="COM_PUNGAANALYTICS_CONFIG_EVENT_TYPE" description="COM_PUNGAANALYTICS_CONFIG_EVENT_TYPE_DESC" hint="audio.play" />
+		<field name="title" type="text" required="true" maxlength="100" label="COM_PUNGAANALYTICS_CONFIG_EVENT_TITLE" description="COM_PUNGAANALYTICS_CONFIG_EVENT_TITLE_DESC" hint="Audio plays" />
+		<field name="source_component" type="text" maxlength="100" label="COM_PUNGAANALYTICS_CONFIG_EVENT_COMPONENT" description="COM_PUNGAANALYTICS_CONFIG_EVENT_COMPONENT_DESC" hint="com_audioarchive" />
+		<field name="record" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_PUNGAANALYTICS_CONFIG_EVENT_RECORD" description="COM_PUNGAANALYTICS_CONFIG_EVENT_RECORD_DESC">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+	</fieldset>
+	<fieldset name="presentation" label="COM_PUNGAANALYTICS_CONFIG_EVENT_PRESENTATION">
+		<field name="show_summary" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_SUMMARY">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+		<field name="show_trend" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_TREND">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+		<field name="show_time" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_TIME">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+		<field name="show_ranking" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_RANKING" description="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_RANKING_DESC">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+		<field name="ranking_title" type="text" maxlength="150" label="COM_PUNGAANALYTICS_CONFIG_EVENT_RANKING_TITLE" description="COM_PUNGAANALYTICS_CONFIG_EVENT_RANKING_TITLE_DESC" hint="Most played clips" />
+		<field name="report_title" type="text" maxlength="150" label="COM_PUNGAANALYTICS_CONFIG_EVENT_REPORT_TITLE" description="COM_PUNGAANALYTICS_CONFIG_EVENT_REPORT_TITLE_DESC" hint="Audio plays" />
+		<field name="color" type="color" format="hex" default="#198754" label="COM_PUNGAANALYTICS_CONFIG_EVENT_COLOR" />
+		<field name="icon" type="list" default="icon-chart" label="COM_PUNGAANALYTICS_CONFIG_EVENT_ICON">
+			<option value="icon-chart">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_CHART</option>
+			<option value="icon-play">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_PLAY</option>
+			<option value="icon-download">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_DOWNLOAD</option>
+			<option value="icon-heart">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_HEART</option>
+			<option value="icon-star">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_STAR</option>
+			<option value="icon-eye">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_EYE</option>
+			<option value="icon-check">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_CHECK</option>
+			<option value="icon-music">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_MUSIC</option>
+			<option value="icon-volume-up">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_VOLUME</option>
+			<option value="icon-bell">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_BELL</option>
+			<option value="icon-bookmark">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_BOOKMARK</option>
+			<option value="icon-calendar">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_CALENDAR</option>
+			<option value="icon-camera">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_CAMERA</option>
+			<option value="icon-cart">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_CART</option>
+			<option value="icon-comment">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_COMMENT</option>
+			<option value="icon-envelope">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_ENVELOPE</option>
+			<option value="icon-flag">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_FLAG</option>
+			<option value="icon-globe">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_GLOBE</option>
+			<option value="icon-lightning">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_LIGHTNING</option>
+			<option value="icon-link">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_LINK</option>
+			<option value="icon-pencil">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_PENCIL</option>
+			<option value="icon-share">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_SHARE</option>
+			<option value="icon-thumbs-up">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_THUMBS_UP</option>
+			<option value="icon-user">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_USER</option>
+			<option value="icon-users">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_USERS</option>
+			<option value="icon-video">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_VIDEO</option>
+			<option value="icon-upload">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_UPLOAD</option>
+			<option value="icon-file">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_FILE</option>
+			<option value="icon-tag">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_TAG</option>
+			<option value="icon-search">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_SEARCH</option>
+			<option value="icon-location">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_LOCATION</option>
+			<option value="icon-clock">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_CLOCK</option>
+			<option value="icon-cog">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_COG</option>
+		</field>
+	</fieldset>
+</form>

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Build the Simple Stats Joomla package and source archive."""
+"""Build the Punga Analytics Joomla package and source archive."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT.parent
 BUILD = ROOT / ".build"
@@ -57,18 +57,18 @@ def main() -> None:
         shutil.rmtree(BUILD)
 
     BUILD.mkdir()
-    component_zip = BUILD / "com_simplestats.zip"
-    plugin_zip = BUILD / "plg_system_simplestats.zip"
-    create_zip(ROOT / "com_simplestats", component_zip)
-    create_zip(ROOT / "plg_system_simplestats", plugin_zip)
+    component_zip = BUILD / "com_pungaanalytics.zip"
+    plugin_zip = BUILD / "plg_system_pungaanalytics.zip"
+    create_zip(ROOT / "com_pungaanalytics", component_zip)
+    create_zip(ROOT / "plg_system_pungaanalytics", plugin_zip)
 
     package_stage = BUILD / "package"
     shutil.copytree(ROOT / "package", package_stage)
     shutil.copy2(component_zip, package_stage / component_zip.name)
     shutil.copy2(plugin_zip, package_stage / plugin_zip.name)
 
-    package_output = OUTPUT / f"pkg_simplestats-{VERSION}.zip"
-    source_output = OUTPUT / f"pkg_simplestats-{VERSION}-source.zip"
+    package_output = OUTPUT / f"pkg_pungaanalytics-{VERSION}.zip"
+    source_output = OUTPUT / f"pkg_pungaanalytics-{VERSION}-source.zip"
     create_zip(package_stage, package_output)
 
     with zipfile.ZipFile(source_output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
@@ -81,9 +81,9 @@ def main() -> None:
             ):
                 continue
 
-            archive.write(path, (Path(f"pkg_simplestats-{VERSION}") / path.relative_to(ROOT)).as_posix())
+            archive.write(path, (Path(f"pkg_pungaanalytics-{VERSION}") / path.relative_to(ROOT)).as_posix())
 
-    checksum_output = OUTPUT / f"pkg_simplestats-{VERSION}.sha256.txt"
+    checksum_output = OUTPUT / f"pkg_pungaanalytics-{VERSION}.sha256.txt"
     checksum_output.write_text(
         f"{sha256(package_output)}  {package_output.name}\n"
         f"{sha256(source_output)}  {source_output.name}\n",
