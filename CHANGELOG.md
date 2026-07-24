@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 — 2026-07-24
+
+- Added repeatable generic custom-event definitions in the component options.
+- Added open or configured-only recording policies, per-event recording switches, and optional source-component restrictions.
+- Made Overview totals, activity chart/table series, hour and weekday columns, item-ranking cards, full reports, sorting, and CSV exports independently configurable per event.
+- Added the generic `#__simplestats_daily_event_time` archive so configured event time reports survive raw-event cleanup.
+- Migrated already-recorded custom event types into editable generic ranking definitions on update.
+- Removed runtime Audio Archive special cases; Audio Archive now uses the same public bridge and configuration model as every other producer.
+- Documented the complete definition workflow and producer payload contract.
+
 ## 0.5.6 — 2026-07-24
 
 - Reorganized Overview, Traffic, Time distribution, Content, Engagement, Audience and technology, and System into clean collapsible cards.

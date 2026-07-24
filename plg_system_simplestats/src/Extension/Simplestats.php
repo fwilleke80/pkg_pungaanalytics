@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Willeke\Plugin\System\Simplestats\Extension;
 
 use Willeke\Component\Simplestats\Administrator\Service\StatisticsArchiveService;
+use Willeke\Component\Simplestats\Administrator\Service\CustomEventDefinitionService;
 use Willeke\Plugin\System\Simplestats\Service\CountryDatabaseMatcher;
 use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Date\Date;
@@ -170,13 +171,21 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 		}
 
 		$eventType = strtolower(trim((string) ($arguments['event_type'] ?? '')));
+		$definitionService = new CustomEventDefinitionService();
 
-		if ($eventType === '' || $eventType === 'pageview' || preg_match('/^[a-z][a-z0-9._-]{0,63}$/', $eventType) !== 1)
+		if (!$definitionService->isValidEventType($eventType))
 		{
 			return false;
 		}
 
 		$input = $app->input;
+		$component = strtolower(trim((string) ($arguments['component'] ?? $input->getCmd('option', ''))));
+
+		if (!$definitionService->isRecordingAllowed($params, $eventType, $component))
+		{
+			return false;
+		}
+
 		$path = $this->normaliseEventPath((string) ($arguments['path'] ?? ''));
 
 		if ($path === '')
@@ -194,7 +203,7 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 			[
 				'event_type' => $eventType,
 				'path' => $path,
-				'component' => (string) ($arguments['component'] ?? $input->getCmd('option', '')),
+				'component' => $component,
 				'view_name' => (string) ($arguments['view_name'] ?? $input->getCmd('view', '')),
 				'item_type' => (string) ($arguments['item_type'] ?? ''),
 				'item_id' => (string) ($arguments['item_id'] ?? ''),

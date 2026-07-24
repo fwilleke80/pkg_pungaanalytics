@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<form>
+	<fieldset name="identity" label="COM_SIMPLESTATS_CONFIG_EVENT_IDENTITY">
+		<field name="event_type" type="text" required="true" maxlength="64" label="COM_SIMPLESTATS_CONFIG_EVENT_TYPE" description="COM_SIMPLESTATS_CONFIG_EVENT_TYPE_DESC" hint="audio.play" />
+		<field name="title" type="text" required="true" maxlength="100" label="COM_SIMPLESTATS_CONFIG_EVENT_TITLE" description="COM_SIMPLESTATS_CONFIG_EVENT_TITLE_DESC" hint="Audio plays" />
+		<field name="source_component" type="text" maxlength="100" label="COM_SIMPLESTATS_CONFIG_EVENT_COMPONENT" description="COM_SIMPLESTATS_CONFIG_EVENT_COMPONENT_DESC" hint="com_audioarchive" />
+		<field name="record" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_SIMPLESTATS_CONFIG_EVENT_RECORD" description="COM_SIMPLESTATS_CONFIG_EVENT_RECORD_DESC">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+	</fieldset>
+	<fieldset name="presentation" label="COM_SIMPLESTATS_CONFIG_EVENT_PRESENTATION">
+		<field name="show_summary" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_SIMPLESTATS_CONFIG_EVENT_SHOW_SUMMARY">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+		<field name="show_trend" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_SIMPLESTATS_CONFIG_EVENT_SHOW_TREND">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+		<field name="show_time" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_SIMPLESTATS_CONFIG_EVENT_SHOW_TIME">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+		<field name="show_ranking" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_SIMPLESTATS_CONFIG_EVENT_SHOW_RANKING" description="COM_SIMPLESTATS_CONFIG_EVENT_SHOW_RANKING_DESC">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
+		<field name="ranking_title" type="text" maxlength="150" label="COM_SIMPLESTATS_CONFIG_EVENT_RANKING_TITLE" description="COM_SIMPLESTATS_CONFIG_EVENT_RANKING_TITLE_DESC" hint="Most played clips" />
+		<field name="report_title" type="text" maxlength="150" label="COM_SIMPLESTATS_CONFIG_EVENT_REPORT_TITLE" description="COM_SIMPLESTATS_CONFIG_EVENT_REPORT_TITLE_DESC" hint="Audio plays" />
+		<field name="color" type="color" format="hex" default="#198754" label="COM_SIMPLESTATS_CONFIG_EVENT_COLOR" />
+		<field name="icon" type="list" default="icon-chart" label="COM_SIMPLESTATS_CONFIG_EVENT_ICON">
+			<option value="icon-chart">COM_SIMPLESTATS_CONFIG_EVENT_ICON_CHART</option>
+			<option value="icon-play">COM_SIMPLESTATS_CONFIG_EVENT_ICON_PLAY</option>
+			<option value="icon-download">COM_SIMPLESTATS_CONFIG_EVENT_ICON_DOWNLOAD</option>
+			<option value="icon-heart">COM_SIMPLESTATS_CONFIG_EVENT_ICON_HEART</option>
+			<option value="icon-star">COM_SIMPLESTATS_CONFIG_EVENT_ICON_STAR</option>
+			<option value="icon-eye">COM_SIMPLESTATS_CONFIG_EVENT_ICON_EYE</option>
+			<option value="icon-check">COM_SIMPLESTATS_CONFIG_EVENT_ICON_CHECK</option>
+		</field>
+	</fieldset>
+</form>

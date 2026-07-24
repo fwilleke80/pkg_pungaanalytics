@@ -60,11 +60,20 @@ $weekdayLabels = [
 ];
 $report = (string) $this->data['report'];
 $kind = (string) $this->data['kind'];
-$features = $this->data['features'] ?? ['audioPlays' => false, 'audioDownloads' => false];
+$eventType = $this->eventType;
+$definitionFlag = $kind === 'trend' ? 'show_trend' : 'show_time';
+$eventDefinitions = \in_array($kind, ['trend', 'hour', 'weekday'], true)
+	? array_values(array_filter(
+		$this->data['customEventDefinitions'] ?? [],
+		static fn(array $definition): bool => (bool) ($definition[$definitionFlag] ?? false)
+	))
+	: [];
+$eventQuery = $eventType === '' ? '' : '&event_type=' . rawurlencode($eventType);
 $token = Session::getFormToken();
 $exportUrl = Route::_(
 	'index.php?option=com_simplestats&task=report.exportCsv&report='
 	. rawurlencode($report)
+	. $eventQuery
 	. '&days=' . $this->days
 	. '&sort=' . rawurlencode($this->sort)
 	. '&direction=' . rawurlencode($this->direction)
@@ -79,7 +88,7 @@ $sortHeading = static function (
 	string $label,
 	string $defaultDirection,
 	string $className = ''
-) use ($escape, $report, $currentSort, $currentDirection, $currentDays, $currentLimit): string
+) use ($escape, $report, $eventQuery, $currentSort, $currentDirection, $currentDays, $currentLimit): string
 {
 	$active = $currentSort === $field;
 	$nextDirection = $active
@@ -96,6 +105,7 @@ $sortHeading = static function (
 	$classAttribute = $className === '' ? '' : ' class="' . $escape($className) . '"';
 	$url = Route::_(
 		'index.php?option=com_simplestats&view=report&report=' . rawurlencode($report)
+		. $eventQuery
 		. '&days=' . $currentDays
 		. '&limit=' . $currentLimit
 		. '&sort=' . rawurlencode($field)
@@ -133,6 +143,7 @@ $sortHeading = static function (
 			<a class="ss-range__item<?php echo $this->days === $value ? ' is-active' : ''; ?>"
 				href="<?php echo Route::_(
 					'index.php?option=com_simplestats&view=report&report=' . rawurlencode($report)
+					. $eventQuery
 					. '&days=' . (int) $value
 					. '&limit=' . $this->limit
 					. '&sort=' . rawurlencode($this->sort)
@@ -173,12 +184,9 @@ $sortHeading = static function (
 							?>
 							<?php echo $sortHeading('visits', Text::_('COM_SIMPLESTATS_VISITS'), 'desc', 'text-end'); ?>
 							<?php echo $sortHeading('pageviews', Text::_('COM_SIMPLESTATS_PAGEVIEWS'), 'desc', 'text-end'); ?>
-							<?php if ($features['audioPlays']) : ?>
-								<?php echo $sortHeading('plays', Text::_('COM_SIMPLESTATS_AUDIO_PLAYS'), 'desc', 'text-end'); ?>
-							<?php endif; ?>
-							<?php if ($features['audioDownloads']) : ?>
-								<?php echo $sortHeading('downloads', Text::_('COM_SIMPLESTATS_AUDIO_DOWNLOADS'), 'desc', 'text-end'); ?>
-							<?php endif; ?>
+							<?php foreach ($eventDefinitions as $definition) : ?>
+								<?php echo $sortHeading((string) $definition['key'], (string) $definition['title'], 'desc', 'text-end'); ?>
+							<?php endforeach; ?>
 							<?php echo $sortHeading('bots', Text::_('COM_SIMPLESTATS_BOTS'), 'desc', 'text-end'); ?>
 						</tr>
 					</thead>
@@ -195,12 +203,9 @@ $sortHeading = static function (
 									<td class="text-nowrap"><?php echo $escape($label); ?></td>
 									<td class="text-end"><?php echo $number($row->visits); ?></td>
 									<td class="text-end"><?php echo $number($row->pageviews); ?></td>
-									<?php if ($features['audioPlays']) : ?>
-										<td class="text-end"><?php echo $number($row->plays); ?></td>
-									<?php endif; ?>
-									<?php if ($features['audioDownloads']) : ?>
-										<td class="text-end"><?php echo $number($row->downloads); ?></td>
-									<?php endif; ?>
+									<?php foreach ($eventDefinitions as $definition) : ?>
+										<td class="text-end"><?php echo $number(($row->events ?? [])[(string) $definition['event_type']] ?? 0); ?></td>
+									<?php endforeach; ?>
 									<td class="text-end"><?php echo $number($row->bots); ?></td>
 							</tr>
 						<?php endforeach; ?>

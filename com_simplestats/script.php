@@ -40,6 +40,7 @@ return new class implements InstallerScriptInterface
 
 		foreach ([
 			'#__simplestats_daily_items',
+			'#__simplestats_daily_event_time',
 			'#__simplestats_daily_time',
 			'#__simplestats_daily_dimensions',
 			'#__simplestats_daily',
@@ -170,8 +171,6 @@ CREATE TABLE IF NOT EXISTS `#__simplestats_daily` (
 	`authenticated_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`german_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`bot_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
-	`plays` BIGINT UNSIGNED NOT NULL DEFAULT 0,
-	`downloads` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`custom_events` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	PRIMARY KEY (`visit_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
@@ -196,10 +195,19 @@ CREATE TABLE IF NOT EXISTS `#__simplestats_daily_time` (
 	`human_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`human_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`bot_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
-	`plays` BIGINT UNSIGNED NOT NULL DEFAULT 0,
-	`downloads` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	PRIMARY KEY (`visit_date`, `bucket_kind`, `bucket_value`),
 	KEY `idx_simplestats_time_kind_date` (`bucket_kind`, `visit_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
+SQL,
+			<<<'SQL'
+CREATE TABLE IF NOT EXISTS `#__simplestats_daily_event_time` (
+	`visit_date` DATE NOT NULL,
+	`event_type` VARCHAR(64) NOT NULL,
+	`bucket_kind` VARCHAR(8) NOT NULL,
+	`bucket_value` TINYINT UNSIGNED NOT NULL,
+	`event_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	PRIMARY KEY (`visit_date`, `event_type`, `bucket_kind`, `bucket_value`),
+	KEY `idx_simplestats_event_time_type` (`event_type`, `bucket_kind`, `visit_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
 SQL,
 			<<<'SQL'
@@ -229,18 +237,16 @@ SQL,
 				<<<'SQL'
 INSERT INTO `#__simplestats_daily_time` (
 	`visit_date`, `bucket_kind`, `bucket_value`, `human_visits`,
-	`human_pageviews`, `bot_pageviews`, `plays`, `downloads`
+	`human_pageviews`, `bot_pageviews`
 )
 SELECT
 	`visit_date`, 'weekday', WEEKDAY(`visit_date`) + 1, `human_visits`,
-	`human_pageviews`, `bot_pageviews`, `plays`, `downloads`
+	`human_pageviews`, `bot_pageviews`
 FROM `#__simplestats_daily`
 ON DUPLICATE KEY UPDATE
 	`human_visits` = VALUES(`human_visits`),
 	`human_pageviews` = VALUES(`human_pageviews`),
-	`bot_pageviews` = VALUES(`bot_pageviews`),
-	`plays` = VALUES(`plays`),
-	`downloads` = VALUES(`downloads`)
+	`bot_pageviews` = VALUES(`bot_pageviews`)
 SQL
 			)
 		)->execute();
@@ -337,6 +343,18 @@ SQL
 			$changed = true;
 		}
 
+		if (!array_key_exists('custom_event_policy', $params))
+		{
+			$params['custom_event_policy'] = 'all';
+			$changed = true;
+		}
+
+		if (!array_key_exists('custom_event_definitions', $params))
+		{
+			$params['custom_event_definitions'] = $this->discoverCustomEventDefinitions($db);
+			$changed = true;
+		}
+
 		if (!$changed)
 		{
 			return;
@@ -351,6 +369,60 @@ SQL
 			->bind(':params', $paramsJson)
 			->bind(':extensionId', $extensionId, ParameterType::INTEGER);
 		$db->setQuery($query)->execute();
+	}
+
+	/**
+	 * Creates initial presentation definitions for already-recorded event types.
+	 *
+	 * @param DatabaseInterface $db Database connection.
+	 *
+	 * @return array<int, array<string, int|string>>
+	 */
+	private function discoverCustomEventDefinitions(DatabaseInterface $db): array
+	{
+		$sql = <<<'SQL'
+SELECT DISTINCT `event_type`
+FROM (
+	SELECT `event_type`
+	FROM `#__simplestats_events`
+	WHERE `event_type` <> 'pageview'
+	UNION
+	SELECT `label` AS `event_type`
+	FROM `#__simplestats_daily_dimensions`
+	WHERE `dimension_key` = 'event_type'
+	UNION
+	SELECT `event_type`
+	FROM `#__simplestats_daily_items`
+) AS `recorded_events`
+WHERE `event_type` REGEXP '^[a-z][a-z0-9._-]{0,63}$'
+ORDER BY `event_type`
+LIMIT 100
+SQL;
+		$db->setQuery($db->replacePrefix($sql));
+		$eventTypes = array_map('strval', $db->loadColumn());
+		$definitions = [];
+		$colors = ['#198754', '#d99000', '#6f42c1', '#0f8b8d', '#c94b54', '#2a69b8'];
+
+		foreach ($eventTypes as $index => $eventType)
+		{
+			$title = ucwords((string) preg_replace('/[._-]+/', ' ', $eventType));
+			$definitions[] = [
+				'event_type' => $eventType,
+				'title' => $title,
+				'source_component' => '',
+				'record' => 1,
+				'show_summary' => 0,
+				'show_trend' => 0,
+				'show_time' => 0,
+				'show_ranking' => 1,
+				'ranking_title' => $title . ' by item',
+				'report_title' => $title,
+				'color' => $colors[$index % \count($colors)],
+				'icon' => 'icon-chart',
+			];
+		}
+
+		return $definitions;
 	}
 
 	/**

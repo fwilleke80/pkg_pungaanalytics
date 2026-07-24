@@ -35,6 +35,9 @@ final class HtmlView extends BaseHtmlView
 	/** @var string */
 	public string $direction = '';
 
+	/** @var string */
+	public string $eventType = '';
+
 	/** @var Pagination */
 	public Pagination $pagination;
 
@@ -53,6 +56,7 @@ final class HtmlView extends BaseHtmlView
 		$requestedDays = $app->input->getInt('days', 30);
 		$requestedLimit = $app->input->getInt('limit', 50);
 		$report = strtolower($app->input->getCmd('report', 'pages'));
+		$this->eventType = strtolower($app->input->getCmd('event_type', ''));
 		$this->days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 30;
 		$this->limit = \in_array($requestedLimit, $allowedLimits, true) ? $requestedLimit : 50;
 		$this->start = max(0, $app->input->getInt('limitstart', 0));
@@ -62,7 +66,7 @@ final class HtmlView extends BaseHtmlView
 		/** @var \Willeke\Component\Simplestats\Administrator\Model\ReportModel $model */
 		$model = $this->getModel();
 
-		if (!$model->isSupportedReport($report))
+		if (!$model->isSupportedReport($report, $this->eventType))
 		{
 			throw new \InvalidArgumentException(Text::_('COM_SIMPLESTATS_REPORT_INVALID'), 404);
 		}
@@ -73,7 +77,8 @@ final class HtmlView extends BaseHtmlView
 			$this->start,
 			$this->limit,
 			$requestedSort,
-			$requestedDirection
+			$requestedDirection,
+			$this->eventType
 		);
 		$this->sort = (string) $this->data['sort'];
 		$this->direction = (string) $this->data['direction'];
@@ -81,15 +86,21 @@ final class HtmlView extends BaseHtmlView
 		$this->pagination->setAdditionalUrlParam('option', 'com_simplestats');
 		$this->pagination->setAdditionalUrlParam('view', 'report');
 		$this->pagination->setAdditionalUrlParam('report', $report);
+
+		if ($this->eventType !== '')
+		{
+			$this->pagination->setAdditionalUrlParam('event_type', $this->eventType);
+		}
+
 		$this->pagination->setAdditionalUrlParam('days', $this->days);
 		$this->pagination->setAdditionalUrlParam('limit', $this->limit);
 		$this->pagination->setAdditionalUrlParam('sort', $this->sort);
 		$this->pagination->setAdditionalUrlParam('direction', $this->direction);
 
 		$app->getDocument()->getWebAssetManager()->registerAndUseStyle(
-			'com_simplestats.admin.0.5.6',
-			'com_simplestats/css/admin-0.5.6.css',
-			['version' => '0.5.6']
+			'com_simplestats.admin.0.6.0',
+			'com_simplestats/css/admin-0.6.0.css',
+			['version' => '0.6.0']
 		);
 
 		ToolbarHelper::title(

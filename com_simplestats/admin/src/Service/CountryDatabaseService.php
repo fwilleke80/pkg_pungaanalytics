@@ -208,7 +208,7 @@ final class CountryDatabaseService
 			@unlink($destination);
 		}
 
-		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Simple Stats/0.5.6'], 90);
+		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Simple Stats/0.6.0'], 90);
 
 		if ($response->code < 200 || $response->code >= 300)
 		{

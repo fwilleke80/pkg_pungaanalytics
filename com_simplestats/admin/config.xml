@@ -29,6 +29,22 @@
 	<fieldset name="dashboard" label="COM_SIMPLESTATS_CONFIG_DASHBOARD">
 		<field name="dashboard_activity_rows" type="number" default="8" min="0" max="100" label="COM_SIMPLESTATS_CONFIG_DASHBOARD_ACTIVITY_ROWS" description="COM_SIMPLESTATS_CONFIG_DASHBOARD_ACTIVITY_ROWS_DESC" />
 	</fieldset>
+	<fieldset name="custom_events" label="COM_SIMPLESTATS_CONFIG_CUSTOM_EVENTS">
+		<field name="custom_event_policy" type="list" default="all" label="COM_SIMPLESTATS_CONFIG_CUSTOM_EVENT_POLICY" description="COM_SIMPLESTATS_CONFIG_CUSTOM_EVENT_POLICY_DESC">
+			<option value="all">COM_SIMPLESTATS_CONFIG_CUSTOM_EVENT_POLICY_ALL</option>
+			<option value="configured">COM_SIMPLESTATS_CONFIG_CUSTOM_EVENT_POLICY_CONFIGURED</option>
+		</field>
+		<field
+			name="custom_event_definitions"
+			type="subform"
+			formsource="administrator/components/com_simplestats/forms/custom_event_definition.xml"
+			multiple="true"
+			layout="joomla.form.field.subform.repeatable"
+			groupByFieldset="true"
+			label="COM_SIMPLESTATS_CONFIG_CUSTOM_EVENT_DEFINITIONS"
+			description="COM_SIMPLESTATS_CONFIG_CUSTOM_EVENT_DEFINITIONS_DESC"
+		/>
+	</fieldset>
 	<fieldset name="country" label="COM_SIMPLESTATS_CONFIG_COUNTRY">
 		<field name="country_detection" type="list" default="local_dbip" label="COM_SIMPLESTATS_CONFIG_COUNTRY_DETECTION" description="COM_SIMPLESTATS_CONFIG_COUNTRY_DETECTION_DESC">
 			<option value="disabled">COM_SIMPLESTATS_CONFIG_COUNTRY_DISABLED</option>

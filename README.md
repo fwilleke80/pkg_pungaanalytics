@@ -2,7 +2,7 @@
 
 Simple Stats is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.5.6`
+> **Current version:** `0.6.0`
 > **Package:** `pkg_simplestats`
 
 ## Package contents
@@ -53,10 +53,10 @@ event rows removed.
 
 The permanent reports preserve:
 
-- Daily visitor-day, page-view, play, download, authenticated-view, and bot totals
-- Site-local hour-of-day and weekday totals
+- Daily visitor-day, page-view, authenticated-view, bot, and generic custom-event totals
+- Site-local hour-of-day and weekday totals, including configured custom events
 - Countries, pages, referrers, browser languages, devices, browsers, and detected bots
-- Custom-event types and item-level play/download totals
+- Custom-event types and generic item-level event totals
 
 Dashboard queries combine retained raw events with the permanent reports.
 Cleanup therefore does not reduce all-time totals, rewrite older charts, or
@@ -80,6 +80,12 @@ A page view does not prove that embedded audio was played. Play and download cou
 ## Custom event bridge
 
 Other Joomla extensions can record a semantic event by dispatching `onSimpleStatsRecord`. Simple Stats listens when installed and enabled. The emitting extension does not need to require or import any Simple Stats PHP class.
+
+Event production and event presentation are deliberately separate:
+
+- The source extension decides when a real action happened and dispatches the event.
+- Simple Stats options decide whether that identifier is accepted and where its totals appear.
+- Adding a definition does not create a browser listener or infer an action from a page view.
 
 Supported event arguments:
 
@@ -179,11 +185,52 @@ Recommended Audio Archive event types are:
 
 Audio Archive can dispatch these events next to its existing aggregate play/download counter updates. If Simple Stats is not installed, the Joomla event is simply dispatched without a listener and Audio Archive continues normally.
 
-The audio-specific dashboard metrics, chart series, time-report columns, and
-item reports are optional. Simple Stats activates each one automatically after
-it receives the corresponding `audio.play` or `audio.download` event. Sites
-that do not use Audio Archive therefore see only the generic traffic reports;
-no separate integration plugin or manual switch is required.
+### Configuring generic event definitions
+
+Open **Components → Simple Stats → Options → Custom events**. The
+**Recording policy** has two modes:
+
+- **Record all valid custom events** preserves the open bridge. A valid event
+  is stored even if it has no definition; it remains visible in **Custom event
+  types**.
+- **Record configured events only** turns the definitions into an allowlist.
+  Undefined identifiers are rejected and `simplestats_recorded` is `false`.
+
+Add one repeatable **Event definition** for every event that needs dedicated
+presentation. The fields have these meanings:
+
+| Setting | Effect |
+| --- | --- |
+| Event identifier | Exact `event_type` from the producer, for example `audio.play` |
+| Display title | Label used in overview totals, trend series, and time columns |
+| Required source component | Optional `component` allowlist value, for example `com_audioarchive` |
+| Record this event | Accept or reject new events with this identifier |
+| Show overview total | Add a metric to the Overview card |
+| Show in activity trend | Add a series and table column to Activity over time |
+| Show in hour and weekday reports | Add a column to both time-distribution tables and their full reports/CSV files |
+| Show item ranking | Add an Engagement card table plus a sortable full report and CSV |
+| Ranking card title | Dashboard heading, for example `Most played clips` |
+| Full report title | Heading used on the event’s full-report page |
+| Chart color | Color of the event’s activity-series bars |
+| Summary icon | Joomla icon shown with its Overview metric |
+
+For Audio Archive, a useful configuration is:
+
+| Event identifier | Display title | Component | Overview | Trend | Time | Ranking | Ranking title |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `audio.play` | Audio plays | `com_audioarchive` | Yes | Yes | Yes | Yes | Most played clips |
+| `audio.download` | Audio downloads | `com_audioarchive` | Yes | Yes | Yes | Yes | Most downloaded clips |
+
+Item rankings group by the generic `item_title`, `item_id`, `item_type`, and
+`path` arguments. A producer that enables rankings should therefore send
+`item_type` plus a stable `item_id` and preferably `item_title`. Events without
+item data are still counted, but their ranking row is shown as an unknown item.
+
+Changing presentation switches does not delete statistics. Disabling
+**Record this event** stops new matching events while preserving existing raw
+and archived counts. Removing a definition removes its dedicated metrics,
+columns, and item report; under the open recording policy, the identifier can
+still be collected and remains in the generic event-type report.
 
 Any event type matching `[a-z][a-z0-9._-]{0,63}` can be used. `pageview` is
 reserved. Every dispatch creates one row; the source extension decides what
@@ -238,13 +285,13 @@ The redesigned administrator dashboard includes:
 - Selectable 7, 30, 90, 365-day, and all-time ranges
 - Compact tabular overview of human visitor-days and page views
 - Logged-in frontend page views
-- Optional audio-play and download reports that activate when their custom event types are first received
+- Configurable custom-event overview totals
 - Bot page views
 - Adaptive day, ISO-week, or month activity trend for the complete selected range
 - Site-local hour-of-day and weekday reports
 - Sortable dashboard and full-report table columns with report-specific default ordering
 - Most viewed pages
-- Most played and downloaded items when their optional audio event types are active
+- Configurable generic item-ranking cards for events such as plays and downloads
 - Countries pie chart, localized country names, Unicode flags, and exact table
 - External referrers
 - Browser-language, device-category, and browser-family pie charts with exact tables
@@ -252,7 +299,7 @@ The redesigned administrator dashboard includes:
 - Custom event types
 - Clearly labeled paginated full-report links on dashboard panels
 - CSV export of every full report and the complete selected range
-- Configurable row count for the dashboard activity, audio-play, and audio-download tables
+- Configurable row count for dashboard activity and custom-event ranking tables
 - Retention and country-database status
 - Confirmed toolbar action for permanently resetting all collected statistics
 
@@ -296,7 +343,7 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 ## Installation and update
 
 1. Open **System → Install → Extensions** in Joomla Administrator.
-2. Upload `pkg_simplestats-0.5.6.zip`.
+2. Upload `pkg_simplestats-0.6.0.zip`.
 3. Open **Components → Simple Stats**.
 4. Click **Update country database**.
 5. Review the options and optionally exclude the site owner's Joomla user ID.
@@ -357,6 +404,15 @@ selected table, and System opens when the country database needs attention.
 The card controls use semantic headings and native keyboard-accessible
 `details` and `summary` elements without JavaScript.
 
+Version 0.6.0 replaces the audio-specific report switches with repeatable,
+generic custom-event definitions. Administrators can allowlist identifiers,
+optionally restrict their source component, and independently place each event
+in the Overview, activity trend, time-distribution reports, or an item-ranking
+card with a full sortable report and CSV export. Custom-event hour and weekday
+data now use a generic permanent archive table. Existing recorded event types
+are converted into editable ranking definitions during update; no statistics
+are deleted.
+
 ## Resetting statistics
 
 Use **Components → Simple Stats → Reset all statistics** in the toolbar to
@@ -373,6 +429,7 @@ Uninstalling the package removes:
 - `#__simplestats_daily_dimensions`
 - `#__simplestats_daily_items`
 - `#__simplestats_daily_time`
+- `#__simplestats_daily_event_time`
 - Compiled country files and metadata under `cache/com_simplestats/`
 - The component and system plugin
 
@@ -391,7 +448,7 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Runtime JavaScript: none required
 - Composer dependencies: none bundled
 - Raw-event table: `#__simplestats_events`
-- Permanent report tables: `#__simplestats_daily`, `#__simplestats_daily_dimensions`, `#__simplestats_daily_items`, and `#__simplestats_daily_time`
+- Permanent report tables: `#__simplestats_daily`, `#__simplestats_daily_dimensions`, `#__simplestats_daily_items`, `#__simplestats_daily_time`, and `#__simplestats_daily_event_time`
 - Country source: DB-IP Lite CSV
 
 ## Known limitations

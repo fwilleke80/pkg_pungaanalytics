@@ -66,6 +66,7 @@ final class StatisticsArchiveService
 				$this->archiveDailyTotals($cutoffDate);
 				$this->archiveDimensions($cutoffDate);
 				$this->archiveTimeBuckets($cutoffDate);
+				$this->archiveCustomEventTimeBuckets($cutoffDate);
 				$this->archiveEventItems($cutoffDate);
 
 				$eventsTable = $db->quoteName($db->replacePrefix('#__simplestats_events'));
@@ -104,6 +105,7 @@ final class StatisticsArchiveService
 			'#__simplestats_daily',
 			'#__simplestats_daily_dimensions',
 			'#__simplestats_daily_time',
+			'#__simplestats_daily_event_time',
 			'#__simplestats_daily_items',
 		];
 		$removed = 0;
@@ -186,7 +188,7 @@ final class StatisticsArchiveService
 		$dailyTable = $db->quoteName($db->replacePrefix('#__simplestats_daily'));
 		$sql = 'INSERT INTO ' . $dailyTable . ' ('
 			. '`visit_date`, `human_visits`, `human_pageviews`, `authenticated_pageviews`, '
-			. '`german_visits`, `bot_pageviews`, `plays`, `downloads`, `custom_events`'
+			. '`german_visits`, `bot_pageviews`, `custom_events`'
 			. ') SELECT '
 			. '`visit_date`, '
 			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' THEN `visitor_hash` END), "
@@ -194,8 +196,6 @@ final class StatisticsArchiveService
 			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' AND `is_authenticated` = 1 THEN 1 ELSE 0 END), "
 			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' AND `country_code` = 'DE' THEN `visitor_hash` END), "
 			. "SUM(CASE WHEN `is_bot` = 1 AND `event_type` = 'pageview' THEN 1 ELSE 0 END), "
-			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` = 'audio.play' THEN 1 ELSE 0 END), "
-			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` = 'audio.download' THEN 1 ELSE 0 END), "
 			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` <> 'pageview' THEN 1 ELSE 0 END) "
 			. 'FROM ' . $eventsTable
 			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
@@ -206,8 +206,6 @@ final class StatisticsArchiveService
 			. '`authenticated_pageviews` = `authenticated_pageviews` + VALUES(`authenticated_pageviews`), '
 			. '`german_visits` = `german_visits` + VALUES(`german_visits`), '
 			. '`bot_pageviews` = `bot_pageviews` + VALUES(`bot_pageviews`), '
-			. '`plays` = `plays` + VALUES(`plays`), '
-			. '`downloads` = `downloads` + VALUES(`downloads`), '
 			. '`custom_events` = `custom_events` + VALUES(`custom_events`)';
 
 		$db->setQuery($sql)->execute();
@@ -375,16 +373,14 @@ final class StatisticsArchiveService
 		$bucket = '`' . $column . '`';
 		$sql = 'INSERT INTO ' . $timeTable . ' ('
 			. '`visit_date`, `bucket_kind`, `bucket_value`, `human_visits`, '
-			. '`human_pageviews`, `bot_pageviews`, `plays`, `downloads`'
+			. '`human_pageviews`, `bot_pageviews`'
 			. ') SELECT '
 			. '`visit_date`, '
 			. $db->quote($kind) . ', '
 			. $bucket . ', '
 			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' THEN `visitor_hash` END), "
 			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' THEN 1 ELSE 0 END), "
-			. "SUM(CASE WHEN `is_bot` = 1 AND `event_type` = 'pageview' THEN 1 ELSE 0 END), "
-			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` = 'audio.play' THEN 1 ELSE 0 END), "
-			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` = 'audio.download' THEN 1 ELSE 0 END) "
+			. "SUM(CASE WHEN `is_bot` = 1 AND `event_type` = 'pageview' THEN 1 ELSE 0 END) "
 			. 'FROM ' . $eventsTable
 			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
 			. ' AND ' . $bucket . ' >= ' . $minimum
@@ -393,9 +389,65 @@ final class StatisticsArchiveService
 			. 'ON DUPLICATE KEY UPDATE '
 			. '`human_visits` = `human_visits` + VALUES(`human_visits`), '
 			. '`human_pageviews` = `human_pageviews` + VALUES(`human_pageviews`), '
-			. '`bot_pageviews` = `bot_pageviews` + VALUES(`bot_pageviews`), '
-			. '`plays` = `plays` + VALUES(`plays`), '
-			. '`downloads` = `downloads` + VALUES(`downloads`)';
+			. '`bot_pageviews` = `bot_pageviews` + VALUES(`bot_pageviews`)';
+
+		$db->setQuery($sql)->execute();
+	}
+
+	/**
+	 * Archives every custom event by local hour and weekday.
+	 *
+	 * @param string $cutoffDate First retained raw-event date.
+	 *
+	 * @return void
+	 */
+	private function archiveCustomEventTimeBuckets(string $cutoffDate): void
+	{
+		$this->archiveCustomEventTimeBucket($cutoffDate, 'hour', 'visit_hour', 0, 23);
+		$this->archiveCustomEventTimeBucket($cutoffDate, 'weekday', 'visit_weekday', 1, 7);
+	}
+
+	/**
+	 * Archives one generic custom-event time-bucket family.
+	 *
+	 * @param string $cutoffDate First retained raw-event date.
+	 * @param string $kind       Aggregate bucket kind.
+	 * @param string $column     Raw event bucket column.
+	 * @param int    $minimum    Lowest valid bucket.
+	 * @param int    $maximum    Highest valid bucket.
+	 *
+	 * @return void
+	 */
+	private function archiveCustomEventTimeBucket(
+		string $cutoffDate,
+		string $kind,
+		string $column,
+		int $minimum,
+		int $maximum
+	): void
+	{
+		if (!\in_array($kind, ['hour', 'weekday'], true)
+			|| !\in_array($column, ['visit_hour', 'visit_weekday'], true))
+		{
+			throw new \InvalidArgumentException('Unsupported custom-event time archive bucket.');
+		}
+
+		$db = $this->database;
+		$eventsTable = $db->quoteName($db->replacePrefix('#__simplestats_events'));
+		$timeTable = $db->quoteName($db->replacePrefix('#__simplestats_daily_event_time'));
+		$bucket = '`' . $column . '`';
+		$sql = 'INSERT INTO ' . $timeTable . ' ('
+			. '`visit_date`, `event_type`, `bucket_kind`, `bucket_value`, `event_count`'
+			. ') SELECT '
+			. '`visit_date`, `event_type`, ' . $db->quote($kind) . ', ' . $bucket . ', COUNT(*) '
+			. 'FROM ' . $eventsTable
+			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
+			. " AND `is_bot` = 0 AND `event_type` <> 'pageview'"
+			. ' AND ' . $bucket . ' >= ' . $minimum
+			. ' AND ' . $bucket . ' <= ' . $maximum
+			. ' GROUP BY `visit_date`, `event_type`, ' . $bucket . ' '
+			. 'ON DUPLICATE KEY UPDATE '
+			. '`event_count` = `event_count` + VALUES(`event_count`)';
 
 		$db->setQuery($sql)->execute();
 	}

@@ -32,8 +32,6 @@ final class ReportModel extends BaseDatabaseModel
 				'period' => 'period_start',
 				'visits' => 'visits',
 				'pageviews' => 'pageviews',
-				'plays' => 'plays',
-				'downloads' => 'downloads',
 				'bots' => 'bots',
 			],
 		],
@@ -44,8 +42,6 @@ final class ReportModel extends BaseDatabaseModel
 				'hour' => 'bucket',
 				'visits' => 'visits',
 				'pageviews' => 'pageviews',
-				'plays' => 'plays',
-				'downloads' => 'downloads',
 				'bots' => 'bots',
 			],
 		],
@@ -56,23 +52,10 @@ final class ReportModel extends BaseDatabaseModel
 				'weekday' => 'bucket',
 				'visits' => 'visits',
 				'pageviews' => 'pageviews',
-				'plays' => 'plays',
-				'downloads' => 'downloads',
 				'bots' => 'bots',
 			],
 		],
-		'plays' => [
-			'default' => 'count',
-			'direction' => 'desc',
-			'fields' => [
-				'title' => 'item_label',
-				'item_id' => 'item_id',
-				'item_type' => 'item_type',
-				'path' => 'path',
-				'count' => 'count',
-			],
-		],
-		'downloads' => [
+		'event' => [
 			'default' => 'count',
 			'direction' => 'desc',
 			'fields' => [
@@ -96,8 +79,6 @@ final class ReportModel extends BaseDatabaseModel
 		'bucket',
 		'visits',
 		'pageviews',
-		'plays',
-		'downloads',
 		'bots',
 		'count',
 	];
@@ -111,6 +92,7 @@ final class ReportModel extends BaseDatabaseModel
 	 * @param int    $limit     Rows per page.
 	 * @param string $sort      Requested sort key.
 	 * @param string $direction asc or desc.
+	 * @param string $eventType Custom event identifier for a generic event report.
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -120,11 +102,12 @@ final class ReportModel extends BaseDatabaseModel
 		int $start,
 		int $limit,
 		string $sort,
-		string $direction
+		string $direction,
+		string $eventType = ''
 	): array
 	{
 		$data = $this->sortReportData(
-			$this->getQueryService()->getReportData($report, $days),
+			$this->getQueryService()->getReportData($report, $days, $eventType),
 			$sort,
 			$direction
 		);
@@ -141,13 +124,20 @@ final class ReportModel extends BaseDatabaseModel
 	 * @param int    $days      Number of days, or zero for all data.
 	 * @param string $sort      Requested sort key.
 	 * @param string $direction asc or desc.
+	 * @param string $eventType Custom event identifier for a generic event report.
 	 *
 	 * @return array<string, mixed>
 	 */
-	public function getExportData(string $report, int $days, string $sort, string $direction): array
+	public function getExportData(
+		string $report,
+		int $days,
+		string $sort,
+		string $direction,
+		string $eventType = ''
+	): array
 	{
 		return $this->sortReportData(
-			$this->getQueryService()->getReportData($report, $days),
+			$this->getQueryService()->getReportData($report, $days, $eventType),
 			$sort,
 			$direction
 		);
@@ -156,13 +146,14 @@ final class ReportModel extends BaseDatabaseModel
 	/**
 	 * Returns whether a report identifier is supported.
 	 *
-	 * @param string $report Report identifier.
+	 * @param string $report    Report identifier.
+	 * @param string $eventType Custom event identifier for a generic event report.
 	 *
 	 * @return bool
 	 */
-	public function isSupportedReport(string $report): bool
+	public function isSupportedReport(string $report, string $eventType = ''): bool
 	{
-		return $this->getQueryService()->isSupportedReport($report);
+		return $this->getQueryService()->isSupportedReport($report, $eventType);
 	}
 
 	/**
@@ -184,6 +175,19 @@ final class ReportModel extends BaseDatabaseModel
 		];
 		$fields = $configuration['fields'];
 
+		if (\in_array($report, ['activity', 'hours', 'weekdays'], true))
+		{
+			$flag = $report === 'activity' ? 'show_trend' : 'show_time';
+
+			foreach ($data['customEventDefinitions'] ?? [] as $definition)
+			{
+				if ((bool) ($definition[$flag] ?? false))
+				{
+					$fields[(string) $definition['key']] = 'event:' . (string) $definition['event_type'];
+				}
+			}
+		}
+
 		if (!isset($fields[$sort]))
 		{
 			$sort = $configuration['default'];
@@ -195,7 +199,8 @@ final class ReportModel extends BaseDatabaseModel
 		}
 
 		$property = (string) $fields[$sort];
-		$numeric = \in_array($property, self::NUMERIC_PROPERTIES, true);
+		$numeric = \in_array($property, self::NUMERIC_PROPERTIES, true)
+			|| str_starts_with($property, 'event:');
 		$multiplier = $direction === 'desc' ? -1 : 1;
 
 		usort(
@@ -227,7 +232,9 @@ final class ReportModel extends BaseDatabaseModel
 	 */
 	private function getDefaultDirection(string $property): string
 	{
-		if ($property === 'period_start' || \in_array($property, self::NUMERIC_PROPERTIES, true))
+		if ($property === 'period_start'
+			|| \in_array($property, self::NUMERIC_PROPERTIES, true)
+			|| str_starts_with($property, 'event:'))
 		{
 			return $property === 'bucket' ? 'asc' : 'desc';
 		}
@@ -258,6 +265,13 @@ final class ReportModel extends BaseDatabaseModel
 			}
 
 			return '';
+		}
+
+		if (str_starts_with($property, 'event:'))
+		{
+			$eventType = substr($property, 6);
+
+			return (int) (($row->events ?? [])[$eventType] ?? 0);
 		}
 
 		return $row->{$property} ?? '';

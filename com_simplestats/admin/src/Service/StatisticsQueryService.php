@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Willeke\Component\Simplestats\Administrator\Service;
 
 use DateTimeImmutable;
+use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Date\Date;
 use Joomla\Database\DatabaseInterface;
 use Joomla\Database\DatabaseQuery;
@@ -26,8 +27,6 @@ final class StatisticsQueryService
 		'hours' => ['title' => 'COM_SIMPLESTATS_BY_HOUR', 'kind' => 'hour'],
 		'weekdays' => ['title' => 'COM_SIMPLESTATS_BY_WEEKDAY', 'kind' => 'weekday'],
 		'pages' => ['title' => 'COM_SIMPLESTATS_TOP_PAGES', 'kind' => 'dimension'],
-		'plays' => ['title' => 'COM_SIMPLESTATS_TOP_PLAYS', 'kind' => 'items'],
-		'downloads' => ['title' => 'COM_SIMPLESTATS_TOP_DOWNLOADS', 'kind' => 'items'],
 		'countries' => ['title' => 'COM_SIMPLESTATS_COUNTRIES', 'kind' => 'country'],
 		'referrers' => ['title' => 'COM_SIMPLESTATS_REFERRERS', 'kind' => 'dimension'],
 		'languages' => ['title' => 'COM_SIMPLESTATS_LANGUAGES', 'kind' => 'dimension'],
@@ -36,6 +35,9 @@ final class StatisticsQueryService
 		'bots' => ['title' => 'COM_SIMPLESTATS_BOT_NAMES', 'kind' => 'dimension'],
 		'events' => ['title' => 'COM_SIMPLESTATS_CUSTOM_EVENTS', 'kind' => 'dimension'],
 	];
+
+	/** @var array<int, array<string, mixed>> */
+	private array $customEventDefinitions;
 
 	/**
 	 * Creates the query service.
@@ -48,13 +50,16 @@ final class StatisticsQueryService
 		private string $timezone
 	)
 	{
+		$this->customEventDefinitions = (new CustomEventDefinitionService())->getDefinitions(
+			ComponentHelper::getParams('com_simplestats')
+		);
 	}
 
 	/**
 	 * Returns all dashboard data for a selected range.
 	 *
 	 * @param int $days      Number of days, or zero for all data.
-	 * @param int $tableRows Maximum audio rows on the dashboard, or zero for all.
+	 * @param int $tableRows Maximum activity and event rows on the dashboard, or zero for all.
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -62,21 +67,33 @@ final class StatisticsQueryService
 	{
 		[$from, $to] = $this->getDateBounds($days);
 		$granularity = $this->getTrendGranularity($from, $to);
-		$features = $this->getOptionalFeatures();
 		$tableRows = max(0, $tableRows);
+		$rankings = [];
+
+		foreach ($this->getDefinitionsFor('show_ranking') as $definition)
+		{
+			$rankings[] = [
+				'definition' => $definition,
+				'rows' => $this->getEventItems(
+					(string) $definition['event_type'],
+					$from,
+					$to,
+					$tableRows
+				),
+			];
+		}
 
 		return [
 			'from' => $from,
 			'to' => $to,
-			'features' => $features,
+			'customEventDefinitions' => $this->customEventDefinitions,
+			'customEventRankings' => $rankings,
 			'trendGranularity' => $granularity,
 			'summary' => $this->getSummary($from, $to),
 			'trend' => $this->getTrend($from, $to, $granularity),
 			'hours' => $this->getTimeRows('hour', $from, $to),
 			'weekdays' => $this->getTimeRows('weekday', $from, $to),
 			'topPages' => $this->getDimensionRows('path', $from, $to, 15, false, 'pageview'),
-			'topPlays' => $features['audioPlays'] ? $this->getEventItems('audio.play', $from, $to, $tableRows) : [],
-			'topDownloads' => $features['audioDownloads'] ? $this->getEventItems('audio.download', $from, $to, $tableRows) : [],
 			'eventTypes' => $this->getEventTypes($from, $to, 15),
 			'countries' => $this->getCountryRows($from, $to, 20),
 			'referrers' => $this->getDimensionRows('referrer_host', $from, $to, 15, false, 'pageview', true),
@@ -90,38 +107,41 @@ final class StatisticsQueryService
 	/**
 	 * Returns a complete named report without pagination.
 	 *
-	 * @param string $report Report identifier.
-	 * @param int    $days   Number of days, or zero for all data.
+	 * @param string $report    Report identifier.
+	 * @param int    $days      Number of days, or zero for all data.
+	 * @param string $eventType Custom event identifier for the generic event report.
 	 *
 	 * @return array{
 	 *   report:string,
 	 *   title:string,
 	 *   kind:string,
-	 *   features:array{audioPlays:bool,audioDownloads:bool},
+	 *   customEventDefinitions:array<int, array<string, mixed>>,
 	 *   from:string,
 	 *   to:string,
 	 *   rows:array<int, object>
 	 * }
 	 */
-	public function getReportData(string $report, int $days): array
+	public function getReportData(string $report, int $days, string $eventType = ''): array
 	{
 		$report = strtolower(trim($report));
+		$eventType = strtolower(trim($eventType));
+		$eventDefinition = $report === 'event'
+			? $this->getDefinition($eventType)
+			: null;
 
-		if (!isset(self::REPORTS[$report]))
+		if (!isset(self::REPORTS[$report]) && $eventDefinition === null)
 		{
 			throw new \InvalidArgumentException('Unsupported Simple Stats report.');
 		}
 
 		[$from, $to] = $this->getDateBounds($days);
-		$features = $this->getOptionalFeatures();
 		$rows = match ($report)
 		{
 			'activity' => $this->getTrend($from, $to, $this->getTrendGranularity($from, $to)),
 			'hours' => $this->getTimeRows('hour', $from, $to),
 			'weekdays' => $this->getTimeRows('weekday', $from, $to),
 			'pages' => $this->getDimensionRows('path', $from, $to, 0, false, 'pageview'),
-			'plays' => $this->getEventItems('audio.play', $from, $to, 0),
-			'downloads' => $this->getEventItems('audio.download', $from, $to, 0),
+			'event' => $this->getEventItems($eventType, $from, $to, 0),
 			'countries' => $this->getCountryRows($from, $to, 0),
 			'referrers' => $this->getDimensionRows('referrer_host', $from, $to, 0, false, 'pageview', true),
 			'languages' => $this->getDimensionRows('language_code', $from, $to, 0, false, 'pageview', true),
@@ -133,66 +153,32 @@ final class StatisticsQueryService
 
 		return [
 			'report' => $report,
-			'title' => self::REPORTS[$report]['title'],
-			'kind' => self::REPORTS[$report]['kind'],
-			'features' => $features,
+			'title' => $eventDefinition !== null
+				? (string) $eventDefinition['report_title']
+				: self::REPORTS[$report]['title'],
+			'kind' => $eventDefinition !== null ? 'items' : self::REPORTS[$report]['kind'],
 			'from' => $from,
 			'to' => $to,
 			'rows' => $rows,
-		];
-	}
-
-	/**
-	 * Detects optional report families from recorded custom event types.
-	 *
-	 * Detection is all-time so an optional report does not disappear merely
-	 * because the currently selected range contains no matching events.
-	 *
-	 * @return array{audioPlays:bool, audioDownloads:bool}
-	 */
-	private function getOptionalFeatures(): array
-	{
-		$db = $this->database;
-		$eventTypes = ['audio.play', 'audio.download'];
-		$quotedEventTypes = implode(', ', array_map(
-			fn(string $eventType): string => $db->quote($eventType),
-			$eventTypes
-		));
-		$query = $db->getQuery(true)
-			->select('DISTINCT ' . $db->quoteName('event_type'))
-			->from($db->quoteName('#__simplestats_events'))
-			->where($db->quoteName('is_bot') . ' = 0')
-			->where($db->quoteName('event_type') . ' IN (' . $quotedEventTypes . ')');
-		$db->setQuery($query);
-		$foundEventTypes = array_fill_keys(array_map('strval', $db->loadColumn()), true);
-		$archiveQuery = $db->getQuery(true)
-			->select('DISTINCT ' . $db->quoteName('label'))
-			->from($db->quoteName('#__simplestats_daily_dimensions'))
-			->where($db->quoteName('dimension_key') . ' = ' . $db->quote('event_type'))
-			->where($db->quoteName('label') . ' IN (' . $quotedEventTypes . ')');
-		$db->setQuery($archiveQuery);
-
-		foreach ($db->loadColumn() as $eventType)
-		{
-			$foundEventTypes[(string) $eventType] = true;
-		}
-
-		return [
-			'audioPlays' => isset($foundEventTypes['audio.play']),
-			'audioDownloads' => isset($foundEventTypes['audio.download']),
+			'event_type' => $eventType,
+			'customEventDefinitions' => $this->customEventDefinitions,
 		];
 	}
 
 	/**
 	 * Returns whether a full report identifier is supported.
 	 *
-	 * @param string $report Report identifier.
+	 * @param string $report    Report identifier.
+	 * @param string $eventType Custom event identifier for the generic event report.
 	 *
 	 * @return bool
 	 */
-	public function isSupportedReport(string $report): bool
+	public function isSupportedReport(string $report, string $eventType = ''): bool
 	{
-		return isset(self::REPORTS[strtolower(trim($report))]);
+		$report = strtolower(trim($report));
+
+		return isset(self::REPORTS[$report])
+			|| ($report === 'event' && $this->getDefinition(strtolower(trim($eventType))) !== null);
 	}
 
 	/**
@@ -245,8 +231,6 @@ final class StatisticsQueryService
 				'SUM(CASE WHEN ' . $human . ' AND ' . $pageView . ' AND ' . $db->quoteName('is_authenticated') . ' = 1 THEN 1 ELSE 0 END) AS ' . $db->quoteName('authenticated_pageviews'),
 				'COUNT(DISTINCT CASE WHEN ' . $human . ' AND ' . $pageView . ' AND ' . $db->quoteName('country_code') . ' = ' . $db->quote('DE') . ' THEN ' . $dailyVisitor . ' END) AS ' . $db->quoteName('german_visits'),
 				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 1 AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('bot_pageviews'),
-				'SUM(CASE WHEN ' . $human . ' AND ' . $db->quoteName('event_type') . ' = ' . $db->quote('audio.play') . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('plays'),
-				'SUM(CASE WHEN ' . $human . ' AND ' . $db->quoteName('event_type') . ' = ' . $db->quote('audio.download') . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('downloads'),
 				'SUM(CASE WHEN ' . $human . ' AND ' . $db->quoteName('event_type') . ' <> ' . $db->quote('pageview') . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('custom_events'),
 			])
 			->from($db->quoteName('#__simplestats_events'));
@@ -261,8 +245,6 @@ final class StatisticsQueryService
 				'SUM(' . $db->quoteName('authenticated_pageviews') . ') AS ' . $db->quoteName('authenticated_pageviews'),
 				'SUM(' . $db->quoteName('german_visits') . ') AS ' . $db->quoteName('german_visits'),
 				'SUM(' . $db->quoteName('bot_pageviews') . ') AS ' . $db->quoteName('bot_pageviews'),
-				'SUM(' . $db->quoteName('plays') . ') AS ' . $db->quoteName('plays'),
-				'SUM(' . $db->quoteName('downloads') . ') AS ' . $db->quoteName('downloads'),
 				'SUM(' . $db->quoteName('custom_events') . ') AS ' . $db->quoteName('custom_events'),
 			])
 			->from($db->quoteName('#__simplestats_daily'));
@@ -278,13 +260,13 @@ final class StatisticsQueryService
 			'authenticated_pageviews',
 			'german_visits',
 			'bot_pageviews',
-			'plays',
-			'downloads',
 			'custom_events',
 		] as $field)
 		{
 			$result->{$field} = (int) ($raw->{$field} ?? 0) + (int) ($aggregate->{$field} ?? 0);
 		}
+
+		$result->events = $this->getEventTotals($from, $to);
 
 		return $result;
 	}
@@ -308,7 +290,8 @@ final class StatisticsQueryService
 		}
 
 		$buckets = [];
-		$fields = ['visits', 'pageviews', 'plays', 'downloads', 'bots'];
+		$fields = ['visits', 'pageviews', 'bots'];
+		$eventTypes = array_column($this->getDefinitionsFor('show_trend'), 'event_type');
 		$cursor = match ($granularity)
 		{
 			'month' => new DateTimeImmutable(substr($from, 0, 7) . '-01'),
@@ -341,6 +324,7 @@ final class StatisticsQueryService
 				$buckets[$key]->{$field} = 0;
 			}
 
+			$buckets[$key]->events = array_fill_keys($eventTypes, 0);
 			$cursor = $cursor->modify($step);
 		}
 
@@ -358,6 +342,23 @@ final class StatisticsQueryService
 			foreach ($fields as $field)
 			{
 				$buckets[$key]->{$field} += (int) ($row->{$field} ?? 0);
+			}
+		}
+
+		foreach ($this->getEventDailyRows($eventTypes, $from, $to) as $row)
+		{
+			$date = (string) $row->visit_date;
+			$periodStart = match ($granularity)
+			{
+				'month' => substr($date, 0, 7) . '-01',
+				'week' => (new DateTimeImmutable($date))->modify('monday this week')->format('Y-m-d'),
+				default => $date,
+			};
+			$eventType = (string) $row->event_type;
+
+			if (isset($buckets[$periodStart]->events[$eventType]))
+			{
+				$buckets[$periodStart]->events[$eventType] += (int) $row->count;
 			}
 		}
 
@@ -385,8 +386,6 @@ final class StatisticsQueryService
 				$db->quoteName('visit_date'),
 				'COUNT(DISTINCT CASE WHEN ' . $human . ' AND ' . $pageView . ' THEN ' . $dailyVisitor . ' END) AS ' . $db->quoteName('visits'),
 				'SUM(CASE WHEN ' . $human . ' AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('pageviews'),
-				'SUM(CASE WHEN ' . $human . ' AND ' . $db->quoteName('event_type') . ' = ' . $db->quote('audio.play') . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('plays'),
-				'SUM(CASE WHEN ' . $human . ' AND ' . $db->quoteName('event_type') . ' = ' . $db->quote('audio.download') . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('downloads'),
 				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 1 AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('bots'),
 			])
 			->from($db->quoteName('#__simplestats_events'))
@@ -400,8 +399,6 @@ final class StatisticsQueryService
 				$db->quoteName('visit_date'),
 				$db->quoteName('human_visits') . ' AS ' . $db->quoteName('visits'),
 				$db->quoteName('human_pageviews') . ' AS ' . $db->quoteName('pageviews'),
-				$db->quoteName('plays'),
-				$db->quoteName('downloads'),
 				$db->quoteName('bot_pageviews') . ' AS ' . $db->quoteName('bots'),
 			])
 			->from($db->quoteName('#__simplestats_daily'));
@@ -440,8 +437,6 @@ final class StatisticsQueryService
 				$db->quoteName($field) . ' AS ' . $db->quoteName('bucket'),
 				'COUNT(DISTINCT CASE WHEN ' . $human . ' AND ' . $pageView . ' THEN ' . $dailyVisitor . ' END) AS ' . $db->quoteName('visits'),
 				'SUM(CASE WHEN ' . $human . ' AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('pageviews'),
-				'SUM(CASE WHEN ' . $human . ' AND ' . $db->quoteName('event_type') . ' = ' . $db->quote('audio.play') . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('plays'),
-				'SUM(CASE WHEN ' . $human . ' AND ' . $db->quoteName('event_type') . ' = ' . $db->quote('audio.download') . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('downloads'),
 				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 1 AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('bots'),
 			])
 			->from($db->quoteName('#__simplestats_events'))
@@ -457,8 +452,6 @@ final class StatisticsQueryService
 				$db->quoteName('bucket_value') . ' AS ' . $db->quoteName('bucket'),
 				'SUM(' . $db->quoteName('human_visits') . ') AS ' . $db->quoteName('visits'),
 				'SUM(' . $db->quoteName('human_pageviews') . ') AS ' . $db->quoteName('pageviews'),
-				'SUM(' . $db->quoteName('plays') . ') AS ' . $db->quoteName('plays'),
-				'SUM(' . $db->quoteName('downloads') . ') AS ' . $db->quoteName('downloads'),
 				'SUM(' . $db->quoteName('bot_pageviews') . ') AS ' . $db->quoteName('bots'),
 			])
 			->from($db->quoteName('#__simplestats_daily_time'))
@@ -469,7 +462,232 @@ final class StatisticsQueryService
 		$this->applyDateRange($archiveQuery, $from, $to);
 		$db->setQuery($archiveQuery);
 
-		return $this->mergeTimeRows($raw, $db->loadObjectList(), $minimum, $maximum);
+		$rows = $this->mergeTimeRows($raw, $db->loadObjectList(), $minimum, $maximum);
+		$eventTypes = array_column($this->getDefinitionsFor('show_time'), 'event_type');
+		$rowsByBucket = [];
+
+		foreach ($rows as $row)
+		{
+			$row->events = array_fill_keys($eventTypes, 0);
+			$rowsByBucket[(int) $row->bucket] = $row;
+		}
+
+		foreach ($this->getEventTimeRows($eventTypes, $kind, $field, $from, $to) as $eventRow)
+		{
+			$bucket = (int) $eventRow->bucket;
+			$eventType = (string) $eventRow->event_type;
+
+			if (isset($rowsByBucket[$bucket]->events[$eventType]))
+			{
+				$rowsByBucket[$bucket]->events[$eventType] += (int) $eventRow->count;
+			}
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * Returns configured definitions enabled for one presentation surface.
+	 *
+	 * @param string $flag Definition boolean flag.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function getDefinitionsFor(string $flag): array
+	{
+		return array_values(array_filter(
+			$this->customEventDefinitions,
+			static fn(array $definition): bool => (bool) ($definition[$flag] ?? false)
+		));
+	}
+
+	/**
+	 * Returns one configured definition by event identifier.
+	 *
+	 * @param string $eventType Event identifier.
+	 *
+	 * @return array<string, mixed>|null
+	 */
+	private function getDefinition(string $eventType): ?array
+	{
+		foreach ($this->customEventDefinitions as $definition)
+		{
+			if ((string) $definition['event_type'] === $eventType)
+			{
+				return $definition;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Returns totals for every configured custom event.
+	 *
+	 * @param string $from Inclusive date.
+	 * @param string $to   Inclusive date.
+	 *
+	 * @return array<string, int>
+	 */
+	private function getEventTotals(string $from, string $to): array
+	{
+		$eventTypes = array_column($this->customEventDefinitions, 'event_type');
+		$totals = array_fill_keys($eventTypes, 0);
+
+		foreach ($this->getEventDailyRows($eventTypes, $from, $to) as $row)
+		{
+			$eventType = (string) $row->event_type;
+
+			if (isset($totals[$eventType]))
+			{
+				$totals[$eventType] += (int) $row->count;
+			}
+		}
+
+		return $totals;
+	}
+
+	/**
+	 * Returns raw and archived daily totals for selected custom events.
+	 *
+	 * @param array<int, string> $eventTypes Event identifiers.
+	 * @param string             $from       Inclusive date.
+	 * @param string             $to         Inclusive date.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getEventDailyRows(array $eventTypes, string $from, string $to): array
+	{
+		if ($eventTypes === [])
+		{
+			return [];
+		}
+
+		$db = $this->database;
+		$eventList = implode(', ', array_map(
+			static fn(string $eventType): string => $db->quote($eventType),
+			$eventTypes
+		));
+		$query = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				$db->quoteName('event_type'),
+				'COUNT(*) AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__simplestats_events'))
+			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('event_type') . ' IN (' . $eventList . ')')
+			->group([$db->quoteName('visit_date'), $db->quoteName('event_type')]);
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
+		$raw = $db->loadObjectList();
+		$archiveQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				$db->quoteName('label') . ' AS ' . $db->quoteName('event_type'),
+				'SUM(' . $db->quoteName('event_count') . ') AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__simplestats_daily_dimensions'))
+			->where($db->quoteName('dimension_key') . ' = ' . $db->quote('event_type'))
+			->where($db->quoteName('label') . ' IN (' . $eventList . ')')
+			->group([$db->quoteName('visit_date'), $db->quoteName('label')]);
+		$this->applyDateRange($archiveQuery, $from, $to);
+		$db->setQuery($archiveQuery);
+		$rows = [];
+
+		foreach (array_merge($raw, $db->loadObjectList()) as $source)
+		{
+			$key = (string) $source->visit_date . "\0" . (string) $source->event_type;
+
+			if (!isset($rows[$key]))
+			{
+				$rows[$key] = (object) [
+					'visit_date' => (string) $source->visit_date,
+					'event_type' => (string) $source->event_type,
+					'count' => 0,
+				];
+			}
+
+			$rows[$key]->count += (int) $source->count;
+		}
+
+		return array_values($rows);
+	}
+
+	/**
+	 * Returns raw and archived time totals for selected custom events.
+	 *
+	 * @param array<int, string> $eventTypes Event identifiers.
+	 * @param string             $kind       hour or weekday.
+	 * @param string             $field      Raw bucket field.
+	 * @param string             $from       Inclusive date.
+	 * @param string             $to         Inclusive date.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getEventTimeRows(
+		array $eventTypes,
+		string $kind,
+		string $field,
+		string $from,
+		string $to
+	): array
+	{
+		if ($eventTypes === [])
+		{
+			return [];
+		}
+
+		$db = $this->database;
+		$eventList = implode(', ', array_map(
+			static fn(string $eventType): string => $db->quote($eventType),
+			$eventTypes
+		));
+		$query = $db->getQuery(true)
+			->select([
+				$db->quoteName($field) . ' AS ' . $db->quoteName('bucket'),
+				$db->quoteName('event_type'),
+				'COUNT(*) AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__simplestats_events'))
+			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('event_type') . ' IN (' . $eventList . ')')
+			->group([$db->quoteName($field), $db->quoteName('event_type')]);
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
+		$raw = $db->loadObjectList();
+		$archiveQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('bucket_value') . ' AS ' . $db->quoteName('bucket'),
+				$db->quoteName('event_type'),
+				'SUM(' . $db->quoteName('event_count') . ') AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__simplestats_daily_event_time'))
+			->where($db->quoteName('bucket_kind') . ' = :eventBucketKind')
+			->where($db->quoteName('event_type') . ' IN (' . $eventList . ')')
+			->group([$db->quoteName('bucket_value'), $db->quoteName('event_type')])
+			->bind(':eventBucketKind', $kind);
+		$this->applyDateRange($archiveQuery, $from, $to);
+		$db->setQuery($archiveQuery);
+		$rows = [];
+
+		foreach (array_merge($raw, $db->loadObjectList()) as $source)
+		{
+			$key = (int) $source->bucket . "\0" . (string) $source->event_type;
+
+			if (!isset($rows[$key]))
+			{
+				$rows[$key] = (object) [
+					'bucket' => (int) $source->bucket,
+					'event_type' => (string) $source->event_type,
+					'count' => 0,
+				];
+			}
+
+			$rows[$key]->count += (int) $source->count;
+		}
+
+		return array_values($rows);
 	}
 
 	/**
@@ -700,7 +918,7 @@ final class StatisticsQueryService
 	private function mergeDailyRows(array $raw, array $archived): array
 	{
 		$rows = [];
-		$fields = ['visits', 'pageviews', 'plays', 'downloads', 'bots'];
+		$fields = ['visits', 'pageviews', 'bots'];
 
 		foreach (array_merge($raw, $archived) as $source)
 		{
@@ -745,7 +963,7 @@ final class StatisticsQueryService
 	private function mergeTimeRows(array $raw, array $archived, int $minimum, int $maximum): array
 	{
 		$rows = [];
-		$fields = ['visits', 'pageviews', 'plays', 'downloads', 'bots'];
+		$fields = ['visits', 'pageviews', 'bots'];
 
 		for ($bucket = $minimum; $bucket <= $maximum; $bucket++)
 		{

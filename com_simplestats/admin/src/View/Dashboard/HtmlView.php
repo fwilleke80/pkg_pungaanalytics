@@ -11,6 +11,7 @@ use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 use Willeke\Component\Simplestats\Administrator\Service\CountryDatabaseService;
+use Willeke\Component\Simplestats\Administrator\Service\CustomEventDefinitionService;
 
 \defined('_JEXEC') or die;
 
@@ -67,8 +68,6 @@ final class HtmlView extends BaseHtmlView
 			'hours',
 			'weekdays',
 			'pages',
-			'plays',
-			'downloads',
 			'countries',
 			'referrers',
 			'languages',
@@ -77,6 +76,14 @@ final class HtmlView extends BaseHtmlView
 			'bots',
 			'events',
 		];
+
+		foreach ((new CustomEventDefinitionService())->getDefinitions($params) as $definition)
+		{
+			if ((bool) $definition['show_ranking'])
+			{
+				$allowedSortTables[] = (string) $definition['table_key'];
+			}
+		}
 		$requestedSortTable = strtolower($app->input->getCmd('sort_table', ''));
 		$this->sortTable = \in_array($requestedSortTable, $allowedSortTables, true)
 			? $requestedSortTable
@@ -95,9 +102,9 @@ final class HtmlView extends BaseHtmlView
 
 		$document = $app->getDocument();
 		$document->getWebAssetManager()->registerAndUseStyle(
-			'com_simplestats.admin.0.5.6',
-			'com_simplestats/css/admin-0.5.6.css',
-			['version' => '0.5.6']
+			'com_simplestats.admin.0.6.0',
+			'com_simplestats/css/admin-0.6.0.css',
+			['version' => '0.6.0']
 		);
 
 		$this->addToolbar();

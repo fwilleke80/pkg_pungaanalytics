@@ -33,18 +33,19 @@ final class ReportController extends BaseController
 		$requestedDays = $this->input->getInt('days', 30);
 		$days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 30;
 		$report = strtolower($this->input->getCmd('report', 'pages'));
+		$eventType = strtolower($this->input->getCmd('event_type', ''));
 		$sort = strtolower($this->input->getCmd('sort', ''));
 		$direction = strtolower($this->input->getCmd('direction', ''));
 
 		/** @var \Willeke\Component\Simplestats\Administrator\Model\ReportModel $model */
 		$model = $this->getModel('Report');
 
-		if (!$model->isSupportedReport($report))
+		if (!$model->isSupportedReport($report, $eventType))
 		{
 			throw new \InvalidArgumentException(Text::_('COM_SIMPLESTATS_REPORT_INVALID'), 404);
 		}
 
-		$data = $model->getExportData($report, $days, $sort, $direction);
+		$data = $model->getExportData($report, $days, $sort, $direction, $eventType);
 		$stream = fopen('php://temp', 'w+b');
 
 		if ($stream === false)
@@ -65,7 +66,7 @@ final class ReportController extends BaseController
 
 		$filename = sprintf(
 			'simplestats-%s-%s-%s.csv',
-			$report,
+			$report === 'event' ? 'event-' . str_replace('.', '-', $eventType) : $report,
 			(string) $data['from'],
 			(string) $data['to']
 		);
@@ -92,68 +93,62 @@ final class ReportController extends BaseController
 		$kind = (string) $data['kind'];
 
 		if (\in_array($kind, ['trend', 'hour', 'weekday'], true))
-			{
-				$weekdayLabels = [
+		{
+			$weekdayLabels = [
 				1 => Text::_('COM_SIMPLESTATS_WEEKDAY_1'),
 				2 => Text::_('COM_SIMPLESTATS_WEEKDAY_2'),
 				3 => Text::_('COM_SIMPLESTATS_WEEKDAY_3'),
 				4 => Text::_('COM_SIMPLESTATS_WEEKDAY_4'),
 				5 => Text::_('COM_SIMPLESTATS_WEEKDAY_5'),
-					6 => Text::_('COM_SIMPLESTATS_WEEKDAY_6'),
-					7 => Text::_('COM_SIMPLESTATS_WEEKDAY_7'),
-				];
-				$features = $data['features'] ?? ['audioPlays' => false, 'audioDownloads' => false];
-				$headings = [
-					match ($kind)
-					{
-						'hour' => Text::_('COM_SIMPLESTATS_HOUR'),
+				6 => Text::_('COM_SIMPLESTATS_WEEKDAY_6'),
+				7 => Text::_('COM_SIMPLESTATS_WEEKDAY_7'),
+			];
+			$definitionFlag = $kind === 'trend' ? 'show_trend' : 'show_time';
+			$definitions = array_values(array_filter(
+				$data['customEventDefinitions'] ?? [],
+				static fn(array $definition): bool => (bool) ($definition[$definitionFlag] ?? false)
+			));
+			$headings = [
+				match ($kind)
+				{
+					'hour' => Text::_('COM_SIMPLESTATS_HOUR'),
 					'weekday' => Text::_('COM_SIMPLESTATS_WEEKDAY'),
 					default => Text::_('COM_SIMPLESTATS_PERIOD'),
-					},
-					Text::_('COM_SIMPLESTATS_VISITS'),
-					Text::_('COM_SIMPLESTATS_PAGEVIEWS'),
-				];
+				},
+				Text::_('COM_SIMPLESTATS_VISITS'),
+				Text::_('COM_SIMPLESTATS_PAGEVIEWS'),
+			];
 
-				if ($features['audioPlays'])
-				{
-					$headings[] = Text::_('COM_SIMPLESTATS_AUDIO_PLAYS');
-				}
+			foreach ($definitions as $definition)
+			{
+				$headings[] = (string) $definition['title'];
+			}
 
-				if ($features['audioDownloads'])
-				{
-					$headings[] = Text::_('COM_SIMPLESTATS_AUDIO_DOWNLOADS');
-				}
+			$headings[] = Text::_('COM_SIMPLESTATS_BOTS');
+			fputcsv($stream, $headings);
 
-				$headings[] = Text::_('COM_SIMPLESTATS_BOTS');
-				fputcsv($stream, $headings);
-
-				foreach ($data['rows'] as $row)
-				{
+			foreach ($data['rows'] as $row)
+			{
 				$label = match ($kind)
 				{
 					'hour' => sprintf('%02d:00–%02d:00', (int) $row->bucket, ((int) $row->bucket + 1) % 24),
-						'weekday' => $weekdayLabels[(int) $row->bucket] ?? (string) $row->bucket,
-						default => (string) $row->period_label,
-					};
-					$values = [
-						$label,
-						(int) $row->visits,
-						(int) $row->pageviews,
-					];
+					'weekday' => $weekdayLabels[(int) $row->bucket] ?? (string) $row->bucket,
+					default => (string) $row->period_label,
+				};
+				$values = [
+					$label,
+					(int) $row->visits,
+					(int) $row->pageviews,
+				];
 
-					if ($features['audioPlays'])
-					{
-						$values[] = (int) $row->plays;
-					}
-
-					if ($features['audioDownloads'])
-					{
-						$values[] = (int) $row->downloads;
-					}
-
-					$values[] = (int) $row->bots;
-					fputcsv($stream, $values);
+				foreach ($definitions as $definition)
+				{
+					$values[] = (int) (($row->events ?? [])[(string) $definition['event_type']] ?? 0);
 				}
+
+				$values[] = (int) $row->bots;
+				fputcsv($stream, $values);
+			}
 
 			return;
 		}
