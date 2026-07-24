@@ -2,7 +2,7 @@
 
 Simple Stats is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.4.0`
+> **Current version:** `0.4.0`  
 > **Package:** `pkg_simplestats`
 
 ## Package contents
