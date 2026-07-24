@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" client="administrator" method="upgrade">
+	<name>MOD_PUNGAANALYTICS</name>
+	<version>0.7.4</version>
+	<targetplatform name="joomla" version="6.*" />
+	<creationDate>2026-07-24</creationDate>
+	<author>Frank Willeke</author>
+	<copyright>Copyright (C) 2026 Frank Willeke</copyright>
+	<license>GNU General Public License version 2 or later</license>
+	<description>MOD_PUNGAANALYTICS_XML_DESCRIPTION</description>
+	<namespace path="src">Punga\Module\PungaAnalytics</namespace>
+	<files>
+		<folder module="mod_pungaanalytics">services</folder>
+		<folder>src</folder>
+		<folder>tmpl</folder>
+	</files>
+	<languages folder="language">
+		<language tag="en-GB">en-GB/mod_pungaanalytics.ini</language>
+		<language tag="en-GB">en-GB/mod_pungaanalytics.sys.ini</language>
+		<language tag="de-DE">de-DE/mod_pungaanalytics.ini</language>
+		<language tag="de-DE">de-DE/mod_pungaanalytics.sys.ini</language>
+	</languages>
+	<media destination="mod_pungaanalytics" folder="media">
+		<folder>css</folder>
+	</media>
+	<config>
+		<fields name="params">
+			<fieldset name="basic">
+				<field name="days" type="list" default="7" label="MOD_PUNGAANALYTICS_RANGE">
+					<option value="7">MOD_PUNGAANALYTICS_RANGE_7</option>
+					<option value="30">MOD_PUNGAANALYTICS_RANGE_30</option>
+					<option value="90">MOD_PUNGAANALYTICS_RANGE_90</option>
+					<option value="365">MOD_PUNGAANALYTICS_RANGE_365</option>
+					<option value="0">MOD_PUNGAANALYTICS_RANGE_ALL</option>
+				</field>
+				<field
+					name="show_custom_events"
+					type="radio"
+					layout="joomla.form.field.radio.switcher"
+					default="1"
+					label="MOD_PUNGAANALYTICS_SHOW_CUSTOM_EVENTS"
+					description="MOD_PUNGAANALYTICS_SHOW_CUSTOM_EVENTS_DESC"
+				>
+					<option value="0">JHIDE</option>
+					<option value="1">JSHOW</option>
+				</field>
+				<field
+					name="show_bots"
+					type="radio"
+					layout="joomla.form.field.radio.switcher"
+					default="1"
+					label="MOD_PUNGAANALYTICS_SHOW_BOTS"
+				>
+					<option value="0">JHIDE</option>
+					<option value="1">JSHOW</option>
+				</field>
+				<field
+					name="show_top_pages"
+					type="radio"
+					layout="joomla.form.field.radio.switcher"
+					default="1"
+					label="MOD_PUNGAANALYTICS_SHOW_TOP_PAGES"
+				>
+					<option value="0">JHIDE</option>
+					<option value="1">JSHOW</option>
+				</field>
+				<field
+					name="top_pages_limit"
+					type="number"
+					default="5"
+					min="1"
+					max="10"
+					showon="show_top_pages:1"
+					label="MOD_PUNGAANALYTICS_TOP_PAGES_LIMIT"
+				/>
+			</fieldset>
+		</fields>
+	</config>
+</extension>

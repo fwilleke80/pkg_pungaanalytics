@@ -105,6 +105,37 @@ final class StatisticsQueryService
 	}
 
 	/**
+	 * Returns the compact data needed by an administrator dashboard module.
+	 *
+	 * @param int $days          Number of days, or zero for all data.
+	 * @param int $topPagesLimit Maximum number of top pages.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function getModuleData(int $days, int $topPagesLimit): array
+	{
+		[$from, $to] = $this->getDateBounds($days);
+
+		return [
+			'days' => $days,
+			'from' => $from,
+			'to' => $to,
+			'summary' => $this->getSummary($from, $to),
+			'summaryDefinitions' => $this->getDefinitionsFor('show_summary'),
+			'topPages' => $topPagesLimit > 0
+				? $this->getDimensionRows(
+					'path',
+					$from,
+					$to,
+					$topPagesLimit,
+					false,
+					'pageview'
+				)
+				: [],
+		];
+	}
+
+	/**
 	 * Returns a complete named report without pagination.
 	 *
 	 * @param string $report    Report identifier.

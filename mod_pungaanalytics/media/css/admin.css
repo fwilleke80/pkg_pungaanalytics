@@ -1,0 +1,121 @@
+.pa-admin-module
+{
+	display: grid;
+	gap: 1rem;
+}
+
+.pa-admin-module__range
+{
+	align-items: center;
+	color: var(--body-color, #59636e);
+	display: flex;
+	flex-wrap: wrap;
+	font-size: .82rem;
+	gap: .4rem;
+}
+
+.pa-admin-module__metrics
+{
+	display: grid;
+	gap: .65rem;
+	grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+}
+
+.pa-admin-module__metric
+{
+	align-items: center;
+	background: color-mix(in srgb, var(--template-bg-light, #f3f5f7) 88%, #fff);
+	border: 1px solid var(--template-bg-dark-10, #d9dee3);
+	border-radius: .55rem;
+	display: flex;
+	gap: .7rem;
+	min-width: 0;
+	padding: .75rem;
+}
+
+.pa-admin-module__metric > [class^="icon-"],
+.pa-admin-module__metric > [class*=" icon-"]
+{
+	color: var(--template-link-color, #2a69b8);
+	font-size: 1.2rem;
+}
+
+.pa-admin-module__metric div
+{
+	display: grid;
+	min-width: 0;
+}
+
+.pa-admin-module__metric strong
+{
+	font-size: 1.3rem;
+	line-height: 1.1;
+}
+
+.pa-admin-module__metric span:last-child
+{
+	color: var(--body-color, #59636e);
+	font-size: .78rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.pa-admin-module__pages
+{
+	border-top: 1px solid var(--template-bg-dark-10, #d9dee3);
+	padding-top: .85rem;
+}
+
+.pa-admin-module__pages h3
+{
+	font-size: .9rem;
+	margin: 0 0 .55rem;
+}
+
+.pa-admin-module__pages ol
+{
+	display: grid;
+	gap: .35rem;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.pa-admin-module__pages li
+{
+	align-items: center;
+	display: grid;
+	font-size: .82rem;
+	gap: .75rem;
+	grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.pa-admin-module__pages li span
+{
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.pa-admin-module__pages li strong
+{
+	background: var(--template-bg-dark-10, #e7eaed);
+	border-radius: 999px;
+	font-size: .72rem;
+	min-width: 2rem;
+	padding: .15rem .45rem;
+	text-align: center;
+}
+
+.pa-admin-module__empty
+{
+	color: var(--body-color, #59636e);
+	font-size: .82rem;
+	margin: 0;
+}
+
+.pa-admin-module > .btn
+{
+	justify-self: start;
+}

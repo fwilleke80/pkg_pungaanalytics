@@ -107,6 +107,7 @@ return new class implements InstallerScriptInterface
 		$this->migrateLegacyParameters($db);
 		$this->setPluginState($db, 'pungaanalytics', 1);
 		$this->setPluginState($db, 'simplestats', 0);
+		$this->ensureDashboardModule($db);
 		$this->removeLegacyExtensions($db);
 
 		return true;
@@ -307,6 +308,115 @@ return new class implements InstallerScriptInterface
 			->where($db->quoteName('folder') . ' = ' . $db->quote('system'))
 			->where($db->quoteName('element') . ' = ' . $db->quote($element));
 		$db->setQuery($query)->execute();
+	}
+
+	/**
+	 * Creates the default administrator dashboard module instance once.
+	 *
+	 * An unconfigured instance created by Joomla's module installer is completed.
+	 * Existing configured instances are left untouched.
+	 *
+	 * @param DatabaseInterface $db Database connection.
+	 *
+	 * @return void
+	 */
+	private function ensureDashboardModule(DatabaseInterface $db): void
+	{
+		$query = $db->getQuery(true)
+			->select($db->quoteName(['id', 'position', 'params']))
+			->from($db->quoteName('#__modules'))
+			->where($db->quoteName('module') . ' = ' . $db->quote('mod_pungaanalytics'))
+			->where($db->quoteName('client_id') . ' = 1');
+		$db->setQuery($query, 0, 1);
+		$existing = $db->loadObject();
+		$existingParams = \is_object($existing)
+			? json_decode((string) ($existing->params ?? ''), true)
+			: null;
+
+		if (
+			\is_object($existing)
+			&& (
+				trim((string) ($existing->position ?? '')) !== ''
+				|| (\is_array($existingParams) && $existingParams !== [])
+			)
+		)
+		{
+			return;
+		}
+
+		$orderQuery = $db->getQuery(true)
+			->select('COALESCE(MAX(' . $db->quoteName('ordering') . '), 0)')
+			->from($db->quoteName('#__modules'))
+			->where($db->quoteName('position') . ' = ' . $db->quote('cpanel'))
+			->where($db->quoteName('client_id') . ' = 1');
+		$db->setQuery($orderQuery);
+		$ordering = (int) $db->loadResult() + 1;
+		$module = (object) [
+			'title' => 'Punga Analytics',
+			'note' => '',
+			'content' => '',
+			'ordering' => $ordering,
+			'position' => 'cpanel',
+			'published' => 1,
+			'module' => 'mod_pungaanalytics',
+			'access' => $this->getSpecialAccessLevel($db),
+			'showtitle' => 1,
+			'params' => json_encode([
+				'days' => 7,
+				'show_custom_events' => 1,
+				'show_bots' => 1,
+				'show_top_pages' => 1,
+				'top_pages_limit' => 5,
+			], JSON_UNESCAPED_SLASHES) ?: '{}',
+			'client_id' => 1,
+			'language' => '*',
+		];
+
+		if (\is_object($existing) && (int) ($existing->id ?? 0) > 0)
+		{
+			$module->id = (int) $existing->id;
+			$db->updateObject('#__modules', $module, 'id');
+		}
+		else
+		{
+			$db->insertObject('#__modules', $module, 'id');
+		}
+
+		if ((int) ($module->id ?? 0) > 0)
+		{
+			$assignmentQuery = $db->getQuery(true)
+				->select('COUNT(*)')
+				->from($db->quoteName('#__modules_menu'))
+				->where($db->quoteName('moduleid') . ' = ' . (int) $module->id);
+			$db->setQuery($assignmentQuery);
+
+			if ((int) $db->loadResult() === 0)
+			{
+				$assignment = (object) [
+					'moduleid' => (int) $module->id,
+					'menuid' => 0,
+				];
+				$db->insertObject('#__modules_menu', $assignment);
+			}
+		}
+	}
+
+	/**
+	 * Returns the Special view-level ID, with Joomla's conventional ID as fallback.
+	 *
+	 * @param DatabaseInterface $db Database connection.
+	 *
+	 * @return int
+	 */
+	private function getSpecialAccessLevel(DatabaseInterface $db): int
+	{
+		$query = $db->getQuery(true)
+			->select($db->quoteName('id'))
+			->from($db->quoteName('#__viewlevels'))
+			->where($db->quoteName('title') . ' = ' . $db->quote('Special'));
+		$db->setQuery($query, 0, 1);
+
+		return (int) ($db->loadResult() ?: 3);
 	}
 
 	/**

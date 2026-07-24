@@ -2,7 +2,8 @@
 
 Punga Analytics is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.7.0`  
+> **Current version:** `0.7.4`
+>
 > **Package:** `pkg_pungaanalytics`
 
 ## Table of Contents
@@ -16,6 +17,7 @@ Punga Analytics is a small, self-hosted statistics package for Joomla 6. It prov
 - [Logged-in users](#logged-in-users)
 - [Country detection](#country-detection)
 - [Dashboard](#dashboard)
+- [Administrator dashboard module](#administrator-dashboard-module)
 - [Default configuration](#default-configuration)
   - [Requests excluded from ordinary page-view collection](#requests-excluded-from-ordinary-page-view-collection)
   - [Reverse proxies](#reverse-proxies)
@@ -29,9 +31,13 @@ Punga Analytics is a small, self-hosted statistics package for Joomla 6. It prov
 ## Package contents
 
 - `com_pungaanalytics` — administrator dashboard, configuration, database schema, and country-database maintenance
+- `mod_pungaanalytics` — compact statistics overview for the Joomla administrator Home Dashboard
 - `plg_system_pungaanalytics` — frontend page-view collector and custom-event listener
 
-The system plugin is enabled automatically when the package is installed.
+The system plugin is enabled automatically when the package is installed. A
+published Punga Analytics module is also created on the administrator Home
+Dashboard. Existing configured module instances and their settings are never
+overwritten during an update.
 
 ## Collected information
 
@@ -315,7 +321,7 @@ The redesigned administrator dashboard includes:
 - Configurable custom-event overview totals
 - Bot page views
 - Adaptive day, ISO-week, or month activity trend for the complete selected range
-- Site-local hour-of-day and weekday reports
+- Site-local hour-of-day and weekday visitor bar charts with exact activity tables
 - Sortable dashboard and full-report table columns with report-specific default ordering
 - Most viewed pages
 - Configurable generic item-ranking cards for events such as plays and downloads
@@ -331,6 +337,22 @@ The redesigned administrator dashboard includes:
 - Retention and country-database status
 - Confirmed toolbar action for permanently resetting all collected statistics
 
+## Administrator dashboard module
+
+The package includes a small administrator module for seeing the most useful
+figures without opening the full component dashboard. It displays:
+
+- Human visitor-days and page views
+- Configured custom-event totals enabled for the main Overview
+- Bot page views
+- A configurable number of most-viewed pages
+- A direct link to the complete Punga Analytics dashboard
+
+The module defaults to the last seven days. Its reporting range, custom-event
+totals, bot total, top-pages list, and top-pages limit can be changed in the
+module settings. The package creates and publishes one instance in the
+administrator `cpanel` position when no Punga Analytics module exists yet.
+
 ## Default configuration
 
 - Collection enabled
@@ -341,6 +363,7 @@ The redesigned administrator dashboard includes:
 - Detailed raw-event retention: 180 complete local calendar days
 - Opportunistic archival probability: 2 percent per recorded event
 - Dashboard activity and custom-event ranking tables: 8 rows
+- Default dashboard reporting range: 7 days
 - Country detection: local DB-IP Lite database
 - Excluded components: `com_ajax`, `com_users`, `com_pungaanalytics`
 - Excluded paths: `/administrator`, `/api`
@@ -371,7 +394,7 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 ## Installation and update
 
 1. Open **System → Install → Extensions** in Joomla Administrator.
-2. Upload `pkg_pungaanalytics-0.7.0.zip`.
+2. Upload `pkg_pungaanalytics-0.7.4.zip`.
 3. Open **Components → Punga Analytics**.
 4. Click **Update country database**.
 5. Review the options and optionally exclude the site owner's Joomla user ID.
@@ -456,6 +479,29 @@ range dropdown, an all-reports CSV ZIP, and a larger set of event-summary
 icons. The version remains available in the System card but is no longer
 repeated in the dashboard header.
 
+Version 0.7.1 adds a compact administrator dashboard module with configurable
+range, Overview event totals, bot traffic, most-viewed pages, and a direct link
+to the full analytics dashboard. Joomla's new unconfigured module instance is
+completed automatically, or one published Home Dashboard instance is created
+when no instance exists.
+
+Version 0.7.2 restores the requested human-visitor bar charts above the
+hour-of-day and weekday tables, changes the full dashboard and report fallback
+range from 30 to 7 days, and gives the collapsible-card titles their distinct
+accent color. The existing exact tables and full reports remain available
+below and through the chart panels.
+
+Version 0.7.3 makes the hour-of-day and weekday charts use the exact same
+visual system as the existing Activity over time bar chart: chart container,
+legend, scrolling viewport, grid and axes, label typography, visitor color,
+bar corners, and responsive behavior are shared instead of independently
+styled.
+
+Version 0.7.4 also gives those charts the Activity over time chart's exact SVG
+dimensions, aspect ratio, plot margins, plot height, and bar width. This keeps
+the charts compact inside their half-width panels and prevents their axis text
+from being scaled larger than the traffic chart.
+
 ## Resetting statistics
 
 Use **Components → Punga Analytics → Reset all statistics** in the toolbar to
@@ -474,7 +520,7 @@ Uninstalling the package removes:
 - `#__pungaanalytics_daily_time`
 - `#__pungaanalytics_daily_event_time`
 - Compiled country files and metadata under `cache/com_pungaanalytics/`
-- The component and system plugin
+- The component, administrator module, and system plugin
 
 ## Privacy notes
 

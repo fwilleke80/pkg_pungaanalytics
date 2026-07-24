@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension type="component" method="upgrade">
 	<name>COM_PUNGAANALYTICS</name>
-	<version>0.7.0</version>
+	<version>0.7.4</version>
 	<targetplatform name="joomla" version="6.*" />
 	<creationDate>2026-07-24</creationDate>
 	<author>Frank Willeke</author>
@@ -15,6 +15,7 @@
 		<files folder="admin">
 			<folder>services</folder>
 			<folder>forms</folder>
+			<folder>layouts</folder>
 			<folder>src</folder>
 			<folder>tmpl</folder>
 			<folder>sql</folder>

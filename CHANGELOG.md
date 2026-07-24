@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.7.4 — 2026-07-24
+
+- Matched the hour-of-day and weekday charts to the Activity over time chart's exact `1200 × 240` SVG geometry.
+- Reused its plot margins, 190-unit plot height, and seven-unit maximum bar width.
+- Corrected the aspect ratio that had made the time charts taller and enlarged their axis text inside half-width panels.
+
+## 0.7.3 — 2026-07-24
+
+- Restyled the hour-of-day and weekday visitor charts to use the existing Activity over time chart markup and CSS.
+- Reused the same chart container, legend with SVG swatch, horizontal viewport, grid lines, axes, tick labels, visitor-series color, bar radius, and responsive behavior.
+- Removed the separate time-chart CSS so the three bar-chart surfaces cannot drift apart visually.
+- Registered a new versioned administrator stylesheet to prevent stale cached styling after update.
+
+## 0.7.2 — 2026-07-24
+
+- Restored human-visitor bar charts above the Activity by hour and Activity by weekday tables.
+- Kept the complete sortable tables and full reports alongside the restored visual summaries.
+- Changed the default dashboard, direct full-report, and export fallback range from 30 days to 7 days.
+- Gave collapsible dashboard-card titles a distinct accent color.
+- Audited the remaining dashboard features against the established requirements; trend, summary, ranking, pie-chart, export, sorting, retention, country-status, and reset features remain present.
+- Registered a new versioned administrator stylesheet so the restored charts and title color cannot be hidden by stale caches.
+
+## 0.7.1 — 2026-07-24
+
+- Added a compact Punga Analytics administrator module for the Joomla Home Dashboard.
+- Added configurable reporting range, custom-event totals, bot traffic, and most-viewed-page display options.
+- Added a direct link from the module to the full dashboard with the selected range preserved.
+- Automatically completes Joomla's unconfigured module instance or creates and publishes one `cpanel` instance when none exists, while preserving existing configured instances and settings on update.
+- Reused the component's raw-plus-aggregate reporting service so dashboard-module totals remain correct after raw-event archival.
+- Added English and German module language files and responsive administrator styling.
+
 ## 0.7.0 — 2026-07-24
 
 - Rebranded the package, component, plugin, dashboard, assets, language keys, database identifiers, and documentation as Punga Analytics.

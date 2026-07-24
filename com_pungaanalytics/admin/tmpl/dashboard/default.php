@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Joomla\CMS\Factory;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
+use Joomla\CMS\Layout\LayoutHelper;
 use Joomla\CMS\Router\Route;
 use Joomla\CMS\Session\Session;
 use Joomla\CMS\Uri\Uri;
@@ -98,7 +99,7 @@ $selectedDays = $this->days;
 $selectedSortTable = $this->sortTable;
 $selectedSort = $this->sort;
 $selectedDirection = $this->direction;
-$selectedRangeLabel = $rangeOptions[$selectedDays] ?? $rangeOptions[30];
+$selectedRangeLabel = $rangeOptions[$selectedDays] ?? $rangeOptions[7];
 $exportAllUrl = Route::_(
 	'index.php?option=com_pungaanalytics&task=report.exportAllCsv'
 	. '&days=' . $selectedDays
@@ -386,6 +387,24 @@ $weekdayLabels = [
 	6 => Text::_('COM_PUNGAANALYTICS_WEEKDAY_6'),
 	7 => Text::_('COM_PUNGAANALYTICS_WEEKDAY_7'),
 ];
+$hourLabels = [];
+$hourTickLabels = [];
+
+for ($hour = 0; $hour < 24; $hour++)
+{
+	$hourLabels[$hour] = $hourLabel($hour);
+	$hourTickLabels[$hour] = $hour % 3 === 0 ? sprintf('%02d', $hour) : '';
+}
+
+$weekdayTickLabels = [
+	1 => Text::_('COM_PUNGAANALYTICS_WEEKDAY_SHORT_1'),
+	2 => Text::_('COM_PUNGAANALYTICS_WEEKDAY_SHORT_2'),
+	3 => Text::_('COM_PUNGAANALYTICS_WEEKDAY_SHORT_3'),
+	4 => Text::_('COM_PUNGAANALYTICS_WEEKDAY_SHORT_4'),
+	5 => Text::_('COM_PUNGAANALYTICS_WEEKDAY_SHORT_5'),
+	6 => Text::_('COM_PUNGAANALYTICS_WEEKDAY_SHORT_6'),
+	7 => Text::_('COM_PUNGAANALYTICS_WEEKDAY_SHORT_7'),
+];
 $dashboardTrendRows = $this->activityTableRows > 0
 	? array_slice($trendRows, -$this->activityTableRows)
 	: $trendRows;
@@ -663,6 +682,16 @@ $systemNeedsAttention = $this->countryStatus === []
 							</div>
 						</header>
 						<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_HOUR_HISTORY_NOTE'); ?></p>
+						<?php echo LayoutHelper::render(
+							'visitsbarchart',
+							[
+								'rows' => $this->data['hours'],
+								'labels' => $hourLabels,
+								'tickLabels' => $hourTickLabels,
+								'ariaLabel' => Text::_('COM_PUNGAANALYTICS_HOURLY_VISITORS_CHART_LABEL'),
+							],
+							JPATH_COMPONENT_ADMINISTRATOR . '/layouts'
+						); ?>
 						<div class="table-responsive pa-time-table">
 						<table class="table pa-table mb-0" id="pa-table-hours">
 							<thead>
@@ -700,6 +729,16 @@ $systemNeedsAttention = $this->countryStatus === []
 								<h3><?php echo Text::_('COM_PUNGAANALYTICS_BY_WEEKDAY'); ?></h3>
 							<span class="pa-panel__meta"><?php echo Text::_('COM_PUNGAANALYTICS_SITE_LOCAL_TIME'); ?></span>
 						</header>
+						<?php echo LayoutHelper::render(
+							'visitsbarchart',
+							[
+								'rows' => $this->data['weekdays'],
+								'labels' => $weekdayLabels,
+								'tickLabels' => $weekdayTickLabels,
+								'ariaLabel' => Text::_('COM_PUNGAANALYTICS_WEEKDAY_VISITORS_CHART_LABEL'),
+							],
+							JPATH_COMPONENT_ADMINISTRATOR . '/layouts'
+						); ?>
 						<div class="table-responsive pa-time-table">
 							<table class="table pa-table mb-0" id="pa-table-weekdays">
 								<thead>

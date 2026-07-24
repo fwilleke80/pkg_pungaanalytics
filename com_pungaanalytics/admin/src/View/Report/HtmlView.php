@@ -21,7 +21,7 @@ final class HtmlView extends BaseHtmlView
 	public array $data = [];
 
 	/** @var int */
-	public int $days = 30;
+	public int $days = 7;
 
 	/** @var int */
 	public int $limit = 50;
@@ -53,11 +53,11 @@ final class HtmlView extends BaseHtmlView
 		$app = Factory::getApplication();
 		$allowedDays = [7, 30, 90, 365, 0];
 		$allowedLimits = [25, 50, 100];
-		$requestedDays = $app->input->getInt('days', 30);
+		$requestedDays = $app->input->getInt('days', 7);
 		$requestedLimit = $app->input->getInt('limit', 50);
 		$report = strtolower($app->input->getCmd('report', 'pages'));
 		$this->eventType = strtolower($app->input->getCmd('event_type', ''));
-		$this->days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 30;
+		$this->days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 7;
 		$this->limit = \in_array($requestedLimit, $allowedLimits, true) ? $requestedLimit : 50;
 		$this->start = max(0, $app->input->getInt('limitstart', 0));
 		$requestedSort = strtolower($app->input->getCmd('sort', ''));
@@ -98,9 +98,9 @@ final class HtmlView extends BaseHtmlView
 		$this->pagination->setAdditionalUrlParam('direction', $this->direction);
 
 		$app->getDocument()->getWebAssetManager()->registerAndUseStyle(
-			'com_pungaanalytics.admin.0.7.0',
-			'com_pungaanalytics/css/admin-0.7.0.css',
-			['version' => '0.7.0']
+			'com_pungaanalytics.admin.0.7.3',
+			'com_pungaanalytics/css/admin-0.7.3.css',
+			['version' => '0.7.3']
 		);
 
 		ToolbarHelper::title(

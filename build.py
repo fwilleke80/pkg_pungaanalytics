@@ -9,7 +9,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
-VERSION = "0.7.0"
+VERSION = "0.7.4"
 ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT.parent
 BUILD = ROOT / ".build"
@@ -58,13 +58,16 @@ def main() -> None:
 
     BUILD.mkdir()
     component_zip = BUILD / "com_pungaanalytics.zip"
+    module_zip = BUILD / "mod_pungaanalytics.zip"
     plugin_zip = BUILD / "plg_system_pungaanalytics.zip"
     create_zip(ROOT / "com_pungaanalytics", component_zip)
+    create_zip(ROOT / "mod_pungaanalytics", module_zip)
     create_zip(ROOT / "plg_system_pungaanalytics", plugin_zip)
 
     package_stage = BUILD / "package"
     shutil.copytree(ROOT / "package", package_stage)
     shutil.copy2(component_zip, package_stage / component_zip.name)
+    shutil.copy2(module_zip, package_stage / module_zip.name)
     shutil.copy2(plugin_zip, package_stage / plugin_zip.name)
 
     package_output = OUTPUT / f"pkg_pungaanalytics-{VERSION}.zip"

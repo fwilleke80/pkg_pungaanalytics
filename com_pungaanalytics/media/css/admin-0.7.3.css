@@ -1,4 +1,4 @@
-/* Punga Analytics 0.7.0 administrator dashboard and report styles. */
+/* Punga Analytics 0.7.3 administrator dashboard and report styles. */
 
 .pa-dashboard
 {
@@ -315,7 +315,7 @@
 	font-weight: 700;
 	letter-spacing: 0.01em;
 	line-height: 1.25;
-	color: inherit;
+	color: var(--pa-accent);
 }
 
 .pa-dashboard-section__summary h2 > [class^="icon-"],

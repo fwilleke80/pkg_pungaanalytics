@@ -30,8 +30,8 @@ final class ReportController extends BaseController
 
 		$this->assertManagePermission();
 		$allowedDays = [7, 30, 90, 365, 0];
-		$requestedDays = $this->input->getInt('days', 30);
-		$days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 30;
+		$requestedDays = $this->input->getInt('days', 7);
+		$days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 7;
 		$report = strtolower($this->input->getCmd('report', 'pages'));
 		$eventType = strtolower($this->input->getCmd('event_type', ''));
 		$sort = strtolower($this->input->getCmd('sort', ''));
@@ -84,8 +84,8 @@ final class ReportController extends BaseController
 		}
 
 		$allowedDays = [7, 30, 90, 365, 0];
-		$requestedDays = $this->input->getInt('days', 30);
-		$days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 30;
+		$requestedDays = $this->input->getInt('days', 7);
+		$days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 7;
 
 		/** @var \Punga\Component\PungaAnalytics\Administrator\Model\ReportModel $model */
 		$model = $this->getModel('Report');

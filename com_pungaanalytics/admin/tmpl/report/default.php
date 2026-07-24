@@ -83,7 +83,7 @@ $currentSort = $this->sort;
 $currentDirection = $this->direction;
 $currentDays = $this->days;
 $currentLimit = $this->limit;
-$selectedRangeLabel = $rangeOptions[$currentDays] ?? $rangeOptions[30];
+$selectedRangeLabel = $rangeOptions[$currentDays] ?? $rangeOptions[7];
 $sortHeading = static function (
 	string $field,
 	string $label,

@@ -30,7 +30,7 @@ final class HtmlView extends BaseHtmlView
 	public string $version = 'unknown';
 
 	/** @var int */
-	public int $days = 30;
+	public int $days = 7;
 
 	/** @var int */
 	public int $retentionDays = 180;
@@ -58,8 +58,8 @@ final class HtmlView extends BaseHtmlView
 	{
 		$app = Factory::getApplication();
 		$allowedDays = [7, 30, 90, 365, 0];
-		$requestedDays = $app->input->getInt('days', 30);
-		$this->days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 30;
+		$requestedDays = $app->input->getInt('days', 7);
+		$this->days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 7;
 		$params = ComponentHelper::getParams('com_pungaanalytics');
 		$this->retentionDays = (int) $params->get('retention_days', 180);
 		$this->activityTableRows = min(100, max(0, (int) $params->get('dashboard_activity_rows', 8)));
@@ -102,9 +102,9 @@ final class HtmlView extends BaseHtmlView
 
 		$document = $app->getDocument();
 		$document->getWebAssetManager()->registerAndUseStyle(
-			'com_pungaanalytics.admin.0.7.0',
-			'com_pungaanalytics/css/admin-0.7.0.css',
-			['version' => '0.7.0']
+			'com_pungaanalytics.admin.0.7.3',
+			'com_pungaanalytics/css/admin-0.7.3.css',
+			['version' => '0.7.3']
 		);
 
 		$this->addToolbar();
