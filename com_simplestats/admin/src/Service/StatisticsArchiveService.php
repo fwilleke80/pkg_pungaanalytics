@@ -65,6 +65,7 @@ final class StatisticsArchiveService
 			{
 				$this->archiveDailyTotals($cutoffDate);
 				$this->archiveDimensions($cutoffDate);
+				$this->archiveTimeBuckets($cutoffDate);
 				$this->archiveEventItems($cutoffDate);
 
 				$eventsTable = $db->quoteName($db->replacePrefix('#__simplestats_events'));
@@ -102,6 +103,7 @@ final class StatisticsArchiveService
 			'#__simplestats_events',
 			'#__simplestats_daily',
 			'#__simplestats_daily_dimensions',
+			'#__simplestats_daily_time',
 			'#__simplestats_daily_items',
 		];
 		$removed = 0;
@@ -325,6 +327,75 @@ final class StatisticsArchiveService
 			. 'ON DUPLICATE KEY UPDATE '
 			. '`label` = VALUES(`label`), '
 			. '`event_count` = `event_count` + VALUES(`event_count`)';
+
+		$db->setQuery($sql)->execute();
+	}
+
+	/**
+	 * Archives local hour and weekday activity reports.
+	 *
+	 * @param string $cutoffDate First retained raw-event date.
+	 *
+	 * @return void
+	 */
+	private function archiveTimeBuckets(string $cutoffDate): void
+	{
+		$this->archiveTimeBucket($cutoffDate, 'hour', 'visit_hour', 0, 23);
+		$this->archiveTimeBucket($cutoffDate, 'weekday', 'visit_weekday', 1, 7);
+	}
+
+	/**
+	 * Archives one time-bucket family.
+	 *
+	 * @param string $cutoffDate First retained raw-event date.
+	 * @param string $kind       Aggregate bucket kind.
+	 * @param string $column     Raw event bucket column.
+	 * @param int    $minimum    Lowest valid bucket.
+	 * @param int    $maximum    Highest valid bucket.
+	 *
+	 * @return void
+	 */
+	private function archiveTimeBucket(
+		string $cutoffDate,
+		string $kind,
+		string $column,
+		int $minimum,
+		int $maximum
+	): void
+	{
+		if (!\in_array($kind, ['hour', 'weekday'], true)
+			|| !\in_array($column, ['visit_hour', 'visit_weekday'], true))
+		{
+			throw new \InvalidArgumentException('Unsupported statistics time archive bucket.');
+		}
+
+		$db = $this->database;
+		$eventsTable = $db->quoteName($db->replacePrefix('#__simplestats_events'));
+		$timeTable = $db->quoteName($db->replacePrefix('#__simplestats_daily_time'));
+		$bucket = '`' . $column . '`';
+		$sql = 'INSERT INTO ' . $timeTable . ' ('
+			. '`visit_date`, `bucket_kind`, `bucket_value`, `human_visits`, '
+			. '`human_pageviews`, `bot_pageviews`, `plays`, `downloads`'
+			. ') SELECT '
+			. '`visit_date`, '
+			. $db->quote($kind) . ', '
+			. $bucket . ', '
+			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' THEN `visitor_hash` END), "
+			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' THEN 1 ELSE 0 END), "
+			. "SUM(CASE WHEN `is_bot` = 1 AND `event_type` = 'pageview' THEN 1 ELSE 0 END), "
+			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` = 'audio.play' THEN 1 ELSE 0 END), "
+			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` = 'audio.download' THEN 1 ELSE 0 END) "
+			. 'FROM ' . $eventsTable
+			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
+			. ' AND ' . $bucket . ' >= ' . $minimum
+			. ' AND ' . $bucket . ' <= ' . $maximum
+			. ' GROUP BY `visit_date`, ' . $bucket . ' '
+			. 'ON DUPLICATE KEY UPDATE '
+			. '`human_visits` = `human_visits` + VALUES(`human_visits`), '
+			. '`human_pageviews` = `human_pageviews` + VALUES(`human_pageviews`), '
+			. '`bot_pageviews` = `bot_pageviews` + VALUES(`bot_pageviews`), '
+			. '`plays` = `plays` + VALUES(`plays`), '
+			. '`downloads` = `downloads` + VALUES(`downloads`)';
 
 		$db->setQuery($sql)->execute();
 	}

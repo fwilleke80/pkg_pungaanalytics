@@ -9,7 +9,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
-VERSION = "0.4.0"
+VERSION = "0.5.5"
 ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT.parent
 BUILD = ROOT / ".build"

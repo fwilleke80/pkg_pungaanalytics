@@ -79,10 +79,11 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 	{
 		try
 		{
-			$this->collectCustomEvent($event->getArguments());
+			$event->setArgument('simplestats_recorded', $this->collectCustomEvent($event->getArguments()));
 		}
 		catch (\Throwable $exception)
 		{
+			$event->setArgument('simplestats_recorded', false);
 			$this->logFailure($exception);
 		}
 	}
@@ -150,29 +151,29 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 	 *
 	 * @param array<string, mixed> $arguments Event arguments.
 	 *
-	 * @return void
+	 * @return bool Whether the event was accepted and stored.
 	 */
-	private function collectCustomEvent(array $arguments): void
+	private function collectCustomEvent(array $arguments): bool
 	{
 		$app = $this->getApplication();
 
 		if (!$app->isClient('site'))
 		{
-			return;
+			return false;
 		}
 
 		$params = ComponentHelper::getParams('com_simplestats');
 
 		if (!$this->isRequestTrackable($params, false))
 		{
-			return;
+			return false;
 		}
 
 		$eventType = strtolower(trim((string) ($arguments['event_type'] ?? '')));
 
 		if ($eventType === '' || $eventType === 'pageview' || preg_match('/^[a-z][a-z0-9._-]{0,63}$/', $eventType) !== 1)
 		{
-			return;
+			return false;
 		}
 
 		$input = $app->input;
@@ -201,6 +202,8 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 			],
 			false
 		);
+
+		return true;
 	}
 
 	/**
@@ -286,6 +289,8 @@ final class Simplestats extends CMSPlugin implements SubscriberInterface
 		$row = (object) [
 			'visited_at' => Factory::getDate('now', 'UTC')->toSql(),
 			'visit_date' => $visitDate,
+			'visit_hour' => (int) $localDate->format('G'),
+			'visit_weekday' => (int) $localDate->format('N'),
 			'visitor_hash' => $visitorHash,
 			'path' => mb_substr((string) $eventData['path'], 0, 1024),
 			'component' => mb_substr((string) $eventData['component'], 0, 100),

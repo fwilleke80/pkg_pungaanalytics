@@ -1,4 +1,4 @@
-/* Simple Stats administrator dashboard styles. */
+/* Simple Stats 0.5.5 administrator dashboard and report styles. */
 
 .ss-dashboard
 {
@@ -7,7 +7,6 @@
 	--ss-surface-muted: var(--template-bg-light, #f5f7f9);
 	--ss-text-muted: var(--secondary-color, #6d757d);
 	--ss-accent: var(--template-link-color, #2a69b8);
-	--ss-accent-soft: color-mix(in srgb, var(--ss-accent) 12%, transparent);
 	display: grid;
 	gap: 1.25rem;
 	width: 100%;
@@ -27,7 +26,15 @@
 	box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 5%);
 }
 
-.ss-hero h2
+.ss-hero__copy
+{
+	display: flex;
+	align-items: flex-start;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.ss-hero__title
 {
 	margin: 0.2rem 0 0.35rem;
 	font-size: clamp(1.45rem, 2.5vw, 2.1rem);
@@ -40,18 +47,37 @@
 	color: var(--ss-text-muted);
 }
 
-.ss-eyebrow,
-.ss-panel__kicker
+.ss-section-heading
 {
-	display: inline-block;
-	padding: 0.18rem 0.45rem;
-	border-radius: 999px;
-	background: var(--ss-accent-soft);
-	font-size: 0.72rem;
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 0.62rem;
+	margin: 0.35rem 0 -0.62rem;
+	padding: 0 0 0.52rem;
+	border-bottom: 2px solid var(--ss-border);
+	font-size: 1.2rem;
 	font-weight: 700;
-	letter-spacing: 0.09em;
-	text-transform: uppercase;
-	color: var(--ss-accent);
+	letter-spacing: 0.01em;
+	line-height: 1.25;
+	color: inherit;
+}
+
+.ss-section-heading::before
+{
+	width: 0.32rem;
+	height: 1.15rem;
+	border-radius: 0.12rem;
+	background: var(--ss-accent);
+	content: "";
+}
+
+.ss-section-heading--hero
+{
+	order: -1;
+	width: 100%;
+	margin: 0 0 0.65rem;
+	font-size: 1.05rem;
 }
 
 .ss-version
@@ -117,14 +143,13 @@
 
 .ss-summary table
 {
-	min-width: 68rem;
+	min-width: 48rem;
 	table-layout: fixed;
 }
 
 .ss-summary th,
 .ss-summary td
 {
-	width: 16.666%;
 	padding: 0.7rem 0.9rem;
 	text-align: center;
 	border-color: var(--ss-border);
@@ -183,6 +208,7 @@
 {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
 	justify-content: space-between;
 	gap: 1rem;
 	min-height: 4.3rem;
@@ -203,6 +229,42 @@
 	font-size: 0.78rem;
 	color: var(--ss-text-muted);
 	white-space: nowrap;
+}
+
+.ss-view-all
+{
+	flex: 0 0 auto;
+	padding: 0.38rem 0.58rem;
+	border: 1px solid var(--ss-accent);
+	border-radius: 0.38rem;
+	background: var(--ss-surface);
+	font-size: 0.74rem;
+	font-weight: 700;
+	text-decoration: none;
+	color: var(--ss-accent);
+	white-space: nowrap;
+}
+
+.ss-view-all:hover,
+.ss-view-all:focus
+{
+	background: var(--ss-accent);
+	text-decoration: none;
+	color: #fff;
+}
+
+.ss-panel__tools
+{
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 0.85rem;
+}
+
+.ss-view-all::after
+{
+	content: " →";
 }
 
 .ss-panel--compact .ss-panel__header
@@ -241,6 +303,38 @@
 	background: transparent;
 }
 
+.ss-table thead .ss-sort-link
+{
+	display: inline-flex;
+	align-items: center;
+	gap: 0.28rem;
+	font: inherit;
+	letter-spacing: inherit;
+	text-decoration: none;
+	text-transform: inherit;
+	color: inherit;
+}
+
+.ss-sort-indicator
+{
+	flex: 0 0 auto;
+	font-size: 0.62rem;
+	line-height: 1;
+}
+
+.ss-table thead .ss-sort-link:hover,
+.ss-table thead .ss-sort-link:focus
+{
+	text-decoration: underline;
+	color: var(--ss-accent);
+}
+
+.ss-table thead .ss-sort-link:focus-visible
+{
+	outline: 0.12rem solid var(--ss-accent);
+	outline-offset: 0.12rem;
+}
+
 .ss-table tbody tr:last-child td
 {
 	border-bottom: 0;
@@ -263,7 +357,7 @@
 .ss-chart-legend
 {
 	display: grid;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
 	gap: 0.5rem;
 	margin: 0 0 0.75rem 2.7rem;
 	font-size: 0.75rem;
@@ -289,11 +383,11 @@
 	flex: 0 0 auto;
 }
 
-.ss-series-0 { color: #6f42c1; }
-.ss-series-1 { color: #2a69b8; }
-.ss-series-2 { color: #198754; }
-.ss-series-3 { color: #d99000; }
-.ss-series-4 { color: #c94b54; }
+.ss-series-visits { color: #6f42c1; }
+.ss-series-pageviews { color: #2a69b8; }
+.ss-series-plays { color: #198754; }
+.ss-series-downloads { color: #d99000; }
+.ss-series-bots { color: #c94b54; }
 
 .ss-legend-dot
 {
@@ -303,7 +397,7 @@
 .ss-chart-scroll
 {
 	width: 100%;
-	overflow-x: visible;
+	overflow-x: auto;
 	overflow-y: hidden;
 }
 
@@ -311,8 +405,8 @@
 {
 	display: block;
 	width: 100%;
+	min-width: 56rem;
 	height: auto;
-	min-height: 18rem;
 }
 
 .ss-chart-gridline
@@ -327,12 +421,19 @@
 {
 	fill: var(--ss-text-muted);
 	font-family: inherit;
-	font-size: 7px;
+	font-size: 10px;
 }
 
 .ss-chart-date-label
 {
-	font-size: 7.5px;
+	font-size: 11.5px;
+}
+
+.ss-chart-date-tick
+{
+	stroke: var(--ss-text-muted);
+	stroke-width: 1;
+	vector-effect: non-scaling-stroke;
 }
 
 .ss-pie-wrap
@@ -342,30 +443,26 @@
 	padding: 1rem 1rem 0.8rem;
 }
 
-.ss-donut
+.ss-pie-chart
 {
-	position: relative;
-	display: grid;
-	place-items: center;
 	width: 12.5rem;
 	height: 12.5rem;
 	max-width: 100%;
 }
 
-.ss-donut svg
+.ss-pie-chart svg
 {
-	grid-area: 1 / 1;
 	display: block;
 	width: 100%;
 	height: 100%;
 	overflow: visible;
 }
 
-.ss-donut__track
+.ss-pie-chart__track
 {
 	fill: none;
 	stroke: var(--ss-border);
-	stroke-width: 20;
+	stroke-width: 60;
 }
 
 .ss-pie-legend
@@ -409,34 +506,6 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.ss-donut > div
-{
-	z-index: 1;
-	grid-area: 1 / 1;
-	text-align: center;
-}
-
-.ss-donut strong,
-.ss-donut span
-{
-	display: block;
-}
-
-.ss-donut strong
-{
-	font-size: 1.15rem;
-	font-variant-numeric: tabular-nums;
-}
-
-.ss-donut span
-{
-	margin-top: 0.05rem;
-	font-size: 0.68rem;
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
-	color: var(--ss-text-muted);
-}
-
 .ss-country-warning
 {
 	margin: 0.9rem;
@@ -463,6 +532,41 @@
 	margin-top: 0.15rem;
 	font-size: 0.75rem;
 	color: var(--ss-text-muted);
+}
+
+.ss-grid--time
+{
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ss-time-table
+{
+	max-height: 35rem;
+}
+
+.ss-time-table th:first-child
+{
+	min-width: 7rem;
+}
+
+.ss-report__actions
+{
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 0.5rem;
+}
+
+.ss-report__pagination
+{
+	padding: 0.9rem 1rem;
+	border-top: 1px solid var(--ss-border);
+	background: var(--ss-surface-muted);
+}
+
+.ss-report__pagination .pagination
+{
+	margin-bottom: 0;
 }
 
 .ss-code
@@ -551,9 +655,15 @@
 	}
 
 	.ss-grid,
-	.ss-grid--content
+	.ss-grid--content,
+	.ss-grid--time
 	{
 		grid-template-columns: 1fr;
+	}
+
+	.ss-report__actions
+	{
+		justify-content: flex-start;
 	}
 
 	.ss-chart-legend

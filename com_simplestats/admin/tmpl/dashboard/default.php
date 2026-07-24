@@ -69,7 +69,7 @@ $countryLabel = static function (string $code) use ($countryName, $countryFlag, 
 		? $escape($name) . $flagMarkup . ' <span class="ss-code">' . $escape($code) . '</span>'
 		: $escape($code) . $flagMarkup;
 };
-$eventItemLabel = static function (object $row) use ($escape): string
+$eventItemSortLabel = static function (object $row): string
 {
 	$title = trim((string) ($row->item_title ?? ''));
 	$id = trim((string) ($row->item_id ?? ''));
@@ -77,59 +77,319 @@ $eventItemLabel = static function (object $row) use ($escape): string
 
 	if ($title !== '')
 	{
-		return $escape($title);
+		return $title;
 	}
 
 	if ($id !== '')
 	{
-		return $escape($id);
+		return $id;
 	}
 
 	if ($path !== '')
 	{
-		return $escape($path);
+		return $path;
 	}
 
-	return Text::_('COM_SIMPLESTATS_UNKNOWN_ITEM');
+	return (string) Text::_('COM_SIMPLESTATS_UNKNOWN_ITEM');
 };
+$eventItemLabel = static fn(object $row): string => $escape($eventItemSortLabel($row));
+$selectedDays = $this->days;
+$selectedSortTable = $this->sortTable;
+$selectedSort = $this->sort;
+$selectedDirection = $this->direction;
+$dashboardSortDefinitions = [
+	'activity' => [
+		'defaultField' => 'period',
+		'defaultDirection' => 'desc',
+		'fields' => [
+			'period' => ['property' => 'period_start', 'type' => 'text'],
+			'visits' => ['property' => 'visits', 'type' => 'number'],
+			'pageviews' => ['property' => 'pageviews', 'type' => 'number'],
+			'plays' => ['property' => 'plays', 'type' => 'number'],
+			'downloads' => ['property' => 'downloads', 'type' => 'number'],
+			'bots' => ['property' => 'bots', 'type' => 'number'],
+		],
+	],
+	'hours' => [
+		'defaultField' => 'hour',
+		'defaultDirection' => 'asc',
+		'fields' => [
+			'hour' => ['property' => 'bucket', 'type' => 'number'],
+			'pageviews' => ['property' => 'pageviews', 'type' => 'number'],
+			'visits' => ['property' => 'visits', 'type' => 'number'],
+			'plays' => ['property' => 'plays', 'type' => 'number'],
+			'downloads' => ['property' => 'downloads', 'type' => 'number'],
+			'bots' => ['property' => 'bots', 'type' => 'number'],
+		],
+	],
+	'weekdays' => [
+		'defaultField' => 'weekday',
+		'defaultDirection' => 'asc',
+		'fields' => [
+			'weekday' => ['property' => 'bucket', 'type' => 'number'],
+			'pageviews' => ['property' => 'pageviews', 'type' => 'number'],
+			'visits' => ['property' => 'visits', 'type' => 'number'],
+			'plays' => ['property' => 'plays', 'type' => 'number'],
+			'downloads' => ['property' => 'downloads', 'type' => 'number'],
+			'bots' => ['property' => 'bots', 'type' => 'number'],
+		],
+	],
+	'pages' => [
+		'defaultField' => 'count',
+		'defaultDirection' => 'desc',
+		'fields' => [
+			'label' => ['property' => 'label', 'type' => 'text'],
+			'count' => ['property' => 'count', 'type' => 'number'],
+		],
+	],
+	'plays' => [
+		'defaultField' => 'count',
+		'defaultDirection' => 'desc',
+		'fields' => [
+			'title' => ['property' => 'item_title', 'type' => 'text'],
+			'count' => ['property' => 'count', 'type' => 'number'],
+		],
+	],
+	'downloads' => [
+		'defaultField' => 'count',
+		'defaultDirection' => 'desc',
+		'fields' => [
+			'title' => ['property' => 'item_title', 'type' => 'text'],
+			'count' => ['property' => 'count', 'type' => 'number'],
+		],
+	],
+];
+
+foreach (['countries', 'referrers', 'languages', 'devices', 'browsers', 'bots', 'events'] as $dimensionTable)
+{
+	$dashboardSortDefinitions[$dimensionTable] = [
+		'defaultField' => 'count',
+		'defaultDirection' => 'desc',
+		'fields' => [
+			'label' => ['property' => 'label', 'type' => 'text'],
+			'count' => ['property' => 'count', 'type' => 'number'],
+		],
+	];
+}
+
+$getDashboardSortState = static function (string $table) use (
+	$dashboardSortDefinitions,
+	$selectedSortTable,
+	$selectedSort,
+	$selectedDirection
+): array
+{
+	$definition = $dashboardSortDefinitions[$table];
+	$field = (string) $definition['defaultField'];
+	$direction = (string) $definition['defaultDirection'];
+
+	if ($selectedSortTable === $table && isset($definition['fields'][$selectedSort]))
+	{
+		$field = $selectedSort;
+		$direction = \in_array($selectedDirection, ['asc', 'desc'], true)
+			? $selectedDirection
+			: $direction;
+	}
+
+	return [$field, $direction];
+};
+$getDashboardSortValue = static function (
+	string $table,
+	string $field,
+	object $row
+) use ($dashboardSortDefinitions, $countryName, $eventItemSortLabel): int|string
+{
+	if (\in_array($table, ['plays', 'downloads'], true) && $field === 'title')
+	{
+		return $eventItemSortLabel($row);
+	}
+
+	if ($table === 'countries' && $field === 'label')
+	{
+		return $countryName((string) ($row->label ?? ''));
+	}
+
+	$property = (string) $dashboardSortDefinitions[$table]['fields'][$field]['property'];
+	$value = $row->{$property} ?? '';
+
+	return $dashboardSortDefinitions[$table]['fields'][$field]['type'] === 'number'
+		? (int) $value
+		: (string) $value;
+};
+$sortDashboardRows = static function (array $rows, string $table) use (
+	$dashboardSortDefinitions,
+	$getDashboardSortState,
+	$getDashboardSortValue
+): array
+{
+	[$field, $direction] = $getDashboardSortState($table);
+	$type = (string) $dashboardSortDefinitions[$table]['fields'][$field]['type'];
+	$decoratedRows = [];
+
+	foreach (array_values($rows) as $index => $row)
+	{
+		$decoratedRows[] = ['index' => $index, 'row' => $row];
+	}
+
+	usort(
+		$decoratedRows,
+		static function (array $left, array $right) use (
+			$table,
+			$field,
+			$direction,
+			$type,
+			$getDashboardSortValue
+		): int
+		{
+			$leftValue = $getDashboardSortValue($table, $field, $left['row']);
+			$rightValue = $getDashboardSortValue($table, $field, $right['row']);
+			$comparison = $type === 'number'
+				? ((int) $leftValue <=> (int) $rightValue)
+				: strnatcasecmp((string) $leftValue, (string) $rightValue);
+
+			if ($comparison === 0)
+			{
+				return $left['index'] <=> $right['index'];
+			}
+
+			return $direction === 'desc' ? -$comparison : $comparison;
+		}
+	);
+
+	return array_map(
+		static fn(array $decoratedRow): object => $decoratedRow['row'],
+		$decoratedRows
+	);
+};
+$sortableHeading = static function (
+	string $table,
+	string $field,
+	string $label,
+	string $defaultDirection,
+	string $className = ''
+) use ($escape, $getDashboardSortState, $selectedDays): string
+{
+	[$currentField, $currentDirection] = $getDashboardSortState($table);
+	$active = $currentField === $field;
+	$nextDirection = $active
+		? ($currentDirection === 'asc' ? 'desc' : 'asc')
+		: $defaultDirection;
+	$ariaAttribute = $active
+		? ' aria-sort="' . ($currentDirection === 'desc' ? 'descending' : 'ascending') . '"'
+		: '';
+	$indicator = $active
+		? '<span class="ss-sort-indicator" aria-hidden="true">'
+			. ($currentDirection === 'desc' ? '▼' : '▲')
+			. '</span>'
+		: '';
+	$classAttribute = $className === '' ? '' : ' class="' . $escape($className) . '"';
+	$url = Route::_(
+		'index.php?option=com_simplestats'
+		. '&days=' . $selectedDays
+		. '&sort_table=' . rawurlencode($table)
+		. '&sort=' . rawurlencode($field)
+		. '&direction=' . rawurlencode($nextDirection),
+		false
+	) . '#ss-table-' . rawurlencode($table);
+
+	return '<th scope="col"' . $classAttribute . $ariaAttribute
+		. '><a href="' . $escape($url) . '" class="ss-sort-link"'
+		. ' title="' . $escape(Text::sprintf('COM_SIMPLESTATS_SORT_BY', $label)) . '">'
+		. $escape($label) . $indicator . '</a></th>';
+};
+$features = $this->data['features'] ?? ['audioPlays' => false, 'audioDownloads' => false];
 $summaryMetrics = [
 	['human_visits', 'COM_SIMPLESTATS_HUMAN_VISITS', 'icon-users'],
 	['human_pageviews', 'COM_SIMPLESTATS_HUMAN_PAGEVIEWS', 'icon-eye'],
-	['plays', 'COM_SIMPLESTATS_AUDIO_PLAYS', 'icon-play'],
-	['downloads', 'COM_SIMPLESTATS_AUDIO_DOWNLOADS', 'icon-download'],
-	['authenticated_pageviews', 'COM_SIMPLESTATS_AUTHENTICATED_PAGEVIEWS', 'icon-user'],
-	['bot_pageviews', 'COM_SIMPLESTATS_BOT_PAGEVIEWS', 'icon-cogs'],
 ];
 $chartSeries = [
 	['visits', Text::_('COM_SIMPLESTATS_VISITS'), '#6f42c1'],
 	['pageviews', Text::_('COM_SIMPLESTATS_PAGEVIEWS'), '#2a69b8'],
-	['plays', Text::_('COM_SIMPLESTATS_AUDIO_PLAYS'), '#198754'],
-	['downloads', Text::_('COM_SIMPLESTATS_AUDIO_DOWNLOADS'), '#d99000'],
-	['bots', Text::_('COM_SIMPLESTATS_BOTS'), '#c94b54'],
 ];
-$piePalette = ['#2a69b8', '#6f42c1', '#198754', '#d99000', '#c94b54', '#0f8b8d', '#dd6e42', '#607d8b', '#8e6c88', '#6c8e3f', '#b36b00', '#5c6bc0'];
-$dailyRows = array_reverse($this->data['daily']);
-$maxDailyValue = 1;
 
-foreach ($dailyRows as $row)
+if ($features['audioPlays'])
+{
+	$summaryMetrics[] = ['plays', 'COM_SIMPLESTATS_AUDIO_PLAYS', 'icon-play'];
+	$chartSeries[] = ['plays', Text::_('COM_SIMPLESTATS_AUDIO_PLAYS'), '#198754'];
+}
+
+if ($features['audioDownloads'])
+{
+	$summaryMetrics[] = ['downloads', 'COM_SIMPLESTATS_AUDIO_DOWNLOADS', 'icon-download'];
+	$chartSeries[] = ['downloads', Text::_('COM_SIMPLESTATS_AUDIO_DOWNLOADS'), '#d99000'];
+}
+
+$summaryMetrics[] = ['authenticated_pageviews', 'COM_SIMPLESTATS_AUTHENTICATED_PAGEVIEWS', 'icon-user'];
+$summaryMetrics[] = ['bot_pageviews', 'COM_SIMPLESTATS_BOT_PAGEVIEWS', 'icon-cogs'];
+$chartSeries[] = ['bots', Text::_('COM_SIMPLESTATS_BOTS'), '#c94b54'];
+$piePalette = ['#2a69b8', '#6f42c1', '#198754', '#d99000', '#c94b54', '#0f8b8d', '#dd6e42', '#607d8b', '#8e6c88', '#6c8e3f', '#b36b00', '#5c6bc0'];
+$trendRows = $this->data['trend'];
+$maxTrendValue = 1;
+$trendGranularityKey = 'COM_SIMPLESTATS_GRANULARITY_' . strtoupper((string) $this->data['trendGranularity']);
+$reportUrl = static fn(string $report): string => Route::_(
+	'index.php?option=com_simplestats&view=report&report=' . rawurlencode($report) . '&days=' . $selectedDays
+);
+$hourLabel = static fn(int $hour): string => sprintf('%02d:00–%02d:00', $hour, ($hour + 1) % 24);
+$weekdayLabels = [
+	1 => Text::_('COM_SIMPLESTATS_WEEKDAY_1'),
+	2 => Text::_('COM_SIMPLESTATS_WEEKDAY_2'),
+	3 => Text::_('COM_SIMPLESTATS_WEEKDAY_3'),
+	4 => Text::_('COM_SIMPLESTATS_WEEKDAY_4'),
+	5 => Text::_('COM_SIMPLESTATS_WEEKDAY_5'),
+	6 => Text::_('COM_SIMPLESTATS_WEEKDAY_6'),
+	7 => Text::_('COM_SIMPLESTATS_WEEKDAY_7'),
+];
+$dashboardTrendRows = $this->activityTableRows > 0
+	? array_slice($trendRows, -$this->activityTableRows)
+	: $trendRows;
+$dashboardTrendRows = $sortDashboardRows($dashboardTrendRows, 'activity');
+$hourRows = $sortDashboardRows($this->data['hours'], 'hours');
+$weekdayRows = $sortDashboardRows($this->data['weekdays'], 'weekdays');
+$topPagesRows = $sortDashboardRows($this->data['topPages'], 'pages');
+$topPlaysRows = $sortDashboardRows($this->data['topPlays'], 'plays');
+$topDownloadsRows = $sortDashboardRows($this->data['topDownloads'], 'downloads');
+
+foreach ($trendRows as $row)
 {
 	foreach ($chartSeries as [$property])
 	{
-		$maxDailyValue = max($maxDailyValue, (int) ($row->{$property} ?? 0));
+		$maxTrendValue = max($maxTrendValue, (int) ($row->{$property} ?? 0));
 	}
 }
 
-$dailyChartWidth = 1200;
-$dailyChartHeight = 240;
-$dailyPlotLeft = 54.0;
-$dailyPlotRight = 16.0;
-$dailyPlotTop = 12.0;
-$dailyPlotHeight = 190.0;
-$dailyGroupWidth = ($dailyChartWidth - $dailyPlotLeft - $dailyPlotRight) / max(1, \count($dailyRows));
-$dailyBarGap = 0.8;
-$dailyBarWidth = max(2.8, min(7.0, (($dailyGroupWidth - 4.0) / \count($chartSeries)) - $dailyBarGap));
-$dailyBarsWidth = (\count($chartSeries) * $dailyBarWidth) + ((\count($chartSeries) - 1) * $dailyBarGap);
-$dailyLabelStep = max(1, (int) ceil(\count($dailyRows) / 8));
+$trendChartWidth = 1200;
+$trendChartHeight = 240;
+$trendPlotLeft = 62.0;
+$trendPlotRight = 62.0;
+$trendPlotTop = 12.0;
+$trendPlotHeight = 190.0;
+$trendGroupWidth = ($trendChartWidth - $trendPlotLeft - $trendPlotRight) / max(1, \count($trendRows));
+$trendBarGap = min(0.8, max(0.15, $trendGroupWidth * 0.04));
+$trendBarWidth = max(
+	0.5,
+	min(
+		7.0,
+		($trendGroupWidth - 2.0 - ((\count($chartSeries) - 1) * $trendBarGap)) / \count($chartSeries)
+	)
+);
+$trendBarsWidth = (\count($chartSeries) * $trendBarWidth) + ((\count($chartSeries) - 1) * $trendBarGap);
+$trendLabelIndexes = [];
+$trendRowCount = \count($trendRows);
+$trendLabelCount = min(8, $trendRowCount);
+
+if ($trendLabelCount === 1)
+{
+	$trendLabelIndexes[0] = true;
+}
+elseif ($trendLabelCount > 1)
+{
+	for ($labelIndex = 0; $labelIndex < $trendLabelCount; $labelIndex++)
+	{
+		$rowIndex = (int) round(($labelIndex * ($trendRowCount - 1)) / ($trendLabelCount - 1));
+		$trendLabelIndexes[$rowIndex] = true;
+	}
+}
+
 $knownCountryRows = array_filter(
 	$this->data['countries'],
 	static fn(object $row): bool => !\in_array(strtoupper(trim((string) $row->label)), ['', 'ZZ'], true)
@@ -143,13 +403,13 @@ $showCountryWarning = $this->countryStatus !== []
 	<input type="hidden" name="task" value="">
 	<?php echo HTMLHelper::_('form.token'); ?>
 
-	<div class="ss-dashboard">
-		<header class="ss-hero">
-			<div>
-				<div class="ss-eyebrow"><?php echo Text::_('COM_SIMPLESTATS_DASHBOARD_EYEBROW'); ?></div>
-				<h2><?php echo Text::_('COM_SIMPLESTATS_DASHBOARD_TITLE'); ?></h2>
-				<p><?php echo Text::sprintf('COM_SIMPLESTATS_DATE_RANGE', $escape($this->data['from']), $escape($this->data['to'])); ?></p>
-			</div>
+		<div class="ss-dashboard">
+			<header class="ss-hero">
+				<div class="ss-hero__copy">
+					<h1 class="ss-hero__title"><?php echo Text::_('COM_SIMPLESTATS_DASHBOARD_TITLE'); ?></h1>
+					<h2 class="ss-section-heading ss-section-heading--hero"><?php echo Text::_('COM_SIMPLESTATS_DASHBOARD_EYEBROW'); ?></h2>
+					<p><?php echo Text::sprintf('COM_SIMPLESTATS_DATE_RANGE', $escape($this->data['from']), $escape($this->data['to'])); ?></p>
+				</div>
 			<div class="ss-version" title="<?php echo Text::_('COM_SIMPLESTATS_VERSION'); ?>">
 				<span><?php echo Text::_('COM_SIMPLESTATS_VERSION'); ?></span>
 				<strong><?php echo $escape($this->version); ?></strong>
@@ -163,9 +423,10 @@ $showCountryWarning = $this->countryStatus !== []
 					<?php echo $escape($label); ?>
 				</a>
 			<?php endforeach; ?>
-		</nav>
+			</nav>
 
-		<section class="ss-panel ss-summary" aria-label="<?php echo Text::_('COM_SIMPLESTATS_OVERVIEW'); ?>">
+			<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_OVERVIEW'); ?></h2>
+			<section class="ss-panel ss-summary" aria-label="<?php echo Text::_('COM_SIMPLESTATS_OVERVIEW'); ?>">
 			<div class="table-responsive">
 				<table class="table mb-0">
 					<thead>
@@ -184,21 +445,25 @@ $showCountryWarning = $this->countryStatus !== []
 					</tbody>
 				</table>
 			</div>
-		</section>
+			</section>
 
-		<section class="ss-panel ss-panel--wide">
-			<header class="ss-panel__header">
-				<div><span class="ss-panel__kicker"><?php echo Text::_('COM_SIMPLESTATS_TRAFFIC'); ?></span><h3><?php echo Text::_('COM_SIMPLESTATS_RECENT_DAILY'); ?></h3></div>
-				<span class="ss-panel__meta"><?php echo Text::_('COM_SIMPLESTATS_RECENT_DAILY_LIMIT'); ?></span>
-			</header>
-			<div class="ss-panel__body ss-panel__body--flush">
-				<?php if ($dailyRows === []) : ?>
-					<div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_DATA'); ?></div>
-				<?php else : ?>
+				<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_TRAFFIC'); ?></h2>
+				<section class="ss-panel ss-panel--wide">
+					<header class="ss-panel__header">
+						<h3><?php echo Text::_('COM_SIMPLESTATS_ACTIVITY_TREND'); ?></h3>
+					<div class="ss-panel__tools">
+						<span class="ss-panel__meta"><?php echo Text::sprintf('COM_SIMPLESTATS_TREND_GRANULARITY', Text::_($trendGranularityKey)); ?></span>
+						<a class="ss-view-all" href="<?php echo $reportUrl('activity'); ?>"><?php echo Text::_('COM_SIMPLESTATS_VIEW_ALL'); ?></a>
+					</div>
+				</header>
+				<div class="ss-panel__body ss-panel__body--flush">
+					<?php if ($trendRows === []) : ?>
+						<div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_DATA'); ?></div>
+					<?php else : ?>
 					<div class="ss-daily-chart">
 						<div class="ss-chart-legend" aria-hidden="true">
-							<?php foreach ($chartSeries as $seriesIndex => [, $label, $color]) : ?>
-								<span class="ss-series-<?php echo $seriesIndex; ?>">
+							<?php foreach ($chartSeries as [$property, $label, $color]) : ?>
+								<span class="ss-series-<?php echo $escape($property); ?>">
 									<svg class="ss-chart-legend__swatch" width="11" height="11" viewBox="0 0 11 11" focusable="false">
 										<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($color); ?>"></circle>
 									</svg>
@@ -206,141 +471,303 @@ $showCountryWarning = $this->countryStatus !== []
 								</span>
 							<?php endforeach; ?>
 						</div>
-						<div class="ss-chart-scroll">
-							<svg class="ss-daily-chart__svg"
-								viewBox="0 0 <?php echo $dailyChartWidth; ?> <?php echo $dailyChartHeight; ?>"
-								preserveAspectRatio="xMidYMid meet"
-								role="img"
-								aria-label="<?php echo Text::_('COM_SIMPLESTATS_DAILY_CHART_LABEL'); ?>">
-								<?php for ($line = 0; $line <= 4; $line++) :
-									$lineY = $dailyPlotTop + ($line * ($dailyPlotHeight / 4.0));
-									$lineValue = (int) round($maxDailyValue * ((4 - $line) / 4));
-								?>
-									<line class="ss-chart-gridline"
-										x1="<?php echo $dailyPlotLeft; ?>"
-										y1="<?php echo number_format($lineY, 1, '.', ''); ?>"
-										x2="<?php echo $dailyChartWidth - $dailyPlotRight; ?>"
-										y2="<?php echo number_format($lineY, 1, '.', ''); ?>"></line>
-									<text class="ss-chart-axis-label"
-										x="<?php echo $dailyPlotLeft - 8; ?>"
-										y="<?php echo number_format($lineY + 4, 1, '.', ''); ?>"
-										text-anchor="end"><?php echo $lineValue; ?></text>
-								<?php endfor; ?>
-								<?php foreach ($dailyRows as $rowIndex => $row) :
-									$groupStart = $dailyPlotLeft + ($rowIndex * $dailyGroupWidth);
-									$groupX = $groupStart + (($dailyGroupWidth - $dailyBarsWidth) / 2.0);
-								?>
-									<?php foreach ($chartSeries as $seriesIndex => [$property, $label, $color]) :
-										$value = (int) ($row->{$property} ?? 0);
-										$height = $value > 0 ? max(1.0, ($value / $maxDailyValue) * $dailyPlotHeight) : 0.0;
-										$x = $groupX + ($seriesIndex * ($dailyBarWidth + $dailyBarGap));
-										$y = $dailyPlotTop + $dailyPlotHeight - $height;
+							<div class="ss-chart-scroll">
+								<svg class="ss-daily-chart__svg"
+									viewBox="0 0 <?php echo $trendChartWidth; ?> <?php echo $trendChartHeight; ?>"
+									preserveAspectRatio="xMidYMid meet"
+									role="img"
+									aria-label="<?php echo Text::_('COM_SIMPLESTATS_TREND_CHART_LABEL'); ?>">
+									<?php for ($line = 0; $line <= 4; $line++) :
+										$lineY = $trendPlotTop + ($line * ($trendPlotHeight / 4.0));
+										$lineValue = (int) round($maxTrendValue * ((4 - $line) / 4));
 									?>
-										<rect x="<?php echo number_format($x, 1, '.', ''); ?>"
-											y="<?php echo number_format($y, 1, '.', ''); ?>"
-											width="<?php echo number_format($dailyBarWidth, 1, '.', ''); ?>"
-											height="<?php echo number_format($height, 1, '.', ''); ?>"
-											rx="1.2"
-											fill="<?php echo $escape($color); ?>">
-											<title><?php echo $escape($row->visit_date . ' · ' . $label . ': ' . $number($value)); ?></title>
-										</rect>
-									<?php endforeach; ?>
-									<?php if ($rowIndex % $dailyLabelStep === 0 || $rowIndex === \count($dailyRows) - 1) : ?>
-										<text class="ss-chart-date-label"
-											x="<?php echo number_format($groupStart + ($dailyGroupWidth / 2.0), 1, '.', ''); ?>"
-											y="<?php echo $dailyPlotTop + $dailyPlotHeight + 23; ?>"
-											text-anchor="middle"><?php echo $escape(substr((string) $row->visit_date, 5)); ?></text>
-									<?php endif; ?>
+										<line class="ss-chart-gridline"
+											x1="<?php echo $trendPlotLeft; ?>"
+											y1="<?php echo number_format($lineY, 1, '.', ''); ?>"
+											x2="<?php echo $trendChartWidth - $trendPlotRight; ?>"
+											y2="<?php echo number_format($lineY, 1, '.', ''); ?>"></line>
+										<text class="ss-chart-axis-label"
+											x="<?php echo $trendPlotLeft - 8; ?>"
+											y="<?php echo number_format($lineY + 4, 1, '.', ''); ?>"
+											text-anchor="end"><?php echo $lineValue; ?></text>
+									<?php endfor; ?>
+									<?php foreach ($trendRows as $rowIndex => $row) :
+										$groupStart = $trendPlotLeft + ($rowIndex * $trendGroupWidth);
+										$groupCenter = $groupStart + ($trendGroupWidth / 2.0);
+										$groupX = $groupCenter - ($trendBarsWidth / 2.0);
+									?>
+										<?php foreach ($chartSeries as $seriesIndex => [$property, $label, $color]) :
+											$value = (int) ($row->{$property} ?? 0);
+											$height = $value > 0 ? max(1.0, ($value / $maxTrendValue) * $trendPlotHeight) : 0.0;
+											$x = $groupX + ($seriesIndex * ($trendBarWidth + $trendBarGap));
+											$y = $trendPlotTop + $trendPlotHeight - $height;
+										?>
+											<rect x="<?php echo number_format($x, 1, '.', ''); ?>"
+												y="<?php echo number_format($y, 1, '.', ''); ?>"
+												width="<?php echo number_format($trendBarWidth, 1, '.', ''); ?>"
+												height="<?php echo number_format($height, 1, '.', ''); ?>"
+												rx="1.2"
+												fill="<?php echo $escape($color); ?>">
+												<title><?php echo $escape($row->period_label . ' · ' . $label . ': ' . $number($value)); ?></title>
+											</rect>
+										<?php endforeach; ?>
+										<?php if (isset($trendLabelIndexes[$rowIndex])) : ?>
+											<line class="ss-chart-date-tick"
+												x1="<?php echo number_format($groupCenter, 1, '.', ''); ?>"
+												y1="<?php echo $trendPlotTop + $trendPlotHeight + 3; ?>"
+												x2="<?php echo number_format($groupCenter, 1, '.', ''); ?>"
+												y2="<?php echo $trendPlotTop + $trendPlotHeight + 8; ?>"></line>
+											<text class="ss-chart-date-label"
+												x="<?php echo number_format($groupCenter, 1, '.', ''); ?>"
+												y="<?php echo $trendPlotTop + $trendPlotHeight + 23; ?>"
+												text-anchor="middle"><?php echo $escape((string) $row->period_label); ?></text>
+										<?php endif; ?>
 								<?php endforeach; ?>
 							</svg>
 						</div>
 					</div>
-					<div class="table-responsive">
-						<table class="table ss-table mb-0">
-							<thead><tr>
-								<th><?php echo Text::_('JDATE'); ?></th>
-								<th class="text-end"><?php echo Text::_('COM_SIMPLESTATS_VISITS'); ?></th>
-								<th class="text-end"><?php echo Text::_('COM_SIMPLESTATS_PAGEVIEWS'); ?></th>
-								<th class="text-end"><?php echo Text::_('COM_SIMPLESTATS_AUDIO_PLAYS'); ?></th>
-								<th class="text-end"><?php echo Text::_('COM_SIMPLESTATS_AUDIO_DOWNLOADS'); ?></th>
-								<th class="text-end"><?php echo Text::_('COM_SIMPLESTATS_BOTS'); ?></th>
-							</tr></thead>
-							<tbody>
-							<?php foreach ($dailyRows as $row) : ?>
+						<div class="table-responsive">
+							<table class="table ss-table mb-0" id="ss-table-activity">
+								<thead>
+									<tr>
+										<?php echo $sortableHeading('activity', 'period', Text::_('COM_SIMPLESTATS_PERIOD'), 'desc'); ?>
+										<?php echo $sortableHeading('activity', 'visits', Text::_('COM_SIMPLESTATS_VISITS'), 'desc', 'text-end'); ?>
+										<?php echo $sortableHeading('activity', 'pageviews', Text::_('COM_SIMPLESTATS_PAGEVIEWS'), 'desc', 'text-end'); ?>
+										<?php if ($features['audioPlays']) : ?>
+											<?php echo $sortableHeading('activity', 'plays', Text::_('COM_SIMPLESTATS_AUDIO_PLAYS'), 'desc', 'text-end'); ?>
+										<?php endif; ?>
+										<?php if ($features['audioDownloads']) : ?>
+											<?php echo $sortableHeading('activity', 'downloads', Text::_('COM_SIMPLESTATS_AUDIO_DOWNLOADS'), 'desc', 'text-end'); ?>
+										<?php endif; ?>
+										<?php echo $sortableHeading('activity', 'bots', Text::_('COM_SIMPLESTATS_BOTS'), 'desc', 'text-end'); ?>
+									</tr>
+								</thead>
+								<tbody>
+								<?php foreach ($dashboardTrendRows as $row) : ?>
+									<tr>
+										<td class="text-nowrap" data-sort-value="<?php echo $escape($row->period_start); ?>"><?php echo $escape($row->period_label); ?></td>
+										<td class="text-end" data-sort-value="<?php echo (int) $row->visits; ?>"><?php echo $number($row->visits); ?></td>
+										<td class="text-end" data-sort-value="<?php echo (int) $row->pageviews; ?>"><?php echo $number($row->pageviews); ?></td>
+										<?php if ($features['audioPlays']) : ?>
+											<td class="text-end" data-sort-value="<?php echo (int) $row->plays; ?>"><?php echo $number($row->plays); ?></td>
+										<?php endif; ?>
+										<?php if ($features['audioDownloads']) : ?>
+											<td class="text-end" data-sort-value="<?php echo (int) $row->downloads; ?>"><?php echo $number($row->downloads); ?></td>
+										<?php endif; ?>
+										<td class="text-end" data-sort-value="<?php echo (int) $row->bots; ?>"><?php echo $number($row->bots); ?></td>
+									</tr>
+								<?php endforeach; ?>
+								</tbody>
+							</table>
+					</div>
+				<?php endif; ?>
+				</div>
+				</section>
+
+				<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_TIME_OF_DAY'); ?></h2>
+				<div class="ss-grid ss-grid--time">
+					<section class="ss-panel">
+							<header class="ss-panel__header">
+								<h3><?php echo Text::_('COM_SIMPLESTATS_BY_HOUR'); ?></h3>
+							<div class="ss-panel__tools">
+								<span class="ss-panel__meta"><?php echo Text::_('COM_SIMPLESTATS_SITE_LOCAL_TIME'); ?></span>
+								<a class="ss-view-all" href="<?php echo $reportUrl('hours'); ?>"><?php echo Text::_('COM_SIMPLESTATS_VIEW_ALL'); ?></a>
+							</div>
+						</header>
+						<p class="ss-panel-note"><?php echo Text::_('COM_SIMPLESTATS_HOUR_HISTORY_NOTE'); ?></p>
+						<div class="table-responsive ss-time-table">
+						<table class="table ss-table mb-0" id="ss-table-hours">
+							<thead>
 								<tr>
-									<td class="text-nowrap"><?php echo $escape($row->visit_date); ?></td>
-									<td class="text-end"><?php echo $number($row->visits); ?></td>
-									<td class="text-end"><?php echo $number($row->pageviews); ?></td>
-									<td class="text-end"><?php echo $number($row->plays); ?></td>
-									<td class="text-end"><?php echo $number($row->downloads); ?></td>
-									<td class="text-end"><?php echo $number($row->bots); ?></td>
+									<?php echo $sortableHeading('hours', 'hour', Text::_('COM_SIMPLESTATS_HOUR'), 'asc'); ?>
+									<?php echo $sortableHeading('hours', 'pageviews', Text::_('COM_SIMPLESTATS_PAGEVIEWS'), 'desc', 'text-end'); ?>
+									<?php echo $sortableHeading('hours', 'visits', Text::_('COM_SIMPLESTATS_VISITS'), 'desc', 'text-end'); ?>
+									<?php if ($features['audioPlays']) : ?>
+										<?php echo $sortableHeading('hours', 'plays', Text::_('COM_SIMPLESTATS_AUDIO_PLAYS'), 'desc', 'text-end'); ?>
+									<?php endif; ?>
+									<?php if ($features['audioDownloads']) : ?>
+										<?php echo $sortableHeading('hours', 'downloads', Text::_('COM_SIMPLESTATS_AUDIO_DOWNLOADS'), 'desc', 'text-end'); ?>
+									<?php endif; ?>
+									<?php echo $sortableHeading('hours', 'bots', Text::_('COM_SIMPLESTATS_BOTS'), 'desc', 'text-end'); ?>
 								</tr>
-							<?php endforeach; ?>
+							</thead>
+							<tbody>
+								<?php foreach ($hourRows as $row) : ?>
+									<tr>
+										<td class="text-nowrap" data-sort-value="<?php echo (int) $row->bucket; ?>"><?php echo $escape($hourLabel((int) $row->bucket)); ?></td>
+										<td class="text-end" data-sort-value="<?php echo (int) $row->pageviews; ?>"><?php echo $number($row->pageviews); ?></td>
+										<td class="text-end" data-sort-value="<?php echo (int) $row->visits; ?>"><?php echo $number($row->visits); ?></td>
+										<?php if ($features['audioPlays']) : ?>
+											<td class="text-end" data-sort-value="<?php echo (int) $row->plays; ?>"><?php echo $number($row->plays); ?></td>
+										<?php endif; ?>
+										<?php if ($features['audioDownloads']) : ?>
+											<td class="text-end" data-sort-value="<?php echo (int) $row->downloads; ?>"><?php echo $number($row->downloads); ?></td>
+										<?php endif; ?>
+										<td class="text-end" data-sort-value="<?php echo (int) $row->bots; ?>"><?php echo $number($row->bots); ?></td>
+									</tr>
+								<?php endforeach; ?>
 							</tbody>
 						</table>
 					</div>
-				<?php endif; ?>
+				</section>
+
+					<section class="ss-panel">
+							<header class="ss-panel__header">
+								<h3><?php echo Text::_('COM_SIMPLESTATS_BY_WEEKDAY'); ?></h3>
+							<span class="ss-panel__meta"><?php echo Text::_('COM_SIMPLESTATS_SITE_LOCAL_TIME'); ?></span>
+						</header>
+						<div class="table-responsive ss-time-table">
+							<table class="table ss-table mb-0" id="ss-table-weekdays">
+								<thead>
+									<tr>
+										<?php echo $sortableHeading('weekdays', 'weekday', Text::_('COM_SIMPLESTATS_WEEKDAY'), 'asc'); ?>
+										<?php echo $sortableHeading('weekdays', 'pageviews', Text::_('COM_SIMPLESTATS_PAGEVIEWS'), 'desc', 'text-end'); ?>
+										<?php echo $sortableHeading('weekdays', 'visits', Text::_('COM_SIMPLESTATS_VISITS'), 'desc', 'text-end'); ?>
+										<?php if ($features['audioPlays']) : ?>
+											<?php echo $sortableHeading('weekdays', 'plays', Text::_('COM_SIMPLESTATS_AUDIO_PLAYS'), 'desc', 'text-end'); ?>
+										<?php endif; ?>
+										<?php if ($features['audioDownloads']) : ?>
+											<?php echo $sortableHeading('weekdays', 'downloads', Text::_('COM_SIMPLESTATS_AUDIO_DOWNLOADS'), 'desc', 'text-end'); ?>
+										<?php endif; ?>
+										<?php echo $sortableHeading('weekdays', 'bots', Text::_('COM_SIMPLESTATS_BOTS'), 'desc', 'text-end'); ?>
+									</tr>
+								</thead>
+								<tbody>
+									<?php foreach ($weekdayRows as $row) : ?>
+									<tr>
+										<td data-sort-value="<?php echo (int) $row->bucket; ?>"><?php echo $escape($weekdayLabels[(int) $row->bucket] ?? (string) $row->bucket); ?></td>
+										<td class="text-end" data-sort-value="<?php echo (int) $row->pageviews; ?>"><?php echo $number($row->pageviews); ?></td>
+										<td class="text-end" data-sort-value="<?php echo (int) $row->visits; ?>"><?php echo $number($row->visits); ?></td>
+										<?php if ($features['audioPlays']) : ?>
+											<td class="text-end" data-sort-value="<?php echo (int) $row->plays; ?>"><?php echo $number($row->plays); ?></td>
+										<?php endif; ?>
+										<?php if ($features['audioDownloads']) : ?>
+											<td class="text-end" data-sort-value="<?php echo (int) $row->downloads; ?>"><?php echo $number($row->downloads); ?></td>
+										<?php endif; ?>
+										<td class="text-end" data-sort-value="<?php echo (int) $row->bots; ?>"><?php echo $number($row->bots); ?></td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+				</section>
 			</div>
-		</section>
 
-		<div class="ss-grid ss-grid--content">
-			<section class="ss-panel">
-				<header class="ss-panel__header"><div><span class="ss-panel__kicker"><?php echo Text::_('COM_SIMPLESTATS_CONTENT'); ?></span><h3><?php echo Text::_('COM_SIMPLESTATS_TOP_PAGES'); ?></h3></div></header>
+			<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_CONTENT'); ?></h2>
+			<div class="ss-grid ss-grid--content">
+				<section class="ss-panel">
+					<header class="ss-panel__header">
+						<h3><?php echo Text::_('COM_SIMPLESTATS_TOP_PAGES'); ?></h3>
+						<a class="ss-view-all" href="<?php echo $reportUrl('pages'); ?>"><?php echo Text::_('COM_SIMPLESTATS_VIEW_ALL'); ?></a>
+				</header>
 				<div class="ss-panel__body ss-panel__body--flush">
-					<?php if ($this->data['topPages'] === []) : ?><div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_DATA'); ?></div><?php else : ?>
-					<table class="table ss-table mb-0"><tbody>
-					<?php foreach ($this->data['topPages'] as $row) : ?>
-						<tr><td class="text-break"><a href="<?php echo $escape($siteRoot . (string) $row->label); ?>" target="_blank" rel="noopener noreferrer"><?php echo $escape($row->label); ?></a></td><td class="text-end ss-count"><?php echo $number($row->count); ?></td></tr>
-					<?php endforeach; ?>
-					</tbody></table>
-					<?php endif; ?>
-				</div>
-			</section>
-
-			<section class="ss-panel">
-				<header class="ss-panel__header"><div><span class="ss-panel__kicker"><?php echo Text::_('COM_SIMPLESTATS_ENGAGEMENT'); ?></span><h3><?php echo Text::_('COM_SIMPLESTATS_TOP_PLAYS'); ?></h3></div></header>
-				<div class="ss-panel__body ss-panel__body--flush">
-					<?php if ($this->data['topPlays'] === []) : ?><div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_CUSTOM_EVENTS'); ?></div><?php else : ?>
-					<table class="table ss-table mb-0"><tbody>
-					<?php foreach ($this->data['topPlays'] as $row) : ?>
-						<tr><td><div class="ss-item-title"><?php echo $eventItemLabel($row); ?></div><div class="ss-item-meta"><?php echo $escape($row->item_type); ?><?php echo $row->item_id !== '' ? ' · ' . $escape($row->item_id) : ''; ?></div></td><td class="text-end ss-count"><?php echo $number($row->count); ?></td></tr>
-					<?php endforeach; ?>
-					</tbody></table>
-					<?php endif; ?>
-				</div>
-			</section>
-
-			<section class="ss-panel">
-				<header class="ss-panel__header"><div><span class="ss-panel__kicker"><?php echo Text::_('COM_SIMPLESTATS_ENGAGEMENT'); ?></span><h3><?php echo Text::_('COM_SIMPLESTATS_TOP_DOWNLOADS'); ?></h3></div></header>
-				<div class="ss-panel__body ss-panel__body--flush">
-					<?php if ($this->data['topDownloads'] === []) : ?><div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_CUSTOM_EVENTS'); ?></div><?php else : ?>
-					<table class="table ss-table mb-0"><tbody>
-					<?php foreach ($this->data['topDownloads'] as $row) : ?>
-						<tr><td><div class="ss-item-title"><?php echo $eventItemLabel($row); ?></div><div class="ss-item-meta"><?php echo $escape($row->item_type); ?><?php echo $row->item_id !== '' ? ' · ' . $escape($row->item_id) : ''; ?></div></td><td class="text-end ss-count"><?php echo $number($row->count); ?></td></tr>
-					<?php endforeach; ?>
-					</tbody></table>
+					<?php if ($topPagesRows === []) : ?><div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_DATA'); ?></div><?php else : ?>
+					<table class="table ss-table mb-0" id="ss-table-pages">
+						<thead>
+							<tr>
+								<?php echo $sortableHeading('pages', 'label', Text::_('COM_SIMPLESTATS_CSV_LABEL'), 'asc'); ?>
+								<?php echo $sortableHeading('pages', 'count', Text::_('COM_SIMPLESTATS_CSV_COUNT'), 'desc', 'text-end'); ?>
+							</tr>
+						</thead>
+						<tbody>
+						<?php foreach ($topPagesRows as $row) : ?>
+							<tr>
+								<td class="text-break" data-sort-value="<?php echo $escape($row->label); ?>"><a href="<?php echo $escape($siteRoot . (string) $row->label); ?>" target="_blank" rel="noopener noreferrer"><?php echo $escape($row->label); ?></a></td>
+								<td class="text-end ss-count" data-sort-value="<?php echo (int) $row->count; ?>"><?php echo $number($row->count); ?></td>
+							</tr>
+						<?php endforeach; ?>
+						</tbody>
+					</table>
 					<?php endif; ?>
 				</div>
 			</section>
 		</div>
 
-		<div class="ss-grid">
-			<?php
-			$dimensionTables = [
-				[Text::_('COM_SIMPLESTATS_COUNTRIES'), $this->data['countries'], 'country-pie'],
-				[Text::_('COM_SIMPLESTATS_REFERRERS'), $this->data['referrers'], 'plain'],
-				[Text::_('COM_SIMPLESTATS_LANGUAGES'), $this->data['languages'], 'pie'],
-				[Text::_('COM_SIMPLESTATS_DEVICES'), $this->data['devices'], 'pie'],
-				[Text::_('COM_SIMPLESTATS_BROWSERS'), $this->data['browsers'], 'pie'],
-				[Text::_('COM_SIMPLESTATS_BOT_NAMES'), $this->data['bots'], 'plain'],
-				[Text::_('COM_SIMPLESTATS_CUSTOM_EVENTS'), $this->data['eventTypes'], 'plain'],
-			];
-			foreach ($dimensionTables as [$title, $rows, $mode]) :
-				$isCountry = $mode === 'country-pie';
-				$isPie = \in_array($mode, ['pie', 'country-pie'], true);
-			?>
-				<section class="ss-panel ss-panel--compact">
-					<header class="ss-panel__header"><h3><?php echo $escape($title); ?></h3></header>
+			<?php if ($features['audioPlays'] || $features['audioDownloads']) : ?>
+				<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_ENGAGEMENT'); ?></h2>
+				<div class="ss-grid ss-grid--content">
+				<?php if ($features['audioPlays']) : ?>
+					<section class="ss-panel">
+					<header class="ss-panel__header">
+						<h3><?php echo Text::_('COM_SIMPLESTATS_TOP_PLAYS'); ?></h3>
+						<a class="ss-view-all" href="<?php echo $reportUrl('plays'); ?>"><?php echo Text::_('COM_SIMPLESTATS_VIEW_ALL'); ?></a>
+				</header>
+			<div class="ss-panel__body ss-panel__body--flush">
+				<?php if ($topPlaysRows === []) : ?><div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_CUSTOM_EVENTS'); ?></div><?php else : ?>
+				<table class="table ss-table mb-0" id="ss-table-plays">
+					<thead>
+						<tr>
+							<?php echo $sortableHeading('plays', 'title', Text::_('COM_SIMPLESTATS_CSV_TITLE'), 'asc'); ?>
+							<?php echo $sortableHeading('plays', 'count', Text::_('COM_SIMPLESTATS_CSV_COUNT'), 'desc', 'text-end'); ?>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach ($topPlaysRows as $row) : ?>
+						<tr>
+							<td data-sort-value="<?php echo $escape($eventItemSortLabel($row)); ?>"><div class="ss-item-title"><?php echo $eventItemLabel($row); ?></div><div class="ss-item-meta"><?php echo $escape($row->item_type); ?><?php echo $row->item_id !== '' ? ' · ' . $escape($row->item_id) : ''; ?></div></td>
+							<td class="text-end ss-count" data-sort-value="<?php echo (int) $row->count; ?>"><?php echo $number($row->count); ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+				<?php endif; ?>
+				</div>
+				</section>
+				<?php endif; ?>
+
+				<?php if ($features['audioDownloads']) : ?>
+					<section class="ss-panel">
+					<header class="ss-panel__header">
+						<h3><?php echo Text::_('COM_SIMPLESTATS_TOP_DOWNLOADS'); ?></h3>
+						<a class="ss-view-all" href="<?php echo $reportUrl('downloads'); ?>"><?php echo Text::_('COM_SIMPLESTATS_VIEW_ALL'); ?></a>
+				</header>
+			<div class="ss-panel__body ss-panel__body--flush">
+				<?php if ($topDownloadsRows === []) : ?><div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_CUSTOM_EVENTS'); ?></div><?php else : ?>
+				<table class="table ss-table mb-0" id="ss-table-downloads">
+					<thead>
+						<tr>
+							<?php echo $sortableHeading('downloads', 'title', Text::_('COM_SIMPLESTATS_CSV_TITLE'), 'asc'); ?>
+							<?php echo $sortableHeading('downloads', 'count', Text::_('COM_SIMPLESTATS_CSV_COUNT'), 'desc', 'text-end'); ?>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach ($topDownloadsRows as $row) : ?>
+						<tr>
+							<td data-sort-value="<?php echo $escape($eventItemSortLabel($row)); ?>"><div class="ss-item-title"><?php echo $eventItemLabel($row); ?></div><div class="ss-item-meta"><?php echo $escape($row->item_type); ?><?php echo $row->item_id !== '' ? ' · ' . $escape($row->item_id) : ''; ?></div></td>
+							<td class="text-end ss-count" data-sort-value="<?php echo (int) $row->count; ?>"><?php echo $number($row->count); ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+				<?php endif; ?>
+				</div>
+					</section>
+				<?php endif; ?>
+		</div>
+			<?php endif; ?>
+
+			<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_AUDIENCE_TECHNOLOGY'); ?></h2>
+			<div class="ss-grid">
+				<?php
+				$dimensionTables = [
+					[Text::_('COM_SIMPLESTATS_COUNTRIES'), $this->data['countries'], 'country-pie', 'countries'],
+					[Text::_('COM_SIMPLESTATS_REFERRERS'), $this->data['referrers'], 'plain', 'referrers'],
+					[Text::_('COM_SIMPLESTATS_LANGUAGES'), $this->data['languages'], 'pie', 'languages'],
+					[Text::_('COM_SIMPLESTATS_DEVICES'), $this->data['devices'], 'pie', 'devices'],
+					[Text::_('COM_SIMPLESTATS_BROWSERS'), $this->data['browsers'], 'pie', 'browsers'],
+					[Text::_('COM_SIMPLESTATS_BOT_NAMES'), $this->data['bots'], 'plain', 'bots'],
+					[Text::_('COM_SIMPLESTATS_CUSTOM_EVENTS'), $this->data['eventTypes'], 'plain', 'events'],
+				];
+				foreach ($dimensionTables as [$title, $rows, $mode, $report]) :
+					$rows = $sortDashboardRows($rows, $report);
+					$isCountry = $mode === 'country-pie';
+					$isPie = \in_array($mode, ['pie', 'country-pie'], true);
+				?>
+					<section class="ss-panel ss-panel--compact">
+						<header class="ss-panel__header">
+							<h3><?php echo $escape($title); ?></h3>
+							<a class="ss-view-all" href="<?php echo $reportUrl($report); ?>"><?php echo Text::_('COM_SIMPLESTATS_VIEW_ALL'); ?></a>
+						</header>
 					<div class="ss-panel__body ss-panel__body--flush">
 						<?php if ($rows === []) : ?><div class="ss-empty"><?php echo Text::_('COM_SIMPLESTATS_NO_DATA'); ?></div><?php else : ?>
 						<?php if ($isCountry && $showCountryWarning) : ?>
@@ -354,9 +781,9 @@ $showCountryWarning = $this->countryStatus !== []
 							$pieOffset = 0.0;
 						?>
 							<div class="ss-pie-wrap">
-								<div class="ss-donut">
+								<div class="ss-pie-chart">
 									<svg width="200" height="200" viewBox="0 0 120 120" role="img" aria-label="<?php echo $escape($title); ?>">
-										<circle class="ss-donut__track" cx="60" cy="60" r="46" pathLength="100"></circle>
+										<circle class="ss-pie-chart__track" cx="60" cy="60" r="30" pathLength="100"></circle>
 										<?php foreach ($rows as $rowIndex => $row) :
 											$piePercentage = $pieTotal > 0 ? (((int) $row->count / $pieTotal) * 100.0) : 0.0;
 											$pieRemainder = max(0.0, 100.0 - $piePercentage);
@@ -364,13 +791,14 @@ $showCountryWarning = $this->countryStatus !== []
 										?>
 											<circle cx="60"
 												cy="60"
-												r="46"
+												r="30"
 												pathLength="100"
 												fill="none"
 												stroke="<?php echo $escape($piePalette[$rowIndex % \count($piePalette)]); ?>"
-												stroke-width="20"
+												stroke-width="60"
 												stroke-dasharray="<?php echo number_format($piePercentage, 4, '.', ''); ?> <?php echo number_format($pieRemainder, 4, '.', ''); ?>"
 												stroke-dashoffset="<?php echo number_format(-$pieOffset, 4, '.', ''); ?>"
+												stroke-linecap="butt"
 												transform="rotate(-90 60 60)">
 												<title><?php echo $escape($rowLabel . ': ' . $number($row->count)); ?></title>
 											</circle>
@@ -379,7 +807,6 @@ $showCountryWarning = $this->countryStatus !== []
 										endforeach;
 										?>
 									</svg>
-									<div><strong><?php echo $number($pieTotal); ?></strong><span><?php echo Text::_('COM_SIMPLESTATS_TOTAL'); ?></span></div>
 								</div>
 								<ul class="ss-pie-legend">
 									<?php foreach ($rows as $rowIndex => $row) :
@@ -398,29 +825,38 @@ $showCountryWarning = $this->countryStatus !== []
 								</ul>
 							</div>
 						<?php endif; ?>
-						<table class="table ss-table mb-0"><tbody>
-						<?php foreach ($rows as $rowIndex => $row) : ?>
-							<tr>
-								<td class="text-break">
-									<?php if ($isPie) : ?>
-										<svg class="ss-legend-dot" width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" focusable="false">
-											<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($piePalette[$rowIndex % \count($piePalette)]); ?>"></circle>
-										</svg>
-									<?php endif; ?>
-									<?php echo $isCountry ? $countryLabel((string) $row->label) : $escape($row->label); ?>
-								</td>
-								<td class="text-end ss-count"><?php echo $number($row->count); ?></td>
-							</tr>
-						<?php endforeach; ?>
-						</tbody></table>
+							<table class="table ss-table mb-0" id="ss-table-<?php echo $escape($report); ?>">
+								<thead>
+									<tr>
+										<?php echo $sortableHeading($report, 'label', $title, 'asc'); ?>
+										<?php echo $sortableHeading($report, 'count', Text::_('COM_SIMPLESTATS_CSV_COUNT'), 'desc', 'text-end'); ?>
+									</tr>
+								</thead>
+								<tbody>
+								<?php foreach ($rows as $rowIndex => $row) : ?>
+									<tr>
+										<td class="text-break" data-sort-value="<?php echo $escape($isCountry ? $countryName((string) $row->label) : $row->label); ?>">
+											<?php if ($isPie) : ?>
+												<svg class="ss-legend-dot" width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" focusable="false">
+													<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($piePalette[$rowIndex % \count($piePalette)]); ?>"></circle>
+												</svg>
+											<?php endif; ?>
+											<?php echo $isCountry ? $countryLabel((string) $row->label) : $escape($row->label); ?>
+										</td>
+										<td class="text-end ss-count" data-sort-value="<?php echo (int) $row->count; ?>"><?php echo $number($row->count); ?></td>
+									</tr>
+								<?php endforeach; ?>
+								</tbody>
+							</table>
 						<?php endif; ?>
 					</div>
 				</section>
-			<?php endforeach; ?>
-		</div>
+				<?php endforeach; ?>
+			</div>
 
-		<section class="ss-panel ss-system">
-			<header class="ss-panel__header"><div><span class="ss-panel__kicker"><?php echo Text::_('COM_SIMPLESTATS_SYSTEM'); ?></span><h3><?php echo Text::_('COM_SIMPLESTATS_PRIVACY_STATUS'); ?></h3></div></header>
+			<h2 class="ss-section-heading"><?php echo Text::_('COM_SIMPLESTATS_SYSTEM'); ?></h2>
+			<section class="ss-panel ss-system">
+				<header class="ss-panel__header"><h3><?php echo Text::_('COM_SIMPLESTATS_PRIVACY_STATUS'); ?></h3></header>
 			<div class="ss-system__grid">
 				<div><span><?php echo Text::_('COM_SIMPLESTATS_VERSION'); ?></span><strong><?php echo $escape($this->version); ?></strong></div>
 				<div><span><?php echo Text::_('COM_SIMPLESTATS_RETENTION'); ?></span><strong><?php echo Text::sprintf('COM_SIMPLESTATS_DAYS_VALUE', $this->retentionDays); ?></strong></div>

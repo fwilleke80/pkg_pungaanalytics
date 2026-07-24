@@ -2,7 +2,7 @@
 
 Simple Stats is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.4.0`  
+> **Current version:** `0.5.5`
 > **Package:** `pkg_simplestats`
 
 ## Package contents
@@ -16,7 +16,7 @@ The system plugin is enabled automatically when the package is installed.
 
 For eligible frontend page views and custom events, Simple Stats stores:
 
-- UTC timestamp and site-local calendar date
+- UTC timestamp, site-local calendar date, hour, and weekday
 - Daily rotating visitor hash
 - Public page path
 - Joomla component and view name
@@ -54,6 +54,7 @@ event rows removed.
 The permanent reports preserve:
 
 - Daily visitor-day, page-view, play, download, authenticated-view, and bot totals
+- Site-local hour-of-day and weekday totals
 - Countries, pages, referrers, browser languages, devices, browsers, and detected bots
 - Custom-event types and item-level play/download totals
 
@@ -111,21 +112,23 @@ private function recordSimpleStatsEvent(string $eventType, object $clip): void
 	$eventName = 'onSimpleStatsRecord';
 	$dispatcher = Factory::getApplication()->getDispatcher();
 
-	$dispatcher->dispatch(
+	$statsEvent = new GenericEvent(
 		$eventName,
-		new GenericEvent(
-			$eventName,
-			[
-				'subject' => $this,
-				'event_type' => $eventType,
-				'component' => 'com_audioarchive',
-				'view_name' => 'clip',
-				'item_type' => 'audioarchive.clip',
-				'item_id' => (string) $clip->id,
-				'item_title' => (string) $clip->title,
-			]
-		)
+		[
+			'subject' => $this,
+			'event_type' => $eventType,
+			'component' => 'com_audioarchive',
+			'view_name' => 'clip',
+			'item_type' => 'audioarchive.clip',
+			'item_id' => (string) $clip->id,
+			'item_title' => (string) $clip->title,
+		]
 	);
+
+	$dispatcher->dispatch($eventName, $statsEvent);
+
+	// Optional diagnostic only. A missing listener leaves this argument unset.
+	$recorded = (bool) $statsEvent->getArgument('simplestats_recorded', false);
 }
 ```
 
@@ -176,9 +179,22 @@ Recommended Audio Archive event types are:
 
 Audio Archive can dispatch these events next to its existing aggregate play/download counter updates. If Simple Stats is not installed, the Joomla event is simply dispatched without a listener and Audio Archive continues normally.
 
+The audio-specific dashboard metrics, chart series, time-report columns, and
+item reports are optional. Simple Stats activates each one automatically after
+it receives the corresponding `audio.play` or `audio.download` event. Sites
+that do not use Audio Archive therefore see only the generic traffic reports;
+no separate integration plugin or manual switch is required.
+
 Any event type matching `[a-z][a-z0-9._-]{0,63}` can be used. `pageview` is
 reserved. Every dispatch creates one row; the source extension decides what
 constitutes one event and should avoid duplicate dispatches.
+
+Simple Stats writes the boolean `simplestats_recorded` argument back onto the
+mutable `GenericEvent`. It is `true` when the event was accepted and stored and
+`false` when Simple Stats rejected it or an insert failed. This is useful for
+diagnostics and integration tests. Audio Archive should not make its own
+playback or download behavior depend on the flag because it is absent when
+Simple Stats is not installed or the plugin is disabled.
 
 ## Logged-in users
 
@@ -222,16 +238,21 @@ The redesigned administrator dashboard includes:
 - Selectable 7, 30, 90, 365-day, and all-time ranges
 - Compact tabular overview of human visitor-days and page views
 - Logged-in frontend page views
-- Audio plays and downloads received through custom events
+- Optional audio-play and download reports that activate when their custom event types are first received
 - Bot page views
-- Grouped bar chart and exact table for recent daily activity
+- Adaptive day, ISO-week, or month activity trend for the complete selected range
+- Site-local hour-of-day and weekday reports
+- Sortable dashboard and full-report table columns with report-specific default ordering
 - Most viewed pages
-- Most played and downloaded items
-- Countries doughnut chart, localized country names, Unicode flags, and exact table
+- Most played and downloaded items when their optional audio event types are active
+- Countries pie chart, localized country names, Unicode flags, and exact table
 - External referrers
-- Browser-language, device-category, and browser-family doughnut charts with exact tables
+- Browser-language, device-category, and browser-family pie charts with exact tables
 - Detected bots
 - Custom event types
+- Clearly labeled paginated full-report links on dashboard panels
+- CSV export of every full report and the complete selected range
+- Configurable row count for the dashboard activity, audio-play, and audio-download tables
 - Retention and country-database status
 - Confirmed toolbar action for permanently resetting all collected statistics
 
@@ -244,6 +265,7 @@ The redesigned administrator dashboard includes:
 - Query strings not stored
 - Detailed raw-event retention: 180 complete local calendar days
 - Opportunistic archival probability: 2 percent per recorded event
+- Dashboard activity and audio tables: 8 rows
 - Country detection: local DB-IP Lite database
 - Excluded components: `com_ajax`, `com_users`, `com_simplestats`
 - Excluded paths: `/administrator`, `/api`
@@ -274,7 +296,7 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 ## Installation and update
 
 1. Open **System → Install → Extensions** in Joomla Administrator.
-2. Upload `pkg_simplestats-0.4.0.zip`.
+2. Upload `pkg_simplestats-0.5.5.zip`.
 3. Open **Components → Simple Stats**.
 4. Click **Update country database**.
 5. Review the options and optionally exclude the site owner's Joomla user ID.
@@ -294,6 +316,40 @@ left untouched during the update and remain fully visible. On the next eligible
 cleanup, expired complete days are archived before their raw rows are removed.
 Data already deleted by an earlier Simple Stats version cannot be reconstructed.
 
+Version 0.5.0 adds permanent site-local hour and weekday aggregates, adaptive
+long-term trends, full paginated reports, and CSV export. Weekdays are
+backfilled from the calendar date of both existing raw events and permanent
+daily reports. Exact hours were not stored by older versions, so hour-of-day
+reporting begins with events collected after updating to 0.5.0. This avoids
+inventing historical time-of-day data.
+
+Version 0.5.1 refines the dashboard presentation, defaults its activity table
+to the eight most recent periods, and makes the audio report family activate
+automatically from recorded bridge events. It does not remove or rewrite any
+statistics.
+
+Version 0.5.2 adds sortable dashboard and full-report tables, applies the
+dashboard row setting to the optional audio tables, and makes full reports and
+their CSV exports visibly discoverable from the dashboard. Full-report sorting
+is applied before pagination and is also preserved in CSV exports.
+
+Version 0.5.3 replaces button-like dashboard sort controls with ordinary table
+heading links and compact direction arrows. It also initializes dashboard
+sorting reliably whether the script loads before or after the document-ready
+event, and promotes the former eyebrow labels to standalone visual and semantic
+section headings.
+
+Version 0.5.4 replaces dashboard JavaScript sorting with the same server-side
+URL pattern used by Audio Archive. Sort links preserve the selected date range,
+reload at the affected table, and expose the active direction through both a
+small arrow and `aria-sort`. Simple Stats no longer ships dashboard JavaScript.
+
+Version 0.5.5 renders sort arrows as explicit HTML so they remain visible
+independently of generated CSS content. It also gives every activity-chart
+label and its bar group one shared X coordinate, reserves horizontal edge
+space for complete dates, and keeps the chart readable inside a horizontally
+scrollable viewport on narrow screens.
+
 ## Resetting statistics
 
 Use **Components → Simple Stats → Reset all statistics** in the toolbar to
@@ -309,6 +365,7 @@ Uninstalling the package removes:
 - `#__simplestats_daily`
 - `#__simplestats_daily_dimensions`
 - `#__simplestats_daily_items`
+- `#__simplestats_daily_time`
 - Compiled country files and metadata under `cache/com_simplestats/`
 - The component and system plugin
 
@@ -327,7 +384,7 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Runtime JavaScript: none required
 - Composer dependencies: none bundled
 - Raw-event table: `#__simplestats_events`
-- Permanent report tables: `#__simplestats_daily`, `#__simplestats_daily_dimensions`, and `#__simplestats_daily_items`
+- Permanent report tables: `#__simplestats_daily`, `#__simplestats_daily_dimensions`, `#__simplestats_daily_items`, and `#__simplestats_daily_time`
 - Country source: DB-IP Lite CSV
 
 ## Known limitations
@@ -338,3 +395,4 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Country data must currently be updated manually.
 - Requests served before the collector runs, for example by an earlier full-page cache plugin, may not be recorded.
 - Simple Stats cannot infer a media play from a page view; the media extension must emit a custom event.
+- Exact hour-of-day data is unavailable for events recorded before version 0.5.0.

@@ -34,6 +34,18 @@ final class HtmlView extends BaseHtmlView
 	/** @var int */
 	public int $retentionDays = 180;
 
+	/** @var int */
+	public int $activityTableRows = 8;
+
+	/** @var string */
+	public string $sortTable = '';
+
+	/** @var string */
+	public string $sort = '';
+
+	/** @var string */
+	public string $direction = '';
+
 	/**
 	 * Displays the administrator dashboard.
 	 *
@@ -47,19 +59,45 @@ final class HtmlView extends BaseHtmlView
 		$allowedDays = [7, 30, 90, 365, 0];
 		$requestedDays = $app->input->getInt('days', 30);
 		$this->days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 30;
-		$this->retentionDays = (int) ComponentHelper::getParams('com_simplestats')->get('retention_days', 180);
+		$params = ComponentHelper::getParams('com_simplestats');
+		$this->retentionDays = (int) $params->get('retention_days', 180);
+		$this->activityTableRows = min(100, max(0, (int) $params->get('dashboard_activity_rows', 8)));
+		$allowedSortTables = [
+			'activity',
+			'hours',
+			'weekdays',
+			'pages',
+			'plays',
+			'downloads',
+			'countries',
+			'referrers',
+			'languages',
+			'devices',
+			'browsers',
+			'bots',
+			'events',
+		];
+		$requestedSortTable = strtolower($app->input->getCmd('sort_table', ''));
+		$this->sortTable = \in_array($requestedSortTable, $allowedSortTables, true)
+			? $requestedSortTable
+			: '';
+		$this->sort = strtolower($app->input->getCmd('sort', ''));
+		$requestedDirection = strtolower($app->input->getCmd('direction', ''));
+		$this->direction = \in_array($requestedDirection, ['asc', 'desc'], true)
+			? $requestedDirection
+			: '';
 
 		/** @var \Willeke\Component\Simplestats\Administrator\Model\DashboardModel $model */
 		$model = $this->getModel();
-		$this->data = $model->getDashboardData($this->days);
+		$this->data = $model->getDashboardData($this->days, $this->activityTableRows);
 		$this->countryStatus = (new CountryDatabaseService())->getStatus();
 		$this->version = $model->getInstalledVersion();
 
 		$document = $app->getDocument();
 		$document->getWebAssetManager()->registerAndUseStyle(
-			'com_simplestats.admin.0.4.0',
-			'com_simplestats/css/admin-0.4.0.css',
-			['version' => '0.4.0']
+			'com_simplestats.admin.0.5.5',
+			'com_simplestats/css/admin-0.5.5.css',
+			['version' => '0.5.5']
 		);
 
 		$this->addToolbar();

@@ -2,6 +2,8 @@ CREATE TABLE IF NOT EXISTS `#__simplestats_events` (
 	`id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 	`visited_at` DATETIME NOT NULL,
 	`visit_date` DATE NOT NULL,
+	`visit_hour` TINYINT UNSIGNED NOT NULL DEFAULT 255,
+	`visit_weekday` TINYINT UNSIGNED NOT NULL DEFAULT 0,
 	`visitor_hash` CHAR(32) NOT NULL,
 	`path` VARCHAR(1024) NOT NULL,
 	`component` VARCHAR(100) NOT NULL DEFAULT '',
@@ -21,6 +23,8 @@ CREATE TABLE IF NOT EXISTS `#__simplestats_events` (
 	PRIMARY KEY (`id`),
 	KEY `idx_simplestats_visited_at` (`visited_at`),
 	KEY `idx_simplestats_visit_date` (`visit_date`),
+	KEY `idx_simplestats_hour_date` (`visit_hour`, `visit_date`),
+	KEY `idx_simplestats_weekday_date` (`visit_weekday`, `visit_date`),
 	KEY `idx_simplestats_visitor_hash` (`visitor_hash`),
 	KEY `idx_simplestats_bot_date` (`is_bot`, `visit_date`),
 	KEY `idx_simplestats_auth_date` (`is_authenticated`, `visit_date`),
@@ -53,6 +57,19 @@ CREATE TABLE IF NOT EXISTS `#__simplestats_daily_dimensions` (
 	PRIMARY KEY (`visit_date`, `dimension_key`, `label_hash`),
 	KEY `idx_simplestats_dimension_date` (`dimension_key`, `visit_date`),
 	KEY `idx_simplestats_dimension_label` (`dimension_key`, `label`(191))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `#__simplestats_daily_time` (
+	`visit_date` DATE NOT NULL,
+	`bucket_kind` VARCHAR(8) NOT NULL,
+	`bucket_value` TINYINT UNSIGNED NOT NULL,
+	`human_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`human_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`bot_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`plays` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`downloads` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	PRIMARY KEY (`visit_date`, `bucket_kind`, `bucket_value`),
+	KEY `idx_simplestats_time_kind_date` (`bucket_kind`, `visit_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `#__simplestats_daily_items` (

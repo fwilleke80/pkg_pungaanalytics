@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.5.5 — 2026-07-24
+
+- Rendered the active ascending or descending arrow directly in each sortable heading instead of relying on generated CSS content.
+- Used one shared group-center coordinate for every activity bar cluster, date tick, and date label.
+- Distributed up to eight X-axis labels across the complete plot and reserved enough space to prevent the first or last date from being clipped.
+- Added a contained horizontal chart viewport on narrow screens so labels remain legible without overflowing the dashboard.
+- Registered a fresh versioned stylesheet so the corrected arrows and chart geometry load immediately.
+
+## 0.5.4 — 2026-07-24
+
+- Replaced dashboard JavaScript sorting with server-side sorting controlled by table, column, and direction URL parameters.
+- Made every dashboard sort link reload directly at its table instead of navigating to the top of the page.
+- Rendered the active ascending or descending indicator and `aria-sort` state on the server.
+- Removed the dashboard sorting script and its Joomla asset registration completely.
+- Kept the existing server-side full-report sorting, pagination, and CSV ordering intact.
+
+## 0.5.3 — 2026-07-24
+
+- Replaced button-like sortable headers with plain table-heading links and compact direction arrows.
+- Made the dashboard sorter initialize both before and after `DOMContentLoaded`, fixing inactive headers on Joomla pages that load the asset late.
+- Replaced embedded eyebrow labels with standalone semantic section headings for Overview, Traffic, Time distribution, Content, Engagement, Audience and technology, and System.
+- Promoted the dashboard and full-report hero titles to proper top-level headings.
+- Registered fresh versioned administrator assets so the corrected markup, JavaScript, and heading design cannot be hidden by stale caches.
+
+## 0.5.2 — 2026-07-24
+
+- Made every dashboard data table sortable by clicking its column headings.
+- Added server-side full-report sorting before pagination, with the selected order preserved in CSV exports.
+- Defaulted Activity over time to newest-first while retaining ascending hour and weekday order.
+- Removed the redundant full-report link from the complete seven-row weekday panel.
+- Applied the configurable dashboard row count to the optional audio-play and audio-download tables.
+- Reworked eyebrow labels into unmistakable section markers and added a fresh versioned stylesheet.
+- Relabeled and restyled dashboard report links as “Full report / CSV” so the existing reporting and export features are easy to find.
+
+## 0.5.1 — 2026-07-24
+
+- Prevented adjacent final date labels from overlapping by distributing at most eight labels evenly across the activity chart.
+- Added a configurable dashboard limit for the recent rows shown beneath the activity chart; the default is eight and zero shows the complete range.
+- Replaced the misleading hour and weekday page-view meters with exact numeric values.
+- Restyled dashboard eyebrow labels as visible section headings with a strong accent marker.
+- Converted the country, language, device, and browser doughnut charts into solid pie charts without a center hole.
+- Made audio-play and audio-download metrics self-activating optional reports, based on the corresponding custom event types in raw or archived data.
+- Registered a new version-specific administrator stylesheet so the fixes are not hidden by browser or Joomla asset caches.
+
+## 0.5.0 — 2026-07-24
+
+- Added adaptive activity trends: daily buckets up to 90 days, ISO-week buckets up to one year, and monthly buckets for longer and all-time ranges.
+- Added exact site-local hour-of-day and weekday reports for visitors, page views, audio plays, downloads, and bots.
+- Added permanent hourly and weekday aggregates so time-of-day reports survive raw-event cleanup.
+- Added full paginated reports for activity, time, pages, audio items, countries, referrers, languages, devices, browsers, bots, and custom event types.
+- Added UTF-8 CSV export for every full report and the complete selected date range.
+- Added `simplestats_recorded` bridge acknowledgement for diagnostics and verified the custom-event dispatch, validation, insertion, archival, and reporting path.
+- Reconstructed weekdays for existing raw events and permanent daily reports while leaving historical hour values explicitly unknown.
+- Updated the package, component, plugin, administrator assets, language strings, schema, and documentation to version 0.5.0.
+
 ## 0.4.0 — 2026-07-23
 
 - Added transactional archival of expired raw events into permanent daily totals, dimension breakdowns, and custom-event item reports.
