@@ -19,14 +19,14 @@ final class DashboardModel extends BaseDatabaseModel
 	/**
 	 * Returns all dashboard data for the requested range.
 	 *
-	 * @param int $days      Number of days, or zero for all data.
+	 * @param int|string $range     Reporting range identifier.
 	 * @param int $tableRows Maximum audio rows on the dashboard, or zero for all.
 	 *
 	 * @return array<string, mixed>
 	 */
-	public function getDashboardData(int $days, int $tableRows): array
+	public function getDashboardData(int|string $range, int $tableRows): array
 	{
-		return $this->getQueryService()->getDashboardData($days, $tableRows);
+		return $this->getQueryService()->getDashboardData($range, $tableRows);
 	}
 
 	/**

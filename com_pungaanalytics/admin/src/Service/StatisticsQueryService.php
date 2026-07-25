@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Punga\Component\PungaAnalytics\Administrator\Service;
 
 use DateTimeImmutable;
+use DateTimeZone;
 use Joomla\CMS\Component\ComponentHelper;
-use Joomla\CMS\Date\Date;
 use Joomla\Database\DatabaseInterface;
 use Joomla\Database\DatabaseQuery;
 
@@ -27,8 +27,10 @@ final class StatisticsQueryService
 		'hours' => ['title' => 'COM_PUNGAANALYTICS_BY_HOUR', 'kind' => 'hour'],
 		'weekdays' => ['title' => 'COM_PUNGAANALYTICS_BY_WEEKDAY', 'kind' => 'weekday'],
 		'pages' => ['title' => 'COM_PUNGAANALYTICS_TOP_PAGES', 'kind' => 'dimension'],
+		'notfound' => ['title' => 'COM_PUNGAANALYTICS_NOT_FOUND', 'kind' => 'notfound'],
 		'countries' => ['title' => 'COM_PUNGAANALYTICS_COUNTRIES', 'kind' => 'country'],
 		'referrers' => ['title' => 'COM_PUNGAANALYTICS_REFERRERS', 'kind' => 'dimension'],
+		'sources' => ['title' => 'COM_PUNGAANALYTICS_TRAFFIC_SOURCES', 'kind' => 'source'],
 		'languages' => ['title' => 'COM_PUNGAANALYTICS_LANGUAGES', 'kind' => 'dimension'],
 		'devices' => ['title' => 'COM_PUNGAANALYTICS_DEVICES', 'kind' => 'dimension'],
 		'browsers' => ['title' => 'COM_PUNGAANALYTICS_BROWSERS', 'kind' => 'dimension'],
@@ -38,6 +40,21 @@ final class StatisticsQueryService
 
 	/** @var array<int, array<string, mixed>> */
 	private array $customEventDefinitions;
+
+	/** @var string */
+	private string $activeRange = '7';
+
+	/** @var string */
+	private string $rawFromUtc = '';
+
+	/** @var string */
+	private string $rawToUtc = '';
+
+	/** @var string */
+	private string $displayFrom = '';
+
+	/** @var string */
+	private string $displayTo = '';
 
 	/**
 	 * Creates the query service.
@@ -58,14 +75,14 @@ final class StatisticsQueryService
 	/**
 	 * Returns all dashboard data for a selected range.
 	 *
-	 * @param int $days      Number of days, or zero for all data.
+	 * @param int|string $range     Reporting range identifier.
 	 * @param int $tableRows Maximum activity and event rows on the dashboard, or zero for all.
 	 *
 	 * @return array<string, mixed>
 	 */
-	public function getDashboardData(int $days, int $tableRows): array
+	public function getDashboardData(int|string $range, int $tableRows): array
 	{
-		[$from, $to] = $this->getDateBounds($days);
+		[$from, $to] = $this->setReportingRange($range);
 		$granularity = $this->getTrendGranularity($from, $to);
 		$tableRows = max(0, $tableRows);
 		$rankings = [];
@@ -86,6 +103,9 @@ final class StatisticsQueryService
 		return [
 			'from' => $from,
 			'to' => $to,
+			'displayFrom' => $this->displayFrom,
+			'displayTo' => $this->displayTo,
+			'range' => $this->activeRange,
 			'customEventDefinitions' => $this->customEventDefinitions,
 			'customEventRankings' => $rankings,
 			'trendGranularity' => $granularity,
@@ -94,9 +114,11 @@ final class StatisticsQueryService
 			'hours' => $this->getTimeRows('hour', $from, $to),
 			'weekdays' => $this->getTimeRows('weekday', $from, $to),
 			'topPages' => $this->getDimensionRows('path', $from, $to, 15, false, 'pageview'),
+			'notFound' => $this->getNotFoundRows($from, $to, 15),
 			'eventTypes' => $this->getEventTypes($from, $to, 15),
 			'countries' => $this->getCountryRows($from, $to, 20),
 			'referrers' => $this->getDimensionRows('referrer_host', $from, $to, 15, false, 'pageview', true),
+			'trafficSources' => $this->getTrafficSourceRows($from, $to),
 			'languages' => $this->getDimensionRows('language_code', $from, $to, 12, false, 'pageview', true),
 			'devices' => $this->getDimensionRows('device_type', $from, $to, 12, false, 'pageview', true),
 			'browsers' => $this->getDimensionRows('browser_family', $from, $to, 12, false, 'pageview', true),
@@ -107,19 +129,21 @@ final class StatisticsQueryService
 	/**
 	 * Returns the compact data needed by an administrator dashboard module.
 	 *
-	 * @param int $days          Number of days, or zero for all data.
+	 * @param int|string $range         Reporting range identifier.
 	 * @param int $topPagesLimit Maximum number of top pages.
 	 *
 	 * @return array<string, mixed>
 	 */
-	public function getModuleData(int $days, int $topPagesLimit): array
+	public function getModuleData(int|string $range, int $topPagesLimit): array
 	{
-		[$from, $to] = $this->getDateBounds($days);
+		[$from, $to] = $this->setReportingRange($range);
 
 		return [
-			'days' => $days,
+			'range' => $this->activeRange,
 			'from' => $from,
 			'to' => $to,
+			'displayFrom' => $this->displayFrom,
+			'displayTo' => $this->displayTo,
 			'summary' => $this->getSummary($from, $to),
 			'customEventDefinitions' => $this->customEventDefinitions,
 			'summaryDefinitions' => $this->getDefinitionsFor('show_summary'),
@@ -140,8 +164,9 @@ final class StatisticsQueryService
 	 * Returns a complete named report without pagination.
 	 *
 	 * @param string $report    Report identifier.
-	 * @param int    $days      Number of days, or zero for all data.
+	 * @param int|string $range     Reporting range identifier.
 	 * @param string $eventType Custom event identifier for the generic event report.
+	 * @param array<string, string> $history History dimension arguments.
 	 *
 	 * @return array{
 	 *   report:string,
@@ -153,7 +178,12 @@ final class StatisticsQueryService
 	 *   rows:array<int, object>
 	 * }
 	 */
-	public function getReportData(string $report, int $days, string $eventType = ''): array
+	public function getReportData(
+		string $report,
+		int|string $range,
+		string $eventType = '',
+		array $history = []
+	): array
 	{
 		$report = strtolower(trim($report));
 		$eventType = strtolower(trim($eventType));
@@ -161,38 +191,54 @@ final class StatisticsQueryService
 			? $this->getDefinition($eventType)
 			: null;
 
-		if (!isset(self::REPORTS[$report]) && $eventDefinition === null)
+		$historyDefinition = $report === 'history'
+			? $this->normaliseHistoryDefinition($history)
+			: null;
+
+		if (!isset(self::REPORTS[$report]) && $eventDefinition === null && $historyDefinition === null)
 		{
 			throw new \InvalidArgumentException('Unsupported Punga Analytics report.');
 		}
 
-		[$from, $to] = $this->getDateBounds($days);
+		[$from, $to] = $this->setReportingRange($range);
 		$rows = match ($report)
 		{
 			'activity' => $this->getTrend($from, $to, $this->getTrendGranularity($from, $to)),
 			'hours' => $this->getTimeRows('hour', $from, $to),
 			'weekdays' => $this->getTimeRows('weekday', $from, $to),
 			'pages' => $this->getDimensionRows('path', $from, $to, 0, false, 'pageview'),
+			'notfound' => $this->getNotFoundRows($from, $to, 0),
 			'event' => $this->getEventItems($eventType, $from, $to, 0),
 			'countries' => $this->getCountryRows($from, $to, 0),
 			'referrers' => $this->getDimensionRows('referrer_host', $from, $to, 0, false, 'pageview', true),
+			'sources' => $this->getTrafficSourceRows($from, $to),
 			'languages' => $this->getDimensionRows('language_code', $from, $to, 0, false, 'pageview', true),
 			'devices' => $this->getDimensionRows('device_type', $from, $to, 0, false, 'pageview', true),
 			'browsers' => $this->getDimensionRows('browser_family', $from, $to, 0, false, 'pageview', true),
 			'bots' => $this->getDimensionRows('bot_name', $from, $to, 0, true, 'pageview', true),
 			'events' => $this->getEventTypes($from, $to, 0),
+			'history' => $this->getHistoryRows($historyDefinition, $from, $to),
 		};
 
 		return [
 			'report' => $report,
-			'title' => $eventDefinition !== null
-				? (string) $eventDefinition['report_title']
-				: self::REPORTS[$report]['title'],
-			'kind' => $eventDefinition !== null ? 'items' : self::REPORTS[$report]['kind'],
+			'title' => $historyDefinition !== null
+				? 'COM_PUNGAANALYTICS_HISTORY'
+				: ($eventDefinition !== null
+					? (string) $eventDefinition['report_title']
+					: self::REPORTS[$report]['title']),
+			'kind' => $historyDefinition !== null
+				? 'history'
+				: ($eventDefinition !== null ? 'items' : self::REPORTS[$report]['kind']),
 			'from' => $from,
 			'to' => $to,
+			'displayFrom' => $this->displayFrom,
+			'displayTo' => $this->displayTo,
+			'range' => $this->activeRange,
 			'rows' => $rows,
 			'event_type' => $eventType,
+			'history' => $historyDefinition,
+			'trendGranularity' => $this->getTrendGranularity($from, $to),
 			'customEventDefinitions' => $this->customEventDefinitions,
 		];
 	}
@@ -202,42 +248,79 @@ final class StatisticsQueryService
 	 *
 	 * @param string $report    Report identifier.
 	 * @param string $eventType Custom event identifier for the generic event report.
+	 * @param array<string, string> $history History dimension arguments.
 	 *
 	 * @return bool
 	 */
-	public function isSupportedReport(string $report, string $eventType = ''): bool
+	public function isSupportedReport(
+		string $report,
+		string $eventType = '',
+		array $history = []
+	): bool
 	{
 		$report = strtolower(trim($report));
 
 		return isset(self::REPORTS[$report])
-			|| ($report === 'event' && $this->getDefinition(strtolower(trim($eventType))) !== null);
+			|| ($report === 'event' && $this->getDefinition(strtolower(trim($eventType))) !== null)
+			|| ($report === 'history' && $this->normaliseHistoryDefinition($history) !== null);
 	}
 
 	/**
-	 * Calculates reporting date bounds in the site timezone.
+	 * Normalises and activates reporting bounds in the site timezone.
 	 *
-	 * @param int $days Number of days, or zero for all data.
+	 * @param int|string $range Reporting range identifier.
 	 *
 	 * @return array{0:string, 1:string}
 	 */
-	public function getDateBounds(int $days): array
+	private function setReportingRange(int|string $range): array
 	{
-		$to = new Date('now', $this->timezone);
-		$from = clone $to;
+		$range = strtolower(trim((string) $range));
+		$allowed = ['today', 'yesterday', 'last24', '7', '30', '90', '365', 'all', '0'];
+		$this->activeRange = \in_array($range, $allowed, true) ? $range : '7';
+		$this->activeRange = $this->activeRange === '0' ? 'all' : $this->activeRange;
+		$timezone = new DateTimeZone($this->timezone);
+		$now = new DateTimeImmutable('now', $timezone);
+		$from = $now;
+		$to = $now;
+		$this->rawFromUtc = '';
+		$this->rawToUtc = '';
 
-		if ($days <= 0)
+		if ($this->activeRange === 'all')
 		{
 			$earliest = $this->getEarliestDate();
 
 			if ($earliest !== '')
 			{
-				$from = new Date($earliest . ' 00:00:00', $this->timezone);
+				$from = new DateTimeImmutable($earliest . ' 00:00:00', $timezone);
 			}
+		}
+		elseif ($this->activeRange === 'today')
+		{
+			$from = $now->setTime(0, 0);
+		}
+		elseif ($this->activeRange === 'yesterday')
+		{
+			$from = $now->modify('-1 day')->setTime(0, 0);
+			$to = $from->setTime(23, 59, 59);
+		}
+		elseif ($this->activeRange === 'last24')
+		{
+			$from = $now->modify('-24 hours');
+			$this->rawFromUtc = $from->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+			$this->rawToUtc = $now->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
 		}
 		else
 		{
-			$from->modify('-' . max(0, $days - 1) . ' days');
+			$days = max(1, (int) $this->activeRange);
+			$from = $now->modify('-' . max(0, $days - 1) . ' days');
 		}
+
+		$this->displayFrom = $this->activeRange === 'last24'
+			? $from->format('Y-m-d H:i')
+			: $from->format('Y-m-d');
+		$this->displayTo = $this->activeRange === 'last24'
+			? $to->format('Y-m-d H:i')
+			: $to->format('Y-m-d');
 
 		return [$from->format('Y-m-d'), $to->format('Y-m-d')];
 	}
@@ -281,7 +364,7 @@ final class StatisticsQueryService
 			])
 			->from($db->quoteName('#__pungaanalytics_daily'));
 
-		$this->applyDateRange($aggregateQuery, $from, $to);
+		$this->applyDateRange($aggregateQuery, $from, $to, false);
 		$db->setQuery($aggregateQuery);
 		$aggregate = $db->loadObject() ?: (object) [];
 		$result = (object) [];
@@ -435,7 +518,7 @@ final class StatisticsQueryService
 			])
 			->from($db->quoteName('#__pungaanalytics_daily'));
 
-		$this->applyDateRange($aggregateQuery, $from, $to);
+		$this->applyDateRange($aggregateQuery, $from, $to, false);
 		$db->setQuery($aggregateQuery);
 
 		return $this->mergeDailyRows($raw, $db->loadObjectList());
@@ -491,7 +574,7 @@ final class StatisticsQueryService
 			->group($db->quoteName('bucket_value'))
 			->bind(':bucketKind', $kind);
 
-		$this->applyDateRange($archiveQuery, $from, $to);
+		$this->applyDateRange($archiveQuery, $from, $to, false);
 		$db->setQuery($archiveQuery);
 
 		$rows = $this->mergeTimeRows($raw, $db->loadObjectList(), $minimum, $maximum);
@@ -623,7 +706,7 @@ final class StatisticsQueryService
 			->where($db->quoteName('dimension_key') . ' = ' . $db->quote('event_type'))
 			->where($db->quoteName('label') . ' IN (' . $eventList . ')')
 			->group([$db->quoteName('visit_date'), $db->quoteName('label')]);
-		$this->applyDateRange($archiveQuery, $from, $to);
+		$this->applyDateRange($archiveQuery, $from, $to, false);
 		$db->setQuery($archiveQuery);
 		$rows = [];
 
@@ -699,7 +782,7 @@ final class StatisticsQueryService
 			->where($db->quoteName('event_type') . ' IN (' . $eventList . ')')
 			->group([$db->quoteName('bucket_value'), $db->quoteName('event_type')])
 			->bind(':eventBucketKind', $kind);
-		$this->applyDateRange($archiveQuery, $from, $to);
+		$this->applyDateRange($archiveQuery, $from, $to, false);
 		$db->setQuery($archiveQuery);
 		$rows = [];
 
@@ -720,6 +803,544 @@ final class StatisticsQueryService
 		}
 
 		return array_values($rows);
+	}
+
+	/**
+	 * Returns human landing-page requests grouped by broad traffic source.
+	 *
+	 * Internal navigation and legacy rows whose origin cannot be reconstructed
+	 * are deliberately omitted.
+	 *
+	 * @param string $from Inclusive date.
+	 * @param string $to   Inclusive date.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getTrafficSourceRows(string $from, string $to): array
+	{
+		$db = $this->database;
+		$categories = ['direct', 'search', 'social', 'ai', 'referral'];
+		$categoryList = implode(', ', array_map([$db, 'quote'], $categories));
+		$query = $db->getQuery(true)
+			->select([
+				$db->quoteName('traffic_source') . ' AS ' . $db->quoteName('label'),
+				'COUNT(*) AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__pungaanalytics_events'))
+			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('event_type') . ' = ' . $db->quote('pageview'))
+			->where($db->quoteName('http_status') . ' < 400')
+			->where($db->quoteName('traffic_source') . ' IN (' . $categoryList . ')')
+			->group($db->quoteName('traffic_source'));
+
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
+
+		return $this->mergeCountRows(
+			$db->loadObjectList(),
+			$this->getArchivedDimensionRows('traffic_source', $from, $to),
+			0
+		);
+	}
+
+	/**
+	 * Returns missing public paths with human/bot totals and timing details.
+	 *
+	 * @param string $from  Inclusive date.
+	 * @param string $to    Inclusive date.
+	 * @param int    $limit Maximum rows, or zero for all.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getNotFoundRows(string $from, string $to, int $limit): array
+	{
+		$db = $this->database;
+		$query = $db->getQuery(true)
+			->select([
+				$db->quoteName('path'),
+				$db->quoteName('referrer_host'),
+				$db->quoteName('is_bot'),
+				'COUNT(*) AS ' . $db->quoteName('count'),
+				'MIN(' . $db->quoteName('visited_at') . ') AS ' . $db->quoteName('first_seen'),
+				'MAX(' . $db->quoteName('visited_at') . ') AS ' . $db->quoteName('last_seen'),
+			])
+			->from($db->quoteName('#__pungaanalytics_events'))
+			->where($db->quoteName('event_type') . ' = ' . $db->quote('pageview'))
+			->where($db->quoteName('http_status') . ' = 404')
+			->group([
+				$db->quoteName('path'),
+				$db->quoteName('referrer_host'),
+				$db->quoteName('is_bot'),
+			]);
+
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
+		$raw = $db->loadObjectList();
+		$archiveQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('path'),
+				$db->quoteName('referrer_host'),
+				$db->quoteName('is_bot'),
+				'SUM(' . $db->quoteName('request_count') . ') AS ' . $db->quoteName('count'),
+				'MIN(' . $db->quoteName('first_seen') . ') AS ' . $db->quoteName('first_seen'),
+				'MAX(' . $db->quoteName('last_seen') . ') AS ' . $db->quoteName('last_seen'),
+			])
+			->from($db->quoteName('#__pungaanalytics_daily_404'))
+			->group([
+				$db->quoteName('path'),
+				$db->quoteName('referrer_host'),
+				$db->quoteName('is_bot'),
+			]);
+
+		$this->applyDateRange($archiveQuery, $from, $to, false);
+		$db->setQuery($archiveQuery);
+
+		return $this->mergeNotFoundRows($raw, $db->loadObjectList(), $limit);
+	}
+
+	/**
+	 * Merges raw and archived 404 rows by missing path.
+	 *
+	 * @param array<int, object> $raw      Raw rows.
+	 * @param array<int, object> $archived Archived rows.
+	 * @param int                $limit    Maximum rows, or zero for all.
+	 *
+	 * @return array<int, object>
+	 */
+	private function mergeNotFoundRows(array $raw, array $archived, int $limit): array
+	{
+		$rows = [];
+		$referrers = [];
+
+		foreach (array_merge($raw, $archived) as $source)
+		{
+			$path = (string) ($source->path ?? '');
+
+			if ($path === '')
+			{
+				continue;
+			}
+
+			$key = mb_strtolower($path, 'UTF-8');
+
+			if (!isset($rows[$key]))
+			{
+				$rows[$key] = (object) [
+					'path' => $path,
+					'human' => 0,
+					'bots' => 0,
+					'total' => 0,
+					'top_referrer' => '',
+					'first_seen' => '',
+					'last_seen' => '',
+				];
+				$referrers[$key] = [];
+			}
+
+			$count = (int) ($source->count ?? 0);
+			$field = (int) ($source->is_bot ?? 0) === 1 ? 'bots' : 'human';
+			$rows[$key]->{$field} += $count;
+			$rows[$key]->total += $count;
+			$firstSeen = (string) ($source->first_seen ?? '');
+			$lastSeen = (string) ($source->last_seen ?? '');
+
+			if ($firstSeen !== '' && ($rows[$key]->first_seen === '' || $firstSeen < $rows[$key]->first_seen))
+			{
+				$rows[$key]->first_seen = $firstSeen;
+			}
+
+			if ($lastSeen !== '' && ($rows[$key]->last_seen === '' || $lastSeen > $rows[$key]->last_seen))
+			{
+				$rows[$key]->last_seen = $lastSeen;
+			}
+
+			$referrer = (string) ($source->referrer_host ?? '');
+
+			if ($referrer !== '')
+			{
+				$referrers[$key][$referrer] = ($referrers[$key][$referrer] ?? 0) + $count;
+			}
+		}
+
+		foreach ($rows as $key => $row)
+		{
+			if ($referrers[$key] !== [])
+			{
+				arsort($referrers[$key], SORT_NUMERIC);
+				$row->top_referrer = (string) array_key_first($referrers[$key]);
+			}
+		}
+
+		$rows = array_values($rows);
+		usort(
+			$rows,
+			static fn(object $left, object $right): int =>
+				((int) $right->total <=> (int) $left->total)
+				?: ((string) $right->last_seen <=> (string) $left->last_seen)
+				?: strnatcasecmp((string) $left->path, (string) $right->path)
+		);
+
+		return $limit > 0 ? array_slice($rows, 0, $limit) : $rows;
+	}
+
+	/**
+	 * Validates and completes one row-history request.
+	 *
+	 * @param array<string, string> $history Untrusted history arguments.
+	 *
+	 * @return array<string, string>|null
+	 */
+	private function normaliseHistoryDefinition(array $history): ?array
+	{
+		$dimension = strtolower(trim((string) ($history['dimension'] ?? '')));
+		$value = trim((string) ($history['value'] ?? ''));
+		$definitions = [
+			'page' => ['field' => 'path', 'archive' => 'path', 'metric' => 'COM_PUNGAANALYTICS_PAGEVIEWS'],
+			'country' => ['field' => 'country_code', 'archive' => 'country', 'metric' => 'COM_PUNGAANALYTICS_HUMAN_VISITS'],
+			'referrer' => ['field' => 'referrer_host', 'archive' => 'referrer', 'metric' => 'COM_PUNGAANALYTICS_PAGEVIEWS'],
+			'source' => ['field' => 'traffic_source', 'archive' => 'traffic_source', 'metric' => 'COM_PUNGAANALYTICS_PAGEVIEWS'],
+			'language' => ['field' => 'language_code', 'archive' => 'language', 'metric' => 'COM_PUNGAANALYTICS_PAGEVIEWS'],
+			'device' => ['field' => 'device_type', 'archive' => 'device', 'metric' => 'COM_PUNGAANALYTICS_PAGEVIEWS'],
+			'browser' => ['field' => 'browser_family', 'archive' => 'browser', 'metric' => 'COM_PUNGAANALYTICS_PAGEVIEWS'],
+			'bot' => ['field' => 'bot_name', 'archive' => 'bot', 'metric' => 'COM_PUNGAANALYTICS_PAGEVIEWS'],
+			'event' => ['field' => 'event_type', 'archive' => 'event_type', 'metric' => 'COM_PUNGAANALYTICS_EVENTS'],
+			'notfound' => ['field' => 'path', 'archive' => 'notfound', 'metric' => 'COM_PUNGAANALYTICS_REQUESTS'],
+		];
+
+		if ($dimension === 'event_item')
+		{
+			$eventType = strtolower(trim((string) ($history['event_type'] ?? '')));
+			$itemType = trim((string) ($history['item_type'] ?? ''));
+			$itemId = trim((string) ($history['item_id'] ?? ''));
+			$itemTitle = trim((string) ($history['item_title'] ?? ''));
+			$path = trim((string) ($history['path'] ?? ''));
+
+			if (
+				preg_match('/^[a-z][a-z0-9._-]{0,63}$/', $eventType) !== 1
+				|| ($itemType === '' && $itemId === '' && $itemTitle === '' && $path === '')
+			)
+			{
+				return null;
+			}
+
+			return [
+				'dimension' => 'event_item',
+				'value' => $itemTitle !== '' ? $itemTitle : ($itemId !== '' ? $itemId : $path),
+				'field' => '',
+				'archive' => 'event_item',
+				'metric' => 'COM_PUNGAANALYTICS_EVENTS',
+				'event_type' => mb_substr($eventType, 0, 64),
+				'item_type' => mb_substr($itemType, 0, 64),
+				'item_id' => mb_substr($itemId, 0, 128),
+				'item_title' => mb_substr($itemTitle, 0, 255),
+				'path' => mb_substr($path, 0, 1024),
+			];
+		}
+
+		if (!isset($definitions[$dimension]) || $value === '')
+		{
+			return null;
+		}
+
+		return [
+			'dimension' => $dimension,
+			'value' => mb_substr($value, 0, 1024),
+			'field' => $definitions[$dimension]['field'],
+			'archive' => $definitions[$dimension]['archive'],
+			'metric' => $definitions[$dimension]['metric'],
+			'event_type' => '',
+			'item_type' => '',
+			'item_id' => '',
+			'item_title' => '',
+			'path' => '',
+		];
+	}
+
+	/**
+	 * Returns a permanent daily/weekly/monthly trend for one selected row.
+	 *
+	 * @param array<string, string>|null $definition Validated history definition.
+	 * @param string                     $from       Inclusive date.
+	 * @param string                     $to         Inclusive date.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getHistoryRows(?array $definition, string $from, string $to): array
+	{
+		if ($definition === null)
+		{
+			return [];
+		}
+
+		$dailyRows = match ($definition['dimension'])
+		{
+			'event_item' => $this->getEventItemHistoryDailyRows($definition, $from, $to),
+			'notfound' => $this->getNotFoundHistoryDailyRows($definition['value'], $from, $to),
+			default => $this->getDimensionHistoryDailyRows($definition, $from, $to),
+		};
+
+		return $this->aggregateHistoryRows(
+			$dailyRows,
+			$from,
+			$to,
+			$this->getTrendGranularity($from, $to)
+		);
+	}
+
+	/**
+	 * Returns raw and archived daily counts for one ordinary dimension row.
+	 *
+	 * @param array<string, string> $definition Validated history definition.
+	 * @param string                $from       Inclusive date.
+	 * @param string                $to         Inclusive date.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getDimensionHistoryDailyRows(array $definition, string $from, string $to): array
+	{
+		$db = $this->database;
+		$field = $definition['field'];
+		$allowedFields = [
+			'path',
+			'country_code',
+			'referrer_host',
+			'traffic_source',
+			'language_code',
+			'device_type',
+			'browser_family',
+			'bot_name',
+			'event_type',
+		];
+
+		if (!\in_array($field, $allowedFields, true))
+		{
+			return [];
+		}
+
+		$isCountry = $definition['dimension'] === 'country';
+		$isBot = $definition['dimension'] === 'bot';
+		$isEvent = $definition['dimension'] === 'event';
+		$count = $isCountry
+			? 'COUNT(DISTINCT ' . $db->quoteName('visitor_hash') . ')'
+			: 'COUNT(*)';
+		$query = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				$count . ' AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__pungaanalytics_events'))
+			->where($db->quoteName($field) . ' = :historyValue')
+			->where($db->quoteName('is_bot') . ' = ' . ($isBot ? '1' : '0'))
+			->group($db->quoteName('visit_date'))
+			->bind(':historyValue', $definition['value']);
+
+		if ($isEvent)
+		{
+			$query->where($db->quoteName('event_type') . ' <> ' . $db->quote('pageview'));
+		}
+		else
+		{
+			$query->where($db->quoteName('event_type') . ' = ' . $db->quote('pageview'));
+		}
+
+		if ($definition['dimension'] === 'page' || $definition['dimension'] === 'source')
+		{
+			$query->where($db->quoteName('http_status') . ' < 400');
+		}
+
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
+		$raw = $db->loadObjectList();
+		$archiveQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				'SUM(' . $db->quoteName('event_count') . ') AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__pungaanalytics_daily_dimensions'))
+			->where($db->quoteName('dimension_key') . ' = :historyDimension')
+			->where($db->quoteName('label') . ' = :archivedHistoryValue')
+			->group($db->quoteName('visit_date'))
+			->bind(':historyDimension', $definition['archive'])
+			->bind(':archivedHistoryValue', $definition['value']);
+
+		$this->applyDateRange($archiveQuery, $from, $to, false);
+		$db->setQuery($archiveQuery);
+
+		return array_merge($raw, $db->loadObjectList());
+	}
+
+	/**
+	 * Returns daily history for one configured custom-event item.
+	 *
+	 * @param array<string, string> $definition Validated item identity.
+	 * @param string                $from       Inclusive date.
+	 * @param string                $to         Inclusive date.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getEventItemHistoryDailyRows(array $definition, string $from, string $to): array
+	{
+		$db = $this->database;
+		$filters = [
+			'event_type' => $definition['event_type'],
+			'item_type' => $definition['item_type'],
+			'item_id' => $definition['item_id'],
+			'item_title' => $definition['item_title'],
+			'path' => $definition['path'],
+		];
+		$query = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				'COUNT(*) AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__pungaanalytics_events'))
+			->where($db->quoteName('is_bot') . ' = 0')
+			->group($db->quoteName('visit_date'));
+		$archiveQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				'SUM(' . $db->quoteName('event_count') . ') AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__pungaanalytics_daily_items'))
+			->group($db->quoteName('visit_date'));
+
+		foreach ($filters as $field => $value)
+		{
+			$rawParameter = ':history_' . $field;
+			$archiveParameter = ':archive_history_' . $field;
+			$query
+				->where($db->quoteName($field) . ' = ' . $rawParameter)
+				->bind($rawParameter, $value);
+			$archiveQuery
+				->where($db->quoteName($field) . ' = ' . $archiveParameter)
+				->bind($archiveParameter, $value);
+		}
+
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
+		$raw = $db->loadObjectList();
+		$this->applyDateRange($archiveQuery, $from, $to, false);
+		$db->setQuery($archiveQuery);
+
+		return array_merge($raw, $db->loadObjectList());
+	}
+
+	/**
+	 * Returns daily totals for one missing path.
+	 *
+	 * @param string $path Missing public path.
+	 * @param string $from Inclusive date.
+	 * @param string $to   Inclusive date.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getNotFoundHistoryDailyRows(string $path, string $from, string $to): array
+	{
+		$db = $this->database;
+		$query = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				'COUNT(*) AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__pungaanalytics_events'))
+			->where($db->quoteName('event_type') . ' = ' . $db->quote('pageview'))
+			->where($db->quoteName('http_status') . ' = 404')
+			->where($db->quoteName('path') . ' = :history404Path')
+			->group($db->quoteName('visit_date'))
+			->bind(':history404Path', $path);
+
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
+		$raw = $db->loadObjectList();
+		$archiveQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				'SUM(' . $db->quoteName('request_count') . ') AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__pungaanalytics_daily_404'))
+			->where($db->quoteName('path') . ' = :archiveHistory404Path')
+			->group($db->quoteName('visit_date'))
+			->bind(':archiveHistory404Path', $path);
+
+		$this->applyDateRange($archiveQuery, $from, $to, false);
+		$db->setQuery($archiveQuery);
+
+		return array_merge($raw, $db->loadObjectList());
+	}
+
+	/**
+	 * Fills and aggregates daily history rows for a readable long-term trend.
+	 *
+	 * @param array<int, object> $dailyRows   Daily raw/archive rows.
+	 * @param string             $from        Inclusive date.
+	 * @param string             $to          Inclusive date.
+	 * @param string             $granularity day, week, or month.
+	 *
+	 * @return array<int, object>
+	 */
+	private function aggregateHistoryRows(
+		array $dailyRows,
+		string $from,
+		string $to,
+		string $granularity
+	): array
+	{
+		$buckets = [];
+		$cursor = match ($granularity)
+		{
+			'month' => new DateTimeImmutable(substr($from, 0, 7) . '-01'),
+			'week' => (new DateTimeImmutable($from))->modify('monday this week'),
+			default => new DateTimeImmutable($from),
+		};
+		$end = new DateTimeImmutable($to);
+		$step = match ($granularity)
+		{
+			'month' => '+1 month',
+			'week' => '+1 week',
+			default => '+1 day',
+		};
+
+		while ($cursor <= $end)
+		{
+			$key = $cursor->format('Y-m-d');
+			$buckets[$key] = (object) [
+				'period_start' => $key,
+				'period_label' => match ($granularity)
+				{
+					'month' => $cursor->format('Y-m'),
+					'week' => $cursor->format('o-\WW'),
+					default => $key,
+				},
+				'count' => 0,
+			];
+			$cursor = $cursor->modify($step);
+		}
+
+		foreach ($dailyRows as $row)
+		{
+			$date = (string) ($row->visit_date ?? '');
+
+			if ($date === '')
+			{
+				continue;
+			}
+
+			$key = match ($granularity)
+			{
+				'month' => substr($date, 0, 7) . '-01',
+				'week' => (new DateTimeImmutable($date))->modify('monday this week')->format('Y-m-d'),
+				default => $date,
+			};
+
+			if (isset($buckets[$key]))
+			{
+				$buckets[$key]->count += (int) ($row->count ?? 0);
+			}
+		}
+
+		ksort($buckets, SORT_STRING);
+
+		return array_values($buckets);
 	}
 
 	/**
@@ -802,6 +1423,11 @@ final class StatisticsQueryService
 			$query->where($db->quoteName($field) . ' <> ' . $db->quote(''));
 		}
 
+		if ($field === 'path' && $eventType === 'pageview')
+		{
+			$query->where($db->quoteName('http_status') . ' < 400');
+		}
+
 		$this->applyDateRange($query, $from, $to);
 		$db->setQuery($query);
 		$dimensionKeys = [
@@ -873,7 +1499,7 @@ final class StatisticsQueryService
 			])
 			->bind(':archivedEventType', $eventType);
 
-		$this->applyDateRange($aggregateQuery, $from, $to);
+		$this->applyDateRange($aggregateQuery, $from, $to, false);
 		$db->setQuery($aggregateQuery);
 
 		return $this->mergeItemRows($raw, $db->loadObjectList(), $limit);
@@ -933,7 +1559,7 @@ final class StatisticsQueryService
 			->group($db->quoteName('label'))
 			->bind(':dimensionKey', $dimensionKey);
 
-		$this->applyDateRange($query, $from, $to);
+		$this->applyDateRange($query, $from, $to, false);
 		$db->setQuery($query);
 
 		return $db->loadObjectList();
@@ -1124,11 +1750,35 @@ final class StatisticsQueryService
 	 * @param DatabaseQuery $query Query object.
 	 * @param string        $from  Inclusive date.
 	 * @param string        $to    Inclusive date.
+	 * @param bool          $raw   Whether the query reads timestamped raw events.
 	 *
 	 * @return void
 	 */
-	private function applyDateRange(DatabaseQuery $query, string $from, string $to): void
+	private function applyDateRange(
+		DatabaseQuery $query,
+		string $from,
+		string $to,
+		bool $raw = true
+	): void
 	{
+		if ($this->activeRange === 'last24')
+		{
+			if (!$raw)
+			{
+				$query->where('1 = 0');
+
+				return;
+			}
+
+			$query
+				->where($this->database->quoteName('visited_at') . ' >= :fromUtc')
+				->where($this->database->quoteName('visited_at') . ' <= :toUtc')
+				->bind(':fromUtc', $this->rawFromUtc)
+				->bind(':toUtc', $this->rawToUtc);
+
+			return;
+		}
+
 		$query
 			->where($this->database->quoteName('visit_date') . ' >= :from')
 			->where($this->database->quoteName('visit_date') . ' <= :to')

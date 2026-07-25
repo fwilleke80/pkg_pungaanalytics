@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension type="module" client="administrator" method="upgrade">
 	<name>MOD_PUNGAANALYTICS</name>
-	<version>0.7.6</version>
+	<version>0.8.0</version>
 	<targetplatform name="joomla" version="6.*" />
 	<creationDate>2026-07-25</creationDate>
 	<author>Frank Willeke</author>
@@ -30,11 +30,14 @@
 		>
 			<fieldset name="basic">
 				<field name="days" type="list" default="7" label="MOD_PUNGAANALYTICS_RANGE">
+					<option value="today">MOD_PUNGAANALYTICS_RANGE_TODAY</option>
+					<option value="yesterday">MOD_PUNGAANALYTICS_RANGE_YESTERDAY</option>
+					<option value="last24">MOD_PUNGAANALYTICS_RANGE_LAST24</option>
 					<option value="7">MOD_PUNGAANALYTICS_RANGE_7</option>
 					<option value="30">MOD_PUNGAANALYTICS_RANGE_30</option>
 					<option value="90">MOD_PUNGAANALYTICS_RANGE_90</option>
 					<option value="365">MOD_PUNGAANALYTICS_RANGE_365</option>
-					<option value="0">MOD_PUNGAANALYTICS_RANGE_ALL</option>
+					<option value="all">MOD_PUNGAANALYTICS_RANGE_ALL</option>
 				</field>
 				<field
 					name="custom_events"

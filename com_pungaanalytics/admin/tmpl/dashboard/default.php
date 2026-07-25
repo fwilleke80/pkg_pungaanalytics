@@ -14,11 +14,14 @@ use Joomla\CMS\Uri\Uri;
 
 $summary = $this->data['summary'];
 $rangeOptions = [
-	7 => Text::_('COM_PUNGAANALYTICS_RANGE_7'),
-	30 => Text::_('COM_PUNGAANALYTICS_RANGE_30'),
-	90 => Text::_('COM_PUNGAANALYTICS_RANGE_90'),
-	365 => Text::_('COM_PUNGAANALYTICS_RANGE_365'),
-	0 => Text::_('COM_PUNGAANALYTICS_RANGE_ALL'),
+	'today' => Text::_('COM_PUNGAANALYTICS_RANGE_TODAY'),
+	'yesterday' => Text::_('COM_PUNGAANALYTICS_RANGE_YESTERDAY'),
+	'last24' => Text::_('COM_PUNGAANALYTICS_RANGE_LAST24'),
+	'7' => Text::_('COM_PUNGAANALYTICS_RANGE_7'),
+	'30' => Text::_('COM_PUNGAANALYTICS_RANGE_30'),
+	'90' => Text::_('COM_PUNGAANALYTICS_RANGE_90'),
+	'365' => Text::_('COM_PUNGAANALYTICS_RANGE_365'),
+	'all' => Text::_('COM_PUNGAANALYTICS_RANGE_ALL'),
 ];
 $number = static fn(mixed $value): string => number_format((int) $value);
 $escape = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
@@ -95,14 +98,21 @@ $eventItemSortLabel = static function (object $row): string
 	return (string) Text::_('COM_PUNGAANALYTICS_UNKNOWN_ITEM');
 };
 $eventItemLabel = static fn(object $row): string => $escape($eventItemSortLabel($row));
-$selectedDays = $this->days;
+$sourceLabels = [
+	'direct' => Text::_('COM_PUNGAANALYTICS_SOURCE_DIRECT'),
+	'search' => Text::_('COM_PUNGAANALYTICS_SOURCE_SEARCH'),
+	'social' => Text::_('COM_PUNGAANALYTICS_SOURCE_SOCIAL'),
+	'ai' => Text::_('COM_PUNGAANALYTICS_SOURCE_AI'),
+	'referral' => Text::_('COM_PUNGAANALYTICS_SOURCE_REFERRAL'),
+];
+$selectedRange = $this->range;
 $selectedSortTable = $this->sortTable;
 $selectedSort = $this->sort;
 $selectedDirection = $this->direction;
-$selectedRangeLabel = $rangeOptions[$selectedDays] ?? $rangeOptions[7];
+$selectedRangeLabel = $rangeOptions[$selectedRange] ?? $rangeOptions['7'];
 $exportAllUrl = Route::_(
 	'index.php?option=com_pungaanalytics&task=report.exportAllCsv'
-	. '&days=' . $selectedDays
+	. '&days=' . rawurlencode($selectedRange)
 	. '&' . Session::getFormToken() . '=1'
 );
 $eventDefinitions = $this->data['customEventDefinitions'] ?? [];
@@ -191,7 +201,7 @@ foreach ($rankingDefinitions as $definition)
 	];
 }
 
-foreach (['countries', 'referrers', 'languages', 'devices', 'browsers', 'bots', 'events'] as $dimensionTable)
+foreach (['countries', 'referrers', 'sources', 'languages', 'devices', 'browsers', 'bots', 'events'] as $dimensionTable)
 {
 	$dashboardSortDefinitions[$dimensionTable] = [
 		'defaultField' => 'count',
@@ -202,6 +212,18 @@ foreach (['countries', 'referrers', 'languages', 'devices', 'browsers', 'bots', 
 		],
 	];
 }
+
+$dashboardSortDefinitions['notfound'] = [
+	'defaultField' => 'total',
+	'defaultDirection' => 'desc',
+	'fields' => [
+		'path' => ['property' => 'path', 'type' => 'text'],
+		'human' => ['property' => 'human', 'type' => 'number'],
+		'bots' => ['property' => 'bots', 'type' => 'number'],
+		'total' => ['property' => 'total', 'type' => 'number'],
+		'last_seen' => ['property' => 'last_seen', 'type' => 'text'],
+	],
+];
 
 $getDashboardSortState = static function (string $table) use (
 	$dashboardSortDefinitions,
@@ -228,7 +250,7 @@ $getDashboardSortValue = static function (
 	string $table,
 	string $field,
 	object $row
-) use ($dashboardSortDefinitions, $rankingTableKeys, $countryName, $eventItemSortLabel): int|string
+) use ($dashboardSortDefinitions, $rankingTableKeys, $countryName, $eventItemSortLabel, $sourceLabels): int|string
 {
 	if (\in_array($table, $rankingTableKeys, true) && $field === 'title')
 	{
@@ -238,6 +260,13 @@ $getDashboardSortValue = static function (
 	if ($table === 'countries' && $field === 'label')
 	{
 		return $countryName((string) ($row->label ?? ''));
+	}
+
+	if ($table === 'sources' && $field === 'label')
+	{
+		$value = (string) ($row->label ?? '');
+
+		return $sourceLabels[$value] ?? $value;
 	}
 
 	$property = (string) $dashboardSortDefinitions[$table]['fields'][$field]['property'];
@@ -304,7 +333,7 @@ $sortableHeading = static function (
 	string $label,
 	string $defaultDirection,
 	string $className = ''
-) use ($escape, $getDashboardSortState, $selectedDays): string
+) use ($escape, $getDashboardSortState, $selectedRange): string
 {
 	[$currentField, $currentDirection] = $getDashboardSortState($table);
 	$active = $currentField === $field;
@@ -322,7 +351,7 @@ $sortableHeading = static function (
 	$classAttribute = $className === '' ? '' : ' class="' . $escape($className) . '"';
 	$url = Route::_(
 		'index.php?option=com_pungaanalytics'
-		. '&days=' . $selectedDays
+		. '&days=' . rawurlencode($selectedRange)
 		. '&sort_table=' . rawurlencode($table)
 		. '&sort=' . rawurlencode($field)
 		. '&direction=' . rawurlencode($nextDirection),
@@ -375,8 +404,25 @@ $trendGranularityKey = 'COM_PUNGAANALYTICS_GRANULARITY_' . strtoupper((string) $
 $reportUrl = static fn(string $report, string $eventType = ''): string => Route::_(
 	'index.php?option=com_pungaanalytics&view=report&report=' . rawurlencode($report)
 	. ($eventType === '' ? '' : '&event_type=' . rawurlencode($eventType))
-	. '&days=' . $selectedDays
+	. '&days=' . rawurlencode($selectedRange)
 );
+$historyUrl = static function (
+	string $dimension,
+	string $value,
+	array $arguments = []
+) use ($selectedRange): string
+{
+	$query = [
+		'option' => 'com_pungaanalytics',
+		'view' => 'report',
+		'report' => 'history',
+		'dimension' => $dimension,
+		'value' => $value,
+		'days' => $selectedRange,
+	] + $arguments;
+
+	return Route::_('index.php?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986));
+};
 $hourLabel = static fn(int $hour): string => sprintf('%02d:00–%02d:00', $hour, ($hour + 1) % 24);
 $weekdayLabels = [
 	1 => Text::_('COM_PUNGAANALYTICS_WEEKDAY_1'),
@@ -412,6 +458,7 @@ $dashboardTrendRows = $sortDashboardRows($dashboardTrendRows, 'activity');
 $hourRows = $sortDashboardRows($this->data['hours'], 'hours');
 $weekdayRows = $sortDashboardRows($this->data['weekdays'], 'weekdays');
 $topPagesRows = $sortDashboardRows($this->data['topPages'], 'pages');
+$notFoundRows = $sortDashboardRows($this->data['notFound'], 'notfound');
 $eventRankingRows = [];
 
 foreach ($this->data['customEventRankings'] ?? [] as $ranking)
@@ -473,7 +520,8 @@ $showCountryWarning = $this->countryStatus !== []
 	&& $knownCountryRows === [];
 $timeSortTables = ['hours', 'weekdays'];
 $engagementSortTables = $rankingTableKeys;
-$audienceSortTables = ['countries', 'referrers', 'languages', 'devices', 'browsers', 'bots', 'events'];
+$acquisitionSortTables = ['sources', 'referrers'];
+$audienceSortTables = ['countries', 'languages', 'devices', 'browsers', 'bots', 'events'];
 $systemNeedsAttention = $this->countryStatus === []
 	|| !(bool) ($this->countryStatus['files_ready'] ?? false);
 ?>
@@ -487,7 +535,7 @@ $systemNeedsAttention = $this->countryStatus === []
 				<div class="pa-hero__copy">
 					<h1 class="pa-hero__title"><?php echo Text::_('COM_PUNGAANALYTICS_DASHBOARD_TITLE'); ?></h1>
 					<h2 class="pa-section-heading pa-section-heading--hero"><?php echo Text::_('COM_PUNGAANALYTICS_DASHBOARD_EYEBROW'); ?></h2>
-					<p><?php echo Text::sprintf('COM_PUNGAANALYTICS_DATE_RANGE', $escape($this->data['from']), $escape($this->data['to'])); ?></p>
+					<p><?php echo Text::sprintf('COM_PUNGAANALYTICS_DATE_RANGE', $escape($this->data['displayFrom']), $escape($this->data['displayTo'])); ?></p>
 				</div>
 			</header>
 
@@ -501,11 +549,11 @@ $systemNeedsAttention = $this->countryStatus === []
 					</summary>
 					<div class="pa-range-picker__menu">
 						<?php foreach ($rangeOptions as $value => $label) : ?>
-							<a class="<?php echo $selectedDays === $value ? 'is-active' : ''; ?>"
-								<?php echo $selectedDays === $value ? 'aria-current="page"' : ''; ?>
-								href="<?php echo Route::_('index.php?option=com_pungaanalytics&days=' . (int) $value); ?>">
+							<a class="<?php echo $selectedRange === $value ? 'is-active' : ''; ?>"
+								<?php echo $selectedRange === $value ? 'aria-current="page"' : ''; ?>
+								href="<?php echo Route::_('index.php?option=com_pungaanalytics&days=' . rawurlencode((string) $value)); ?>">
 								<span><?php echo $escape($label); ?></span>
-								<?php if ($selectedDays === $value) : ?>
+								<?php if ($selectedRange === $value) : ?>
 									<span class="icon-check" aria-hidden="true"></span>
 								<?php endif; ?>
 							</a>
@@ -774,7 +822,7 @@ $systemNeedsAttention = $this->countryStatus === []
 				</div>
 			</details>
 
-			<details class="pa-dashboard-section" id="pa-section-content"<?php echo $this->sortTable === 'pages' ? ' open' : ''; ?>>
+			<details class="pa-dashboard-section" id="pa-section-content"<?php echo \in_array($this->sortTable, ['pages', 'notfound'], true) ? ' open' : ''; ?>>
 				<summary class="pa-dashboard-section__summary">
 					<h2><span class="icon-file" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_CONTENT'); ?></h2>
 				</summary>
@@ -797,7 +845,15 @@ $systemNeedsAttention = $this->countryStatus === []
 						<tbody>
 						<?php foreach ($topPagesRows as $row) : ?>
 							<tr>
-								<td class="text-break" data-sort-value="<?php echo $escape($row->label); ?>"><a href="<?php echo $escape($siteRoot . (string) $row->label); ?>" target="_blank" rel="noopener noreferrer"><?php echo $escape($row->label); ?></a></td>
+								<td class="text-break" data-sort-value="<?php echo $escape($row->label); ?>">
+									<a href="<?php echo $escape($siteRoot . (string) $row->label); ?>" target="_blank" rel="noopener noreferrer"><?php echo $escape($row->label); ?></a>
+									<a class="pa-history-link"
+										href="<?php echo $historyUrl('page', (string) $row->label); ?>"
+										title="<?php echo $escape(Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY')); ?>">
+										<span class="icon-chart" aria-hidden="true"></span>
+										<span class="visually-hidden"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY'); ?></span>
+									</a>
+								</td>
 								<td class="text-end pa-count" data-sort-value="<?php echo (int) $row->count; ?>"><?php echo $number($row->count); ?></td>
 							</tr>
 						<?php endforeach; ?>
@@ -806,6 +862,46 @@ $systemNeedsAttention = $this->countryStatus === []
 					<?php endif; ?>
 				</div>
 			</section>
+				<section class="pa-panel">
+					<header class="pa-panel__header">
+						<h3><?php echo Text::_('COM_PUNGAANALYTICS_NOT_FOUND'); ?></h3>
+						<a class="pa-view-all" href="<?php echo $reportUrl('notfound'); ?>"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_ALL'); ?></a>
+					</header>
+					<div class="pa-panel__body pa-panel__body--flush">
+						<?php if ($notFoundRows === []) : ?>
+							<div class="pa-empty"><?php echo Text::_('COM_PUNGAANALYTICS_NO_404_DATA'); ?></div>
+						<?php else : ?>
+							<table class="table pa-table mb-0" id="pa-table-notfound">
+								<thead>
+									<tr>
+										<?php echo $sortableHeading('notfound', 'path', Text::_('COM_PUNGAANALYTICS_CSV_PATH'), 'asc'); ?>
+										<?php echo $sortableHeading('notfound', 'human', Text::_('COM_PUNGAANALYTICS_HUMAN_REQUESTS'), 'desc', 'text-end'); ?>
+										<?php echo $sortableHeading('notfound', 'bots', Text::_('COM_PUNGAANALYTICS_BOT_REQUESTS'), 'desc', 'text-end'); ?>
+										<?php echo $sortableHeading('notfound', 'total', Text::_('COM_PUNGAANALYTICS_REQUESTS'), 'desc', 'text-end'); ?>
+									</tr>
+								</thead>
+								<tbody>
+									<?php foreach ($notFoundRows as $row) : ?>
+										<tr>
+											<td class="text-break" data-sort-value="<?php echo $escape($row->path); ?>">
+												<a href="<?php echo $escape($siteRoot . (string) $row->path); ?>" target="_blank" rel="noopener noreferrer"><?php echo $escape($row->path); ?></a>
+												<a class="pa-history-link"
+													href="<?php echo $historyUrl('notfound', (string) $row->path); ?>"
+													title="<?php echo $escape(Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY')); ?>">
+													<span class="icon-chart" aria-hidden="true"></span>
+													<span class="visually-hidden"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY'); ?></span>
+												</a>
+											</td>
+											<td class="text-end" data-sort-value="<?php echo (int) $row->human; ?>"><?php echo $number($row->human); ?></td>
+											<td class="text-end" data-sort-value="<?php echo (int) $row->bots; ?>"><?php echo $number($row->bots); ?></td>
+											<td class="text-end pa-count" data-sort-value="<?php echo (int) $row->total; ?>"><?php echo $number($row->total); ?></td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+						<?php endif; ?>
+					</div>
+				</section>
 					</div>
 				</div>
 			</details>
@@ -840,7 +936,28 @@ $systemNeedsAttention = $this->countryStatus === []
 												<tbody>
 													<?php foreach ($rankingRows as $row) : ?>
 														<tr>
-															<td data-sort-value="<?php echo $escape($eventItemSortLabel($row)); ?>"><div class="pa-item-title"><?php echo $eventItemLabel($row); ?></div><div class="pa-item-meta"><?php echo $escape($row->item_type); ?><?php echo $row->item_id !== '' ? ' · ' . $escape($row->item_id) : ''; ?></div></td>
+															<td data-sort-value="<?php echo $escape($eventItemSortLabel($row)); ?>">
+																<div class="pa-item-title">
+																	<?php echo $eventItemLabel($row); ?>
+																	<a class="pa-history-link"
+																		href="<?php echo $historyUrl(
+																			'event_item',
+																			$eventItemSortLabel($row),
+																			[
+																				'history_event_type' => (string) $definition['event_type'],
+																				'item_type' => (string) $row->item_type,
+																				'item_id' => (string) $row->item_id,
+																				'item_title' => (string) $row->item_title,
+																				'path' => (string) $row->path,
+																			]
+																		); ?>"
+																		title="<?php echo $escape(Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY')); ?>">
+																		<span class="icon-chart" aria-hidden="true"></span>
+																		<span class="visually-hidden"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY'); ?></span>
+																	</a>
+																</div>
+																<div class="pa-item-meta"><?php echo $escape($row->item_type); ?><?php echo $row->item_id !== '' ? ' · ' . $escape($row->item_id) : ''; ?></div>
+															</td>
 															<td class="text-end pa-count" data-sort-value="<?php echo (int) $row->count; ?>"><?php echo $number($row->count); ?></td>
 														</tr>
 													<?php endforeach; ?>
@@ -855,6 +972,77 @@ $systemNeedsAttention = $this->countryStatus === []
 				</details>
 			<?php endif; ?>
 
+			<details class="pa-dashboard-section" id="pa-section-acquisition"<?php echo \in_array($this->sortTable, $acquisitionSortTables, true) ? ' open' : ''; ?>>
+				<summary class="pa-dashboard-section__summary">
+					<h2><span class="icon-share" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_ACQUISITION'); ?></h2>
+				</summary>
+				<div class="pa-dashboard-section__content">
+					<div class="pa-grid">
+						<?php
+						$acquisitionTables = [
+							[
+								Text::_('COM_PUNGAANALYTICS_TRAFFIC_SOURCES'),
+								$sortDashboardRows($this->data['trafficSources'], 'sources'),
+								'sources',
+								'source',
+							],
+							[
+								Text::_('COM_PUNGAANALYTICS_REFERRERS'),
+								$sortDashboardRows($this->data['referrers'], 'referrers'),
+								'referrers',
+								'referrer',
+							],
+						];
+						foreach ($acquisitionTables as [$title, $rows, $report, $historyDimension]) :
+						?>
+							<section class="pa-panel pa-panel--compact">
+								<header class="pa-panel__header">
+									<h3><?php echo $escape($title); ?></h3>
+									<a class="pa-view-all" href="<?php echo $reportUrl($report); ?>"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_ALL'); ?></a>
+								</header>
+								<div class="pa-panel__body pa-panel__body--flush">
+									<?php if ($report === 'sources') : ?>
+										<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_TRAFFIC_SOURCES_NOTE'); ?></p>
+									<?php endif; ?>
+									<?php if ($rows === []) : ?>
+										<div class="pa-empty"><?php echo Text::_('COM_PUNGAANALYTICS_NO_DATA'); ?></div>
+									<?php else : ?>
+										<table class="table pa-table mb-0" id="pa-table-<?php echo $escape($report); ?>">
+											<thead>
+												<tr>
+													<?php echo $sortableHeading($report, 'label', $title, 'asc'); ?>
+													<?php echo $sortableHeading($report, 'count', Text::_('COM_PUNGAANALYTICS_CSV_COUNT'), 'desc', 'text-end'); ?>
+												</tr>
+											</thead>
+											<tbody>
+												<?php foreach ($rows as $row) :
+													$rowLabel = $report === 'sources'
+														? ($sourceLabels[(string) $row->label] ?? (string) $row->label)
+														: (string) $row->label;
+												?>
+													<tr>
+														<td class="text-break" data-sort-value="<?php echo $escape($rowLabel); ?>">
+															<?php echo $escape($rowLabel); ?>
+															<a class="pa-history-link"
+																href="<?php echo $historyUrl($historyDimension, (string) $row->label); ?>"
+																title="<?php echo $escape(Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY')); ?>">
+																<span class="icon-chart" aria-hidden="true"></span>
+																<span class="visually-hidden"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY'); ?></span>
+															</a>
+														</td>
+														<td class="text-end pa-count" data-sort-value="<?php echo (int) $row->count; ?>"><?php echo $number($row->count); ?></td>
+													</tr>
+												<?php endforeach; ?>
+											</tbody>
+										</table>
+									<?php endif; ?>
+								</div>
+							</section>
+						<?php endforeach; ?>
+					</div>
+				</div>
+			</details>
+
 			<details class="pa-dashboard-section" id="pa-section-audience"<?php echo \in_array($this->sortTable, $audienceSortTables, true) ? ' open' : ''; ?>>
 				<summary class="pa-dashboard-section__summary">
 					<h2><span class="icon-users" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_AUDIENCE_TECHNOLOGY'); ?></h2>
@@ -862,9 +1050,16 @@ $systemNeedsAttention = $this->countryStatus === []
 				<div class="pa-dashboard-section__content">
 					<div class="pa-grid">
 				<?php
+				$historyDimensions = [
+					'countries' => 'country',
+					'languages' => 'language',
+					'devices' => 'device',
+					'browsers' => 'browser',
+					'bots' => 'bot',
+					'events' => 'event',
+				];
 				$dimensionTables = [
 					[Text::_('COM_PUNGAANALYTICS_COUNTRIES'), $this->data['countries'], 'country-pie', 'countries'],
-					[Text::_('COM_PUNGAANALYTICS_REFERRERS'), $this->data['referrers'], 'plain', 'referrers'],
 					[Text::_('COM_PUNGAANALYTICS_LANGUAGES'), $this->data['languages'], 'pie', 'languages'],
 					[Text::_('COM_PUNGAANALYTICS_DEVICES'), $this->data['devices'], 'pie', 'devices'],
 					[Text::_('COM_PUNGAANALYTICS_BROWSERS'), $this->data['browsers'], 'pie', 'browsers'],
@@ -955,6 +1150,12 @@ $systemNeedsAttention = $this->countryStatus === []
 												</svg>
 											<?php endif; ?>
 											<?php echo $isCountry ? $countryLabel((string) $row->label) : $escape($row->label); ?>
+											<a class="pa-history-link"
+												href="<?php echo $historyUrl($historyDimensions[$report], (string) $row->label); ?>"
+												title="<?php echo $escape(Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY')); ?>">
+												<span class="icon-chart" aria-hidden="true"></span>
+												<span class="visually-hidden"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY'); ?></span>
+											</a>
 										</td>
 										<td class="text-end pa-count" data-sort-value="<?php echo (int) $row->count; ?>"><?php echo $number($row->count); ?></td>
 									</tr>

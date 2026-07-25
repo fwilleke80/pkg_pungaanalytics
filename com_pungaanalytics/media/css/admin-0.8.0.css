@@ -1,4 +1,4 @@
-/* Punga Analytics 0.7.3 administrator dashboard and report styles. */
+/* Punga Analytics 0.8.0 administrator dashboard and report styles. */
 
 .pa-dashboard
 {
@@ -791,6 +791,34 @@
 	font-size: 1rem;
 	line-height: 1;
 	vertical-align: -0.08em;
+}
+
+.pa-history-link
+{
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	margin-left: 0.3rem;
+	width: 1.55rem;
+	height: 1.55rem;
+	border-radius: 50%;
+	color: var(--pa-accent);
+	text-decoration: none;
+	vertical-align: middle;
+}
+
+.pa-history-link:hover,
+.pa-history-link:focus-visible
+{
+	background: var(--pa-surface-muted);
+	color: var(--pa-accent-strong);
+	text-decoration: none;
+}
+
+.pa-history-link [class^="icon-"],
+.pa-history-link [class*=" icon-"]
+{
+	font-size: 0.82rem;
 }
 
 .pa-empty

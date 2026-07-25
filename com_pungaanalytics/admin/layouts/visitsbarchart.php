@@ -10,6 +10,9 @@ $rows = array_values($displayData['rows'] ?? []);
 $labels = $displayData['labels'] ?? [];
 $tickLabels = $displayData['tickLabels'] ?? [];
 $ariaLabel = (string) ($displayData['ariaLabel'] ?? '');
+$valueProperty = (string) ($displayData['valueProperty'] ?? 'visits');
+$seriesLabel = (string) ($displayData['seriesLabel'] ?? Text::_('COM_PUNGAANALYTICS_VISITS'));
+$seriesColor = (string) ($displayData['seriesColor'] ?? '#6f42c1');
 $escape = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 $number = static fn(mixed $value): string => number_format((int) $value);
 $chartWidth = 1200;
@@ -24,16 +27,16 @@ $maxVisits = 1;
 
 foreach ($rows as $row)
 {
-	$maxVisits = max($maxVisits, (int) ($row->visits ?? 0));
+	$maxVisits = max($maxVisits, (int) ($row->{$valueProperty} ?? 0));
 }
 ?>
 <div class="pa-daily-chart">
 	<div class="pa-chart-legend" aria-hidden="true">
 		<span class="pa-series-visits">
 			<svg class="pa-chart-legend__swatch" width="11" height="11" viewBox="0 0 11 11" focusable="false">
-				<circle cx="5.5" cy="5.5" r="5" fill="#6f42c1"></circle>
+			<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($seriesColor); ?>"></circle>
 			</svg>
-			<?php echo Text::_('COM_PUNGAANALYTICS_VISITS'); ?>
+			<?php echo $escape($seriesLabel); ?>
 		</span>
 	</div>
 	<div class="pa-chart-scroll">
@@ -59,7 +62,7 @@ foreach ($rows as $row)
 
 			<?php foreach ($rows as $index => $row) :
 				$bucket = (int) ($row->bucket ?? $index);
-				$value = (int) ($row->visits ?? 0);
+				$value = (int) ($row->{$valueProperty} ?? 0);
 				$height = $value > 0 ? max(1.0, ($value / $maxVisits) * $plotHeight) : 0.0;
 				$groupCenter = $plotLeft + (($index + 0.5) * $groupWidth);
 				$x = $groupCenter - ($barWidth / 2.0);
@@ -72,8 +75,8 @@ foreach ($rows as $row)
 					width="<?php echo number_format($barWidth, 1, '.', ''); ?>"
 					height="<?php echo number_format($height, 1, '.', ''); ?>"
 					rx="1.2"
-					fill="#6f42c1">
-					<title><?php echo $escape($label . ' · ' . Text::_('COM_PUNGAANALYTICS_VISITS') . ': ' . $number($value)); ?></title>
+					fill="<?php echo $escape($seriesColor); ?>">
+					<title><?php echo $escape($label . ' · ' . $seriesLabel . ': ' . $number($value)); ?></title>
 				</rect>
 				<?php if ($tickLabel !== '') : ?>
 					<line class="pa-chart-date-tick"

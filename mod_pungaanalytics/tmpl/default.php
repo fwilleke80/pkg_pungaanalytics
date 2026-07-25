@@ -17,21 +17,24 @@ if ($statistics === [])
 Factory::getApplication()->getDocument()->getWebAssetManager()->registerAndUseStyle(
 	'mod_pungaanalytics.admin',
 	'mod_pungaanalytics/admin.css',
-	['version' => '0.7.6']
+	['version' => '0.8.0']
 );
 
 $summary = $statistics['summary'];
 $escape = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 $number = static fn(mixed $value): string => number_format((int) $value);
-$days = (int) $statistics['days'];
-$dashboardUrl = Route::_('index.php?option=com_pungaanalytics&days=' . $days);
+$range = (string) $statistics['range'];
+$dashboardUrl = Route::_('index.php?option=com_pungaanalytics&days=' . rawurlencode($range));
 $siteRoot = rtrim(Uri::root(), '/');
 $rangeLabels = [
-	7 => 'MOD_PUNGAANALYTICS_RANGE_7',
-	30 => 'MOD_PUNGAANALYTICS_RANGE_30',
-	90 => 'MOD_PUNGAANALYTICS_RANGE_90',
-	365 => 'MOD_PUNGAANALYTICS_RANGE_365',
-	0 => 'MOD_PUNGAANALYTICS_RANGE_ALL',
+	'today' => 'MOD_PUNGAANALYTICS_RANGE_TODAY',
+	'yesterday' => 'MOD_PUNGAANALYTICS_RANGE_YESTERDAY',
+	'last24' => 'MOD_PUNGAANALYTICS_RANGE_LAST24',
+	'7' => 'MOD_PUNGAANALYTICS_RANGE_7',
+	'30' => 'MOD_PUNGAANALYTICS_RANGE_30',
+	'90' => 'MOD_PUNGAANALYTICS_RANGE_90',
+	'365' => 'MOD_PUNGAANALYTICS_RANGE_365',
+	'all' => 'MOD_PUNGAANALYTICS_RANGE_ALL',
 ];
 $metrics = [
 	[
@@ -68,12 +71,12 @@ if ((bool) $params->get('show_bots', 1))
 <div class="pa-admin-module">
 	<div class="pa-admin-module__range">
 		<span class="icon-calendar" aria-hidden="true"></span>
-		<?php echo Text::_($rangeLabels[$days] ?? $rangeLabels[7]); ?>
+		<?php echo Text::_($rangeLabels[$range] ?? $rangeLabels['7']); ?>
 		<span aria-hidden="true">·</span>
 		<?php echo Text::sprintf(
 			'MOD_PUNGAANALYTICS_DATE_RANGE',
-			$escape($statistics['from']),
-			$escape($statistics['to'])
+			$escape($statistics['displayFrom']),
+			$escape($statistics['displayTo'])
 		); ?>
 	</div>
 

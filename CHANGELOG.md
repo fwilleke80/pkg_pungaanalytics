@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.0 — 2026-07-25
+
+- Added Today, Yesterday, and exact rolling Last 24 hours ranges to the
+  component dashboard, reports, CSV exports, and administrator module.
+- Added row-level history charts and exact tables for pages, 404 paths,
+  countries, sources, referrers, languages, devices, browsers, bots, event
+  types, and configured event items.
+- Added broad privacy-minimising traffic-source categories for direct, search,
+  social, AI-assistant, and external referral traffic while keeping full
+  referrer URLs unrecorded.
+- Added a dedicated 404 dashboard panel, full report, CSV export, all-report ZIP
+  entry, and permanent daily archive with separate human and bot totals.
+- Moved ordinary page-view recording to Joomla's pre-response event so the
+  collector can store the final HTTP status.
+- Raised the effective detailed-event retention minimum to two complete days so
+  the rolling Last 24 hours range remains exact.
+- Added update-time categorisation for archived external referrer hostnames and
+  documented the limits of reconstructing pre-0.8.0 direct/internal sources
+  and 404 responses.
+- Updated all extension manifests, documentation, database schemas, language
+  files, release assets, and cache-busting versions.
+
 ## 0.7.6 — 2026-07-25
 
 - Added a full-width divider between the Home Dashboard module title and its content.

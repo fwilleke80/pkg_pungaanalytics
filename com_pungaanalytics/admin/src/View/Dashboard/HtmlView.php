@@ -29,8 +29,8 @@ final class HtmlView extends BaseHtmlView
 	/** @var string */
 	public string $version = 'unknown';
 
-	/** @var int */
-	public int $days = 7;
+	/** @var string */
+	public string $range = '7';
 
 	/** @var int */
 	public int $retentionDays = 180;
@@ -57,9 +57,10 @@ final class HtmlView extends BaseHtmlView
 	public function display($tpl = null): void
 	{
 		$app = Factory::getApplication();
-		$allowedDays = [7, 30, 90, 365, 0];
-		$requestedDays = $app->input->getInt('days', 7);
-		$this->days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 7;
+		$allowedRanges = ['today', 'yesterday', 'last24', '7', '30', '90', '365', 'all', '0'];
+		$requestedRange = strtolower($app->input->getCmd('days', '7'));
+		$this->range = \in_array($requestedRange, $allowedRanges, true) ? $requestedRange : '7';
+		$this->range = $this->range === '0' ? 'all' : $this->range;
 		$params = ComponentHelper::getParams('com_pungaanalytics');
 		$this->retentionDays = (int) $params->get('retention_days', 180);
 		$this->activityTableRows = min(100, max(0, (int) $params->get('dashboard_activity_rows', 8)));
@@ -68,8 +69,10 @@ final class HtmlView extends BaseHtmlView
 			'hours',
 			'weekdays',
 			'pages',
+			'notfound',
 			'countries',
 			'referrers',
+			'sources',
 			'languages',
 			'devices',
 			'browsers',
@@ -96,15 +99,15 @@ final class HtmlView extends BaseHtmlView
 
 		/** @var \Punga\Component\PungaAnalytics\Administrator\Model\DashboardModel $model */
 		$model = $this->getModel();
-		$this->data = $model->getDashboardData($this->days, $this->activityTableRows);
+		$this->data = $model->getDashboardData($this->range, $this->activityTableRows);
 		$this->countryStatus = (new CountryDatabaseService())->getStatus();
 		$this->version = $model->getInstalledVersion();
 
 		$document = $app->getDocument();
 		$document->getWebAssetManager()->registerAndUseStyle(
-			'com_pungaanalytics.admin.0.7.5',
-			'com_pungaanalytics/admin-0.7.5.css',
-			['version' => '0.7.5']
+			'com_pungaanalytics.admin.0.8.0',
+			'com_pungaanalytics/admin-0.8.0.css',
+			['version' => '0.8.0']
 		);
 
 		$this->addToolbar();

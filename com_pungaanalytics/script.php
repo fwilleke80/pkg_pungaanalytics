@@ -39,6 +39,7 @@ return new class implements InstallerScriptInterface
 		$db = Factory::getContainer()->get(DatabaseInterface::class);
 
 		foreach ([
+			'#__pungaanalytics_daily_404',
 			'#__pungaanalytics_daily_items',
 			'#__pungaanalytics_daily_event_time',
 			'#__pungaanalytics_daily_time',
@@ -94,6 +95,7 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	`component` VARCHAR(100) NOT NULL DEFAULT '',
 	`view_name` VARCHAR(100) NOT NULL DEFAULT '',
 	`referrer_host` VARCHAR(255) NOT NULL DEFAULT '',
+	`traffic_source` VARCHAR(16) NOT NULL DEFAULT '',
 	`country_code` CHAR(2) NOT NULL DEFAULT 'ZZ',
 	`language_code` VARCHAR(16) NOT NULL DEFAULT '',
 	`device_type` VARCHAR(16) NOT NULL DEFAULT 'unknown',
@@ -105,6 +107,7 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	`item_type` VARCHAR(64) NOT NULL DEFAULT '',
 	`item_id` VARCHAR(128) NOT NULL DEFAULT '',
 	`item_title` VARCHAR(255) NOT NULL DEFAULT '',
+	`http_status` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
 	PRIMARY KEY (`id`),
 	KEY `idx_pungaanalytics_visited_at` (`visited_at`),
 	KEY `idx_pungaanalytics_visit_date` (`visit_date`),
@@ -117,7 +120,9 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	KEY `idx_pungaanalytics_event_date` (`event_type`, `visit_date`),
 	KEY `idx_pungaanalytics_item` (`item_type`, `item_id`(64)),
 	KEY `idx_pungaanalytics_path` (`path`(191)),
-	KEY `idx_pungaanalytics_referrer` (`referrer_host`)
+	KEY `idx_pungaanalytics_referrer` (`referrer_host`),
+	KEY `idx_pungaanalytics_source_date` (`traffic_source`, `visit_date`),
+	KEY `idx_pungaanalytics_status_date` (`http_status`, `visit_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
 SQL;
 
@@ -223,6 +228,21 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_items` (
 	PRIMARY KEY (`visit_date`, `row_hash`),
 	KEY `idx_pungaanalytics_daily_item_event` (`event_type`, `visit_date`),
 	KEY `idx_pungaanalytics_daily_item` (`item_type`, `item_id`(64))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
+SQL,
+			<<<'SQL'
+CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_404` (
+	`visit_date` DATE NOT NULL,
+	`row_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+	`path` VARCHAR(1024) NOT NULL,
+	`referrer_host` VARCHAR(255) NOT NULL DEFAULT '',
+	`is_bot` TINYINT(1) NOT NULL DEFAULT 0,
+	`request_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`first_seen` DATETIME NOT NULL,
+	`last_seen` DATETIME NOT NULL,
+	PRIMARY KEY (`visit_date`, `row_hash`),
+	KEY `idx_pungaanalytics_404_date` (`visit_date`),
+	KEY `idx_pungaanalytics_404_path` (`path`(191))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
 SQL,
 		];

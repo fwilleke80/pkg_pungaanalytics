@@ -66,6 +66,27 @@ final class ReportModel extends BaseDatabaseModel
 				'count' => 'count',
 			],
 		],
+		'notfound' => [
+			'default' => 'total',
+			'direction' => 'desc',
+			'fields' => [
+				'path' => 'path',
+				'human' => 'human',
+				'bots' => 'bots',
+				'total' => 'total',
+				'referrer' => 'top_referrer',
+				'first_seen' => 'first_seen',
+				'last_seen' => 'last_seen',
+			],
+		],
+		'history' => [
+			'default' => 'period',
+			'direction' => 'asc',
+			'fields' => [
+				'period' => 'period_start',
+				'count' => 'count',
+			],
+		],
 	];
 
 	/** @var array<string, string> */
@@ -81,38 +102,46 @@ final class ReportModel extends BaseDatabaseModel
 		'pageviews',
 		'bots',
 		'count',
+		'human',
+		'total',
 	];
 
 	/**
 	 * Returns one paginated full report.
 	 *
 	 * @param string $report    Report identifier.
-	 * @param int    $days      Number of days, or zero for all data.
+	 * @param int|string $range Reporting range identifier.
 	 * @param int    $start     First row offset.
 	 * @param int    $limit     Rows per page.
 	 * @param string $sort      Requested sort key.
 	 * @param string $direction asc or desc.
 	 * @param string $eventType Custom event identifier for a generic event report.
+	 * @param array<string, string> $history History dimension arguments.
 	 *
 	 * @return array<string, mixed>
 	 */
 	public function getReportData(
 		string $report,
-		int $days,
+		int|string $range,
 		int $start,
 		int $limit,
 		string $sort,
 		string $direction,
-		string $eventType = ''
+		string $eventType = '',
+		array $history = []
 	): array
 	{
 		$data = $this->sortReportData(
-			$this->getQueryService()->getReportData($report, $days, $eventType),
+			$this->getQueryService()->getReportData($report, $range, $eventType, $history),
 			$sort,
 			$direction
 		);
 		$data['total'] = \count($data['rows']);
-		$data['rows'] = array_slice($data['rows'], max(0, $start), max(1, $limit));
+
+		if ($report !== 'history')
+		{
+			$data['rows'] = array_slice($data['rows'], max(0, $start), max(1, $limit));
+		}
 
 		return $data;
 	}
@@ -121,23 +150,25 @@ final class ReportModel extends BaseDatabaseModel
 	 * Returns one complete report for export.
 	 *
 	 * @param string $report    Report identifier.
-	 * @param int    $days      Number of days, or zero for all data.
+	 * @param int|string $range Reporting range identifier.
 	 * @param string $sort      Requested sort key.
 	 * @param string $direction asc or desc.
 	 * @param string $eventType Custom event identifier for a generic event report.
+	 * @param array<string, string> $history History dimension arguments.
 	 *
 	 * @return array<string, mixed>
 	 */
 	public function getExportData(
 		string $report,
-		int $days,
+		int|string $range,
 		string $sort,
 		string $direction,
-		string $eventType = ''
+		string $eventType = '',
+		array $history = []
 	): array
 	{
 		return $this->sortReportData(
-			$this->getQueryService()->getReportData($report, $days, $eventType),
+			$this->getQueryService()->getReportData($report, $range, $eventType, $history),
 			$sort,
 			$direction
 		);
@@ -148,12 +179,17 @@ final class ReportModel extends BaseDatabaseModel
 	 *
 	 * @param string $report    Report identifier.
 	 * @param string $eventType Custom event identifier for a generic event report.
+	 * @param array<string, string> $history History dimension arguments.
 	 *
 	 * @return bool
 	 */
-	public function isSupportedReport(string $report, string $eventType = ''): bool
+	public function isSupportedReport(
+		string $report,
+		string $eventType = '',
+		array $history = []
+	): bool
 	{
-		return $this->getQueryService()->isSupportedReport($report, $eventType);
+		return $this->getQueryService()->isSupportedReport($report, $eventType, $history);
 	}
 
 	/**

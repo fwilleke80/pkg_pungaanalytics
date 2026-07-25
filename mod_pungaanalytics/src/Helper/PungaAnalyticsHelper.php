@@ -32,9 +32,10 @@ final class PungaAnalyticsHelper
 			return [];
 		}
 
-		$allowedDays = [7, 30, 90, 365, 0];
-		$days = (int) $params->get('days', 7);
-		$days = \in_array($days, $allowedDays, true) ? $days : 7;
+		$allowedRanges = ['today', 'yesterday', 'last24', '7', '30', '90', '365', 'all', '0'];
+		$range = strtolower(trim((string) $params->get('days', '7')));
+		$range = \in_array($range, $allowedRanges, true) ? $range : '7';
+		$range = $range === '0' ? 'all' : $range;
 		$topPagesLimit = (bool) $params->get('show_top_pages', 1)
 			? min(10, max(1, (int) $params->get('top_pages_limit', 5)))
 			: 0;
@@ -44,7 +45,7 @@ final class PungaAnalyticsHelper
 			Factory::getContainer()->get(DatabaseInterface::class),
 			(string) $app->get('offset', 'UTC')
 		);
-		$statistics = $service->getModuleData($days, $topPagesLimit);
+		$statistics = $service->getModuleData($range, $topPagesLimit);
 		$statistics['moduleEventDefinitions'] = $this->getModuleEventDefinitions(
 			$params,
 			$statistics['customEventDefinitions'],

@@ -2,7 +2,7 @@
 
 Punga Analytics is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.7.6`
+> **Current version:** `0.8.0`
 >
 > **Package:** `pkg_pungaanalytics`
 
@@ -48,6 +48,9 @@ For eligible frontend page views and custom events, Punga Analytics stores:
 - Public page path
 - Joomla component and view name
 - External referrer hostname for ordinary page views
+- Broad traffic-source category for ordinary page views: direct, search,
+  social, AI assistant, referral, or internal
+- Final HTTP response status for ordinary page views
 - ISO 3166-1 alpha-2 country code, or `ZZ` when unknown
 - Primary browser language
 - Broad device category
@@ -64,7 +67,7 @@ It does **not** store:
 - Complete referrer URLs
 - Joomla user IDs with events
 - Usernames or email addresses
-- Persistent cropa-day visitor identifiers
+- Persistent cross-day visitor identifiers
 - Analytics cookies
 - Arbitrary custom-event metadata
 
@@ -82,7 +85,10 @@ The permanent reports preserve:
 
 - Daily visitor-day, page-view, authenticated-view, bot, and generic custom-event totals
 - Site-local hour-of-day and weekday totals, including configured custom events
-- Countries, pages, referrers, browser languages, devices, browsers, and detected bots
+- Countries, pages, referrers, traffic-source categories, browser languages,
+  devices, browsers, and detected bots
+- Not-found paths with separate human and bot request totals, first and last
+  occurrence, and the most common external referrer
 - Custom-event types and generic item-level event totals
 
 Dashboard queries combine retained raw events with the permanent reports.
@@ -315,7 +321,8 @@ DB-IP Lite is updated monthly and licensed under Creative Commons Attribution 4.
 The redesigned administrator dashboard includes:
 
 - Installed Punga Analytics version
-- Modern range picker for 7, 30, 90, 365-day, and all-time reports
+- Modern range picker for Today, Yesterday, Last 24 hours, 7, 30, 90,
+  365-day, and all-time reports
 - Compact tabular overview of human visitor-days and page views
 - Logged-in frontend page views
 - Configurable custom-event overview totals
@@ -324,12 +331,17 @@ The redesigned administrator dashboard includes:
 - Site-local hour-of-day and weekday visitor bar charts with exact activity tables
 - Sortable dashboard and full-report table columns with report-specific default ordering
 - Most viewed pages
+- Not-found (404) paths with human, bot, and combined request totals
+- Broad acquisition categories for direct, search, social, AI-assistant, and
+  external referral traffic
 - Configurable generic item-ranking cards for events such as plays and downloads
 - Countries pie chart, localized country names, Unicode flags, and exact table
 - External referrers
 - Browser-language, device-category, and browser-family pie charts with exact tables
 - Detected bots
 - Custom event types
+- Row-level history links for pages, 404 paths, countries, sources, referrers,
+  languages, devices, browsers, bots, event types, and configured event items
 - Clearly labeled paginated full-report links on dashboard panels
 - CSV export of every full report and the complete selected range
 - One-click ZIP download containing every core CSV plus configured event-ranking CSVs
@@ -348,7 +360,8 @@ figures without opening the full component dashboard. It displays:
 - A configurable number of most-viewed pages with frontend links
 - A direct link to the complete Punga Analytics dashboard
 
-The module defaults to the last seven days. Its reporting range, custom-event
+The module defaults to the last seven days. Its reporting range includes Today,
+Yesterday, Last 24 hours, the normal multi-day ranges, and all time. Its custom-event
 checkbox selection, bot total, top-pages list, and top-pages limit can be
 changed independently for every module instance. Existing module instances
 initially retain the former selection of events enabled for the component
@@ -397,7 +410,7 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 ## Installation and update
 
 1. Open **System → Install → Extensions** in Joomla Administrator.
-2. Upload `pkg_pungaanalytics-0.7.6.zip`.
+2. Upload `pkg_pungaanalytics-0.8.0.zip`.
 3. Open **Components → Punga Analytics**.
 4. Click **Update country database**.
 5. Review the options and optionally exclude the site owner's Joomla user ID.
@@ -516,6 +529,20 @@ Version 0.7.6 completes the Home Dashboard module styling with the same visual
 separation used by Joomla's built-in administrator cards: a divider beneath the
 module title and a consistent inset between the module content and card border.
 
+Version 0.8.0 adds Today, Yesterday, and exact rolling Last 24 hours ranges,
+row-level history charts and tables, broad traffic-source categorisation, and
+a dedicated 404 report. Page views are now recorded immediately before Joomla
+sends the response so the collector can store the final HTTP status. The raw
+retention minimum is two days so a rolling 24-hour query remains exact.
+
+Traffic-source categories deliberately use only the external referrer hostname;
+Punga Analytics still does not store full referrer URLs. Internal navigation is
+classified separately and omitted from the acquisition report. Categories and
+404 history are complete for events collected by 0.8.0 and later. Existing
+archived external referrer hostnames are categorised during update, but older
+blank archived referrers cannot reliably be divided into direct and internal
+traffic, and old 404 responses cannot be reconstructed.
+
 ## Resetting statistics
 
 Use **Components → Punga Analytics → Reset all statistics** in the toolbar to
@@ -533,6 +560,7 @@ Uninstalling the package removes:
 - `#__pungaanalytics_daily_items`
 - `#__pungaanalytics_daily_time`
 - `#__pungaanalytics_daily_event_time`
+- `#__pungaanalytics_daily_404`
 - Compiled country files and metadata under `cache/com_pungaanalytics/`
 - The component, administrator module, and system plugin
 
@@ -551,7 +579,10 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Runtime JavaScript: none required
 - Composer dependencies: none bundled
 - Raw-event table: `#__pungaanalytics_events`
-- Permanent report tables: `#__pungaanalytics_daily`, `#__pungaanalytics_daily_dimensions`, `#__pungaanalytics_daily_items`, `#__pungaanalytics_daily_time`, and `#__pungaanalytics_daily_event_time`
+- Permanent report tables: `#__pungaanalytics_daily`,
+  `#__pungaanalytics_daily_dimensions`, `#__pungaanalytics_daily_items`,
+  `#__pungaanalytics_daily_time`, `#__pungaanalytics_daily_event_time`, and
+  `#__pungaanalytics_daily_404`
 - Country source: DB-IP Lite CSV
 
 ## Known limitations
@@ -563,3 +594,9 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Requests served before the collector runs, for example by an earlier full-page cache plugin, may not be recorded.
 - Punga Analytics cannot infer a media play from a page view; the media extension must emit a custom event.
 - Exact hour-of-day data is unavailable for events recorded before version 0.5.0.
+- Traffic-source categorisation is heuristic and depends on the referrer header
+  supplied by the visitor's browser.
+- Traffic-source history is complete from version 0.8.0 onward. Older archived
+  external referrers are categorised during update, but old blank referrers
+  cannot be distinguished as direct or internal.
+- Historical 404 responses recorded before version 0.8.0 cannot be reconstructed.

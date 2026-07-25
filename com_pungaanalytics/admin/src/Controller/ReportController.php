@@ -29,28 +29,31 @@ final class ReportController extends BaseController
 		}
 
 		$this->assertManagePermission();
-		$allowedDays = [7, 30, 90, 365, 0];
-		$requestedDays = $this->input->getInt('days', 7);
-		$days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 7;
+		$range = $this->getRange();
 		$report = strtolower($this->input->getCmd('report', 'pages'));
 		$eventType = strtolower($this->input->getCmd('event_type', ''));
+		$history = $this->getHistoryArguments();
 		$sort = strtolower($this->input->getCmd('sort', ''));
 		$direction = strtolower($this->input->getCmd('direction', ''));
 
 		/** @var \Punga\Component\PungaAnalytics\Administrator\Model\ReportModel $model */
 		$model = $this->getModel('Report');
 
-		if (!$model->isSupportedReport($report, $eventType))
+		if (!$model->isSupportedReport($report, $eventType, $history))
 		{
 			throw new \InvalidArgumentException(Text::_('COM_PUNGAANALYTICS_REPORT_INVALID'), 404);
 		}
 
-		$data = $model->getExportData($report, $days, $sort, $direction, $eventType);
+		$data = $model->getExportData($report, $range, $sort, $direction, $eventType, $history);
 		$csv = $this->createCsv($data);
 
 		$filename = sprintf(
 			'punga-analytics-%s-%s-%s.csv',
-			$report === 'event' ? 'event-' . str_replace('.', '-', $eventType) : $report,
+			$report === 'event'
+				? 'event-' . str_replace('.', '-', $eventType)
+				: ($report === 'history'
+					? 'history-' . $this->sanitiseFilenamePart((string) ($history['dimension'] ?? 'row'))
+					: $report),
 			(string) $data['from'],
 			(string) $data['to']
 		);
@@ -83,9 +86,7 @@ final class ReportController extends BaseController
 			throw new \RuntimeException(Text::_('COM_PUNGAANALYTICS_ZIP_UNAVAILABLE'));
 		}
 
-		$allowedDays = [7, 30, 90, 365, 0];
-		$requestedDays = $this->input->getInt('days', 7);
-		$days = \in_array($requestedDays, $allowedDays, true) ? $requestedDays : 7;
+		$range = $this->getRange();
 
 		/** @var \Punga\Component\PungaAnalytics\Administrator\Model\ReportModel $model */
 		$model = $this->getModel('Report');
@@ -94,15 +95,17 @@ final class ReportController extends BaseController
 			['hours', ''],
 			['weekdays', ''],
 			['pages', ''],
+			['notfound', ''],
 			['countries', ''],
 			['referrers', ''],
+			['sources', ''],
 			['languages', ''],
 			['devices', ''],
 			['browsers', ''],
 			['bots', ''],
 			['events', ''],
 		];
-		$activityData = $model->getExportData('activity', $days, '', '');
+		$activityData = $model->getExportData('activity', $range, '', '');
 
 		foreach ($activityData['customEventDefinitions'] ?? [] as $definition)
 		{
@@ -135,7 +138,7 @@ final class ReportController extends BaseController
 			{
 				$data = $report === 'activity' && $eventType === ''
 					? $activityData
-					: $model->getExportData($report, $days, '', '', $eventType);
+					: $model->getExportData($report, $range, '', '', $eventType);
 				$identifier = $report === 'event'
 					? 'event-' . $this->sanitiseFilenamePart($eventType)
 					: $report;
@@ -238,6 +241,38 @@ final class ReportController extends BaseController
 	}
 
 	/**
+	 * Returns a validated reporting range identifier.
+	 *
+	 * @return string
+	 */
+	private function getRange(): string
+	{
+		$allowed = ['today', 'yesterday', 'last24', '7', '30', '90', '365', 'all', '0'];
+		$range = strtolower($this->input->getCmd('days', '7'));
+		$range = \in_array($range, $allowed, true) ? $range : '7';
+
+		return $range === '0' ? 'all' : $range;
+	}
+
+	/**
+	 * Returns the row-history arguments supplied with an export request.
+	 *
+	 * @return array<string, string>
+	 */
+	private function getHistoryArguments(): array
+	{
+		return [
+			'dimension' => strtolower($this->input->getCmd('dimension', '')),
+			'value' => $this->input->getString('value', ''),
+			'event_type' => strtolower($this->input->getCmd('history_event_type', '')),
+			'item_type' => $this->input->getString('item_type', ''),
+			'item_id' => $this->input->getString('item_id', ''),
+			'item_title' => $this->input->getString('item_title', ''),
+			'path' => $this->input->getString('path', ''),
+		];
+	}
+
+	/**
 	 * Writes report-specific CSV headings and rows.
 	 *
 	 * @param resource             $stream Writable stream.
@@ -334,6 +369,49 @@ final class ReportController extends BaseController
 			return;
 		}
 
+		if ($kind === 'history')
+		{
+			fputcsv($stream, [
+				Text::_('COM_PUNGAANALYTICS_PERIOD'),
+				Text::_((string) (($data['history'] ?? [])['metric'] ?? 'COM_PUNGAANALYTICS_CSV_COUNT')),
+			]);
+
+			foreach ($data['rows'] as $row)
+			{
+				fputcsv($stream, [(string) $row->period_label, (int) $row->count]);
+			}
+
+			return;
+		}
+
+		if ($kind === 'notfound')
+		{
+			fputcsv($stream, [
+				Text::_('COM_PUNGAANALYTICS_CSV_PATH'),
+				Text::_('COM_PUNGAANALYTICS_HUMAN_REQUESTS'),
+				Text::_('COM_PUNGAANALYTICS_BOT_REQUESTS'),
+				Text::_('COM_PUNGAANALYTICS_REQUESTS'),
+				Text::_('COM_PUNGAANALYTICS_TOP_REFERRER'),
+				Text::_('COM_PUNGAANALYTICS_FIRST_SEEN'),
+				Text::_('COM_PUNGAANALYTICS_LAST_SEEN'),
+			]);
+
+			foreach ($data['rows'] as $row)
+			{
+				fputcsv($stream, [
+					(string) $row->path,
+					(int) $row->human,
+					(int) $row->bots,
+					(int) $row->total,
+					(string) $row->top_referrer,
+					(string) $row->first_seen,
+					(string) $row->last_seen,
+				]);
+			}
+
+			return;
+		}
+
 		fputcsv($stream, [
 			$kind === 'country' ? Text::_('COM_PUNGAANALYTICS_CSV_COUNTRY_CODE') : Text::_('COM_PUNGAANALYTICS_CSV_LABEL'),
 			Text::_('COM_PUNGAANALYTICS_CSV_COUNT'),
@@ -341,7 +419,22 @@ final class ReportController extends BaseController
 
 		foreach ($data['rows'] as $row)
 		{
-			fputcsv($stream, [(string) $row->label, (int) $row->count]);
+			$label = (string) $row->label;
+
+			if ($kind === 'source')
+			{
+				$label = Text::_(
+					[
+						'direct' => 'COM_PUNGAANALYTICS_SOURCE_DIRECT',
+						'search' => 'COM_PUNGAANALYTICS_SOURCE_SEARCH',
+						'social' => 'COM_PUNGAANALYTICS_SOURCE_SOCIAL',
+						'ai' => 'COM_PUNGAANALYTICS_SOURCE_AI',
+						'referral' => 'COM_PUNGAANALYTICS_SOURCE_REFERRAL',
+					][$label] ?? $label
+				);
+			}
+
+			fputcsv($stream, [$label, (int) $row->count]);
 		}
 	}
 

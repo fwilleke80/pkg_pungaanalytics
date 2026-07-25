@@ -28,6 +28,7 @@ return new class implements InstallerScriptInterface
 		'#__simplestats_daily_time' => '#__pungaanalytics_daily_time',
 		'#__simplestats_daily_event_time' => '#__pungaanalytics_daily_event_time',
 		'#__simplestats_daily_items' => '#__pungaanalytics_daily_items',
+		'#__simplestats_daily_404' => '#__pungaanalytics_daily_404',
 	];
 
 	/**

@@ -38,18 +38,21 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 	public static function getSubscribedEvents(): array
 	{
 		return [
-			'onAfterRoute' => 'onAfterRoute',
+			'onBeforeRespond' => 'onBeforeRespond',
 			'onPungaAnalyticsRecord' => 'onPungaAnalyticsRecord',
 			'onSimpleStatsRecord' => 'onSimpleStatsRecord',
 		];
 	}
 
 	/**
-	 * Records an eligible frontend page view after Joomla routing.
+	 * Records an eligible frontend page view after Joomla has produced the response.
+	 *
+	 * Waiting until this event makes the final HTTP status available, which allows
+	 * real 404 responses to be reported without guessing from the routed path.
 	 *
 	 * @return void
 	 */
-	public function onAfterRoute(): void
+	public function onBeforeRespond(): void
 	{
 		try
 		{
@@ -160,6 +163,8 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 			$path = $this->appendSafeQuery($path, $uri);
 		}
 
+		$httpStatus = $this->getResponseStatus();
+
 		$this->insertEvent(
 			$params,
 			[
@@ -170,6 +175,7 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 				'item_type' => '',
 				'item_id' => '',
 				'item_title' => '',
+				'http_status' => (string) $httpStatus,
 			],
 			true
 		);
@@ -236,6 +242,7 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 				'item_type' => (string) ($arguments['item_type'] ?? ''),
 				'item_id' => (string) ($arguments['item_id'] ?? ''),
 				'item_title' => (string) ($arguments['item_title'] ?? ''),
+				'http_status' => '0',
 			],
 			false
 		);
@@ -322,6 +329,9 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 		$secret = (string) $app->get('secret', '');
 		$visitorHash = substr(hash_hmac('sha256', $ipAddress . "\n" . $userAgent . "\n" . $visitDate, $secret), 0, 32);
 		$currentUri = Uri::getInstance();
+		[$referrerHost, $trafficSource] = $includeReferrer
+			? $this->getReferrerContext($currentUri)
+			: ['', ''];
 
 		$row = (object) [
 			'visited_at' => Factory::getDate('now', 'UTC')->toSql(),
@@ -332,7 +342,8 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 			'path' => mb_substr((string) $eventData['path'], 0, 1024),
 			'component' => mb_substr((string) $eventData['component'], 0, 100),
 			'view_name' => mb_substr((string) $eventData['view_name'], 0, 100),
-			'referrer_host' => $includeReferrer ? $this->getExternalReferrerHost($currentUri) : '',
+			'referrer_host' => $referrerHost,
+			'traffic_source' => $trafficSource,
 			'country_code' => $this->getCountryCode(
 				$ipAddress,
 				(string) $params->get('country_detection', 'local_dbip'),
@@ -348,6 +359,7 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 			'item_type' => mb_substr((string) $eventData['item_type'], 0, 64),
 			'item_id' => mb_substr((string) $eventData['item_id'], 0, 128),
 			'item_title' => mb_substr((string) $eventData['item_title'], 0, 255),
+			'http_status' => max(0, min(599, (int) ($eventData['http_status'] ?? 0))),
 		];
 
 		$this->getDatabase()->insertObject('#__pungaanalytics_events', $row);
@@ -561,24 +573,167 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 	}
 
 	/**
-	 * Returns the external referrer hostname only.
+	 * Returns privacy-minimal referrer and traffic-source information.
 	 *
 	 * @param Uri $currentUri Current request URI.
 	 *
-	 * @return string
+	 * @return array{0:string, 1:string} External hostname and source category.
 	 */
-	private function getExternalReferrerHost(Uri $currentUri): string
+	private function getReferrerContext(Uri $currentUri): array
 	{
 		$referrer = $this->getApplication()->input->server->getString('HTTP_REFERER', '');
+
+		if ($referrer === '')
+		{
+			return ['', 'direct'];
+		}
+
 		$host = strtolower((string) parse_url($referrer, PHP_URL_HOST));
 		$currentHost = strtolower((string) $currentUri->getHost());
 
-		if ($host === '' || $host === $currentHost)
+		if ($host === '')
 		{
-			return '';
+			return ['', 'direct'];
 		}
 
-		return mb_substr($host, 0, 255);
+		$comparisonHost = preg_replace('/^www\./', '', $host) ?: $host;
+		$comparisonCurrentHost = preg_replace('/^www\./', '', $currentHost) ?: $currentHost;
+
+		if ($comparisonHost === $comparisonCurrentHost)
+		{
+			return ['', 'internal'];
+		}
+
+		$host = mb_substr($host, 0, 255);
+
+		return [$host, $this->classifyTrafficSource($host)];
+	}
+
+	/**
+	 * Classifies one external referrer hostname into a broad acquisition source.
+	 *
+	 * @param string $host Lower-case external hostname.
+	 *
+	 * @return string search, social, ai, or referral.
+	 */
+	private function classifyTrafficSource(string $host): string
+	{
+		$host = preg_replace('/^www\./', '', strtolower(trim($host))) ?: '';
+		$aiHosts = [
+			'chatgpt.com',
+			'openai.com',
+			'perplexity.ai',
+			'claude.ai',
+			'gemini.google.com',
+			'copilot.microsoft.com',
+			'poe.com',
+			'you.com',
+			'phind.com',
+			'mistral.ai',
+		];
+		$socialHosts = [
+			'facebook.com',
+			'instagram.com',
+			'threads.net',
+			'twitter.com',
+			'x.com',
+			't.co',
+			'linkedin.com',
+			'reddit.com',
+			'pinterest.com',
+			'bsky.app',
+			'youtube.com',
+			'tiktok.com',
+			't.me',
+			'telegram.me',
+			'whatsapp.com',
+		];
+		$searchHosts = [
+			'google.',
+			'bing.com',
+			'duckduckgo.com',
+			'search.yahoo.',
+			'yandex.',
+			'ecosia.org',
+			'startpage.com',
+			'search.brave.com',
+			'baidu.com',
+			'qwant.com',
+		];
+
+		if ($this->hostMatches($host, $aiHosts))
+		{
+			return 'ai';
+		}
+
+		if ($this->hostMatches($host, $socialHosts))
+		{
+			return 'social';
+		}
+
+		if ($this->hostMatches($host, $searchHosts))
+		{
+			return 'search';
+		}
+
+		return 'referral';
+	}
+
+	/**
+	 * Returns whether a hostname matches one of the supplied domain markers.
+	 *
+	 * A marker ending in a dot is treated as a substring so country-specific
+	 * search-engine domains such as google.de and google.co.uk are recognised.
+	 *
+	 * @param string             $host    Normalised hostname.
+	 * @param array<int, string> $markers Domain names or substring markers.
+	 *
+	 * @return bool
+	 */
+	private function hostMatches(string $host, array $markers): bool
+	{
+		foreach ($markers as $marker)
+		{
+			if (str_ends_with($marker, '.'))
+			{
+				if (str_contains($host, $marker))
+				{
+					return true;
+				}
+
+				continue;
+			}
+
+			if ($host === $marker || str_ends_with($host, '.' . $marker))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Returns Joomla's final HTTP response status.
+	 *
+	 * @return int Status code from 100 through 599.
+	 */
+	private function getResponseStatus(): int
+	{
+		$app = $this->getApplication();
+		$status = 200;
+
+		if (method_exists($app, 'getResponse'))
+		{
+			$response = $app->getResponse();
+
+			if (\is_object($response) && method_exists($response, 'getStatusCode'))
+			{
+				$status = (int) $response->getStatusCode();
+			}
+		}
+
+		return $status >= 100 && $status <= 599 ? $status : 200;
 	}
 
 	/**
@@ -597,6 +752,8 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 
 		$host = strtolower((string) parse_url($referrer, PHP_URL_HOST));
 		$currentHost = strtolower((string) Uri::getInstance()->getHost());
+		$host = preg_replace('/^www\./', '', $host) ?: $host;
+		$currentHost = preg_replace('/^www\./', '', $currentHost) ?: $currentHost;
 
 		if ($host === '' || $host !== $currentHost)
 		{

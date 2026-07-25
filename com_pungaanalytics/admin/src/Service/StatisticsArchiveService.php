@@ -33,7 +33,7 @@ final class StatisticsArchiveService
 	 */
 	public function archiveExpired(int $retentionDays, string $timezone): int
 	{
-		$retentionDays = max(1, $retentionDays);
+		$retentionDays = max(2, $retentionDays);
 		$cutoff = new Date('now', $timezone);
 		$cutoff->modify('-' . max(0, $retentionDays - 1) . ' days');
 
@@ -68,6 +68,7 @@ final class StatisticsArchiveService
 				$this->archiveTimeBuckets($cutoffDate);
 				$this->archiveCustomEventTimeBuckets($cutoffDate);
 				$this->archiveEventItems($cutoffDate);
+				$this->archiveNotFoundRequests($cutoffDate);
 
 				$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
 				$db->setQuery(
@@ -107,6 +108,7 @@ final class StatisticsArchiveService
 			'#__pungaanalytics_daily_time',
 			'#__pungaanalytics_daily_event_time',
 			'#__pungaanalytics_daily_items',
+			'#__pungaanalytics_daily_404',
 		];
 		$removed = 0;
 		$lockName = $this->acquireLock();
@@ -224,7 +226,7 @@ final class StatisticsArchiveService
 			$cutoffDate,
 			'path',
 			'path',
-			"`is_bot` = 0 AND `event_type` = 'pageview'"
+			"`is_bot` = 0 AND `event_type` = 'pageview' AND `http_status` < 400"
 		);
 		$this->archiveDimension(
 			$cutoffDate,
@@ -269,6 +271,13 @@ final class StatisticsArchiveService
 			'event_type',
 			"`is_bot` = 0 AND `event_type` <> 'pageview'"
 		);
+		$this->archiveDimension(
+			$cutoffDate,
+			'traffic_source',
+			'traffic_source',
+			"`is_bot` = 0 AND `event_type` = 'pageview' AND `http_status` < 400 "
+				. "AND `traffic_source` IN ('direct', 'search', 'social', 'ai', 'referral')"
+		);
 	}
 
 	/**
@@ -299,6 +308,7 @@ final class StatisticsArchiveService
 			'browser_family',
 			'bot_name',
 			'event_type',
+			'traffic_source',
 		];
 
 		if (!\in_array($labelColumn, $allowedColumns, true))
@@ -476,6 +486,37 @@ final class StatisticsArchiveService
 			. ' GROUP BY `visit_date`, `event_type`, `item_type`, `item_id`, `item_title`, `path` '
 			. 'ON DUPLICATE KEY UPDATE '
 			. '`event_count` = `event_count` + VALUES(`event_count`)';
+
+		$db->setQuery($sql)->execute();
+	}
+
+	/**
+	 * Archives 404 request details needed by the permanent maintenance report.
+	 *
+	 * @param string $cutoffDate First retained raw-event date.
+	 *
+	 * @return void
+	 */
+	private function archiveNotFoundRequests(string $cutoffDate): void
+	{
+		$db = $this->database;
+		$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
+		$notFoundTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_daily_404'));
+		$sql = 'INSERT INTO ' . $notFoundTable . ' ('
+			. '`visit_date`, `row_hash`, `path`, `referrer_host`, `is_bot`, '
+			. '`request_count`, `first_seen`, `last_seen`'
+			. ') SELECT '
+			. '`visit_date`, '
+			. 'SHA2(CONCAT_WS(CHAR(31), `path`, `referrer_host`, `is_bot`), 256), '
+			. '`path`, `referrer_host`, `is_bot`, COUNT(*), MIN(`visited_at`), MAX(`visited_at`) '
+			. 'FROM ' . $eventsTable
+			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
+			. " AND `event_type` = 'pageview' AND `http_status` = 404"
+			. ' GROUP BY `visit_date`, `path`, `referrer_host`, `is_bot` '
+			. 'ON DUPLICATE KEY UPDATE '
+			. '`request_count` = `request_count` + VALUES(`request_count`), '
+			. '`first_seen` = LEAST(`first_seen`, VALUES(`first_seen`)), '
+			. '`last_seen` = GREATEST(`last_seen`, VALUES(`last_seen`))';
 
 		$db->setQuery($sql)->execute();
 	}
