@@ -98,9 +98,9 @@ final class HtmlView extends BaseHtmlView
 		$this->pagination->setAdditionalUrlParam('direction', $this->direction);
 
 		$app->getDocument()->getWebAssetManager()->registerAndUseStyle(
-			'com_pungaanalytics.admin.0.7.3',
-			'com_pungaanalytics/css/admin-0.7.3.css',
-			['version' => '0.7.3']
+			'com_pungaanalytics.admin.0.7.5',
+			'com_pungaanalytics/admin-0.7.5.css',
+			['version' => '0.7.5']
 		);
 
 		ToolbarHelper::title(

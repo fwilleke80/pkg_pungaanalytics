@@ -121,6 +121,7 @@ final class StatisticsQueryService
 			'from' => $from,
 			'to' => $to,
 			'summary' => $this->getSummary($from, $to),
+			'customEventDefinitions' => $this->customEventDefinitions,
 			'summaryDefinitions' => $this->getDefinitionsFor('show_summary'),
 			'topPages' => $topPagesLimit > 0
 				? $this->getDimensionRows(

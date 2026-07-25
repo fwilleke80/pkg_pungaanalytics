@@ -102,9 +102,9 @@ final class HtmlView extends BaseHtmlView
 
 		$document = $app->getDocument();
 		$document->getWebAssetManager()->registerAndUseStyle(
-			'com_pungaanalytics.admin.0.7.3',
-			'com_pungaanalytics/css/admin-0.7.3.css',
-			['version' => '0.7.3']
+			'com_pungaanalytics.admin.0.7.5',
+			'com_pungaanalytics/admin-0.7.5.css',
+			['version' => '0.7.5']
 		);
 
 		$this->addToolbar();

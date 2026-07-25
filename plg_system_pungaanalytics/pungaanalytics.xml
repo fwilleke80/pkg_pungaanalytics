@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension type="plugin" group="system" method="upgrade">
 	<name>PLG_SYSTEM_PUNGAANALYTICS</name>
-	<version>0.7.4</version>
+	<version>0.7.5</version>
 	<targetplatform name="joomla" version="6.*" />
-	<creationDate>2026-07-24</creationDate>
+	<creationDate>2026-07-25</creationDate>
 	<author>Frank Willeke</author>
 	<copyright>Copyright (C) 2026 Frank Willeke</copyright>
 	<license>GNU General Public License version 2 or later</license>

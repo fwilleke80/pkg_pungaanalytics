@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Router\Route;
+use Joomla\CMS\Uri\Uri;
 
 \defined('_JEXEC') or die;
 
@@ -15,8 +16,8 @@ if ($statistics === [])
 
 Factory::getApplication()->getDocument()->getWebAssetManager()->registerAndUseStyle(
 	'mod_pungaanalytics.admin',
-	'mod_pungaanalytics/css/admin.css',
-	['version' => '0.7.4']
+	'mod_pungaanalytics/admin.css',
+	['version' => '0.7.5']
 );
 
 $summary = $statistics['summary'];
@@ -24,6 +25,7 @@ $escape = static fn(mixed $value): string => htmlspecialchars((string) $value, E
 $number = static fn(mixed $value): string => number_format((int) $value);
 $days = (int) $statistics['days'];
 $dashboardUrl = Route::_('index.php?option=com_pungaanalytics&days=' . $days);
+$siteRoot = rtrim(Uri::root(), '/');
 $rangeLabels = [
 	7 => 'MOD_PUNGAANALYTICS_RANGE_7',
 	30 => 'MOD_PUNGAANALYTICS_RANGE_30',
@@ -44,17 +46,14 @@ $metrics = [
 	],
 ];
 
-if ((bool) $params->get('show_custom_events', 1))
+foreach ($statistics['moduleEventDefinitions'] as $definition)
 {
-	foreach ($statistics['summaryDefinitions'] as $definition)
-	{
-		$eventType = (string) $definition['event_type'];
-		$metrics[] = [
-			'value' => (int) (($summary->events ?? [])[$eventType] ?? 0),
-			'label' => (string) $definition['title'],
-			'icon' => (string) $definition['icon'],
-		];
-	}
+	$eventType = (string) $definition['event_type'];
+	$metrics[] = [
+		'value' => (int) (($summary->events ?? [])[$eventType] ?? 0),
+		'label' => (string) $definition['title'],
+		'icon' => (string) $definition['icon'],
+	];
 }
 
 if ((bool) $params->get('show_bots', 1))
@@ -100,10 +99,17 @@ if ((bool) $params->get('show_bots', 1))
 			<?php else : ?>
 				<ol>
 					<?php foreach ($statistics['topPages'] as $row) : ?>
+						<?php
+						$pageLabel = (string) ($row->label ?? '');
+						$pageUrl = $siteRoot . '/' . ltrim($pageLabel, '/');
+						?>
 						<li>
-							<span title="<?php echo $escape($row->label ?? ''); ?>">
-								<?php echo $escape($row->label ?? ''); ?>
-							</span>
+							<a href="<?php echo $escape($pageUrl); ?>"
+								title="<?php echo $escape($pageLabel); ?>"
+								target="_blank"
+								rel="noopener noreferrer">
+								<?php echo $escape($pageLabel); ?>
+							</a>
 							<strong><?php echo $number($row->count ?? 0); ?></strong>
 						</li>
 					<?php endforeach; ?>
