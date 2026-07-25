@@ -1,8 +1,9 @@
 .pa-admin-module
 {
+	border-top: 1px solid var(--template-bg-dark-10, #d9dee3);
 	display: grid;
 	gap: 1.15rem;
-	padding: .2rem 0 .1rem;
+	padding: 1rem;
 }
 
 .pa-admin-module__range

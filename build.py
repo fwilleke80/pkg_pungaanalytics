@@ -9,7 +9,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
-VERSION = "0.7.5"
+VERSION = "0.7.6"
 ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT.parent
 BUILD = ROOT / ".build"
@@ -75,6 +75,9 @@ def main() -> None:
     create_zip(package_stage, package_output)
 
     with zipfile.ZipFile(source_output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+        source_root = Path(f"pkg_pungaanalytics-{VERSION}")
+        archive.write(package_output, (source_root / package_output.name).as_posix())
+
         for path in sorted(ROOT.rglob("*")):
             if (
                 not path.is_file()
@@ -84,7 +87,7 @@ def main() -> None:
             ):
                 continue
 
-            archive.write(path, (Path(f"pkg_pungaanalytics-{VERSION}") / path.relative_to(ROOT)).as_posix())
+            archive.write(path, (source_root / path.relative_to(ROOT)).as_posix())
 
     checksum_output = OUTPUT / f"pkg_pungaanalytics-{VERSION}.sha256.txt"
     checksum_output.write_text(

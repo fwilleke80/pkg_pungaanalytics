@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.6 — 2026-07-25
+
+- Added a full-width divider between the Home Dashboard module title and its content.
+- Added a consistent one-rem content inset so the module no longer touches its outer card border.
+- Updated the module asset cache version and all extension release metadata.
+
 ## 0.7.5 — 2026-07-25
 
 - Corrected administrator Web Asset Manager URIs so component and Home Dashboard module styles resolve from their installed media directories.

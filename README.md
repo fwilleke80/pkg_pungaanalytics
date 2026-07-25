@@ -2,7 +2,7 @@
 
 Punga Analytics is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.7.5`
+> **Current version:** `0.7.6`
 >
 > **Package:** `pkg_pungaanalytics`
 
@@ -397,7 +397,7 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 ## Installation and update
 
 1. Open **System → Install → Extensions** in Joomla Administrator.
-2. Upload `pkg_pungaanalytics-0.7.5.zip`.
+2. Upload `pkg_pungaanalytics-0.7.6.zip`.
 3. Open **Components → Punga Analytics**.
 4. Click **Update country database**.
 5. Review the options and optionally exclude the site owner's Joomla user ID.
@@ -511,6 +511,10 @@ metrics, a smaller Most viewed pages heading, and clickable frontend page
 links. Hard-coded Overview-event behaviour is replaced by a dynamic checkbox
 list of every globally configured custom event, with independent selections
 per module instance and a compatibility fallback for existing instances.
+
+Version 0.7.6 completes the Home Dashboard module styling with the same visual
+separation used by Joomla's built-in administrator cards: a divider beneath the
+module title and a consistent inset between the module content and card border.
 
 ## Resetting statistics
 
