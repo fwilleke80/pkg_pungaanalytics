@@ -2,7 +2,7 @@
 
 Punga Analytics is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.7.4`
+> **Current version:** `0.7.5`
 >
 > **Package:** `pkg_pungaanalytics`
 
@@ -343,15 +343,18 @@ The package includes a small administrator module for seeing the most useful
 figures without opening the full component dashboard. It displays:
 
 - Human visitor-days and page views
-- Configured custom-event totals enabled for the main Overview
+- Per-module selections from all globally configured custom events
 - Bot page views
-- A configurable number of most-viewed pages
+- A configurable number of most-viewed pages with frontend links
 - A direct link to the complete Punga Analytics dashboard
 
 The module defaults to the last seven days. Its reporting range, custom-event
-totals, bot total, top-pages list, and top-pages limit can be changed in the
-module settings. The package creates and publishes one instance in the
-administrator `cpanel` position when no Punga Analytics module exists yet.
+checkbox selection, bot total, top-pages list, and top-pages limit can be
+changed independently for every module instance. Existing module instances
+initially retain the former selection of events enabled for the component
+Overview; saving an explicit checkbox selection replaces that compatibility
+fallback. The package creates and publishes one instance in the administrator
+`cpanel` position when no Punga Analytics module exists yet.
 
 ## Default configuration
 
@@ -394,7 +397,7 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 ## Installation and update
 
 1. Open **System → Install → Extensions** in Joomla Administrator.
-2. Upload `pkg_pungaanalytics-0.7.4.zip`.
+2. Upload `pkg_pungaanalytics-0.7.5.zip`.
 3. Open **Components → Punga Analytics**.
 4. Click **Update country database**.
 5. Review the options and optionally exclude the site owner's Joomla user ID.
@@ -501,6 +504,13 @@ Version 0.7.4 also gives those charts the Activity over time chart's exact SVG
 dimensions, aspect ratio, plot margins, plot height, and bar width. This keeps
 the charts compact inside their half-width panels and prevents their axis text
 from being scaled larger than the traffic chart.
+
+Version 0.7.5 corrects the administrator stylesheet URIs for both the component
+and Home Dashboard module. It gives the module properly spaced two-column
+metrics, a smaller Most viewed pages heading, and clickable frontend page
+links. Hard-coded Overview-event behaviour is replaced by a dynamic checkbox
+list of every globally configured custom event, with independent selections
+per module instance and a compatibility fallback for existing instances.
 
 ## Resetting statistics
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.5 — 2026-07-25
+
+- Corrected administrator Web Asset Manager URIs so component and Home Dashboard module styles resolve from their installed media directories.
+- Improved Home Dashboard module spacing and arranged metric cards in a compact two-column layout.
+- Reduced the visual prominence of the Most viewed pages heading.
+- Made every most-viewed-page entry a direct link to its frontend URL.
+- Replaced the single hard-coded custom-event switch with a checkbox list generated from every globally configured custom-event definition.
+- Added independent event selections per module instance.
+- Preserved the former Overview-event behaviour for existing modules until an explicit per-module selection is saved.
+- Updated all extension manifests, release documentation, and cache-busting asset versions.
+
 ## 0.7.4 — 2026-07-24
 
 - Matched the hour-of-day and weekday charts to the Activity over time chart's exact `1200 × 240` SVG geometry.
