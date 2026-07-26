@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.1 — 2026-07-26
+
+- Fixed Joomla error-document status detection by reading the final `Status`
+  response header before falling back to the PSR-7 response status code.
+- Restored recording and reporting of newly requested 404 paths for both human
+  and bot traffic; Joomla can send a 404 error document while its response
+  object's status code still reports 200.
+- Retained safe PSR-7 and `http_response_code()` fallbacks for responses that do
+  not expose Joomla's special status header.
+- Documented that 404 requests misclassified by version 0.8.0 cannot be
+  reconstructed retrospectively.
+- Updated all extension manifests, release metadata, documentation, and
+  versioned administrator assets.
+
 ## 0.8.0 — 2026-07-25
 
 - Added Today, Yesterday, and exact rolling Last 24 hours ranges to the

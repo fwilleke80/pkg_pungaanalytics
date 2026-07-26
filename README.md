@@ -2,7 +2,7 @@
 
 Punga Analytics is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.8.0`
+> **Current version:** `0.8.1`
 >
 > **Package:** `pkg_pungaanalytics`
 
@@ -410,7 +410,7 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 ## Installation and update
 
 1. Open **System → Install → Extensions** in Joomla Administrator.
-2. Upload `pkg_pungaanalytics-0.8.0.zip`.
+2. Upload `pkg_pungaanalytics_v0-8-1.zip`.
 3. Open **Components → Punga Analytics**.
 4. Click **Update country database**.
 5. Review the options and optionally exclude the site owner's Joomla user ID.
@@ -537,11 +537,19 @@ retention minimum is two days so a rolling 24-hour query remains exact.
 
 Traffic-source categories deliberately use only the external referrer hostname;
 Punga Analytics still does not store full referrer URLs. Internal navigation is
-classified separately and omitted from the acquisition report. Categories and
-404 history are complete for events collected by 0.8.0 and later. Existing
-archived external referrer hostnames are categorised during update, but older
-blank archived referrers cannot reliably be divided into direct and internal
-traffic, and old 404 responses cannot be reconstructed.
+classified separately and omitted from the acquisition report. Traffic-source
+history is complete for events collected by 0.8.0 and later. Existing archived
+external referrer hostnames are categorised during update, but older blank
+archived referrers cannot reliably be divided into direct and internal traffic.
+
+Version 0.8.1 corrects final HTTP-status detection for Joomla error documents.
+Joomla can place a status such as `404 Not Found` in its special `Status`
+response header while the PSR-7 response object's numeric status remains 200.
+The collector now reads that header first and retains the response object and
+`http_response_code()` as fallbacks. Newly requested nonexistent paths are
+therefore recorded correctly for both human and bot traffic. Reliable 404
+history begins with version 0.8.1; requests misclassified by version 0.8.0
+cannot be reconstructed from the stored data.
 
 ## Resetting statistics
 
@@ -599,4 +607,5 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Traffic-source history is complete from version 0.8.0 onward. Older archived
   external referrers are categorised during update, but old blank referrers
   cannot be distinguished as direct or internal.
-- Historical 404 responses recorded before version 0.8.0 cannot be reconstructed.
+- 404 responses recorded before version 0.8.1, including requests misclassified
+  by version 0.8.0, cannot be reconstructed.
