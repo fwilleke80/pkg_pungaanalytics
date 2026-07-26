@@ -716,22 +716,41 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 	/**
 	 * Returns Joomla's final HTTP response status.
 	 *
+	 * Joomla error documents store their status in the special Status header
+	 * without changing the PSR-7 response object's status code.
+	 *
 	 * @return int Status code from 100 through 599.
 	 */
 	private function getResponseStatus(): int
 	{
 		$app = $this->getApplication();
-		$status = 200;
 
 		if (method_exists($app, 'getResponse'))
 		{
 			$response = $app->getResponse();
 
+			if (\is_object($response) && method_exists($response, 'getHeaderLine'))
+			{
+				$statusHeader = trim((string) $response->getHeaderLine('Status'));
+
+				if (preg_match('/^([1-5][0-9]{2})\b/', $statusHeader, $matches) === 1)
+				{
+					return (int) $matches[1];
+				}
+			}
+
 			if (\is_object($response) && method_exists($response, 'getStatusCode'))
 			{
 				$status = (int) $response->getStatusCode();
+
+				if ($status >= 100 && $status <= 599)
+				{
+					return $status;
+				}
 			}
 		}
+
+		$status = (int) http_response_code();
 
 		return $status >= 100 && $status <= 599 ? $status : 200;
 	}

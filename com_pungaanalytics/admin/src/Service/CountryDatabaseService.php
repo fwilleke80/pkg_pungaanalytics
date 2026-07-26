@@ -208,7 +208,7 @@ final class CountryDatabaseService
 			@unlink($destination);
 		}
 
-		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Punga Analytics/0.8.0'], 90);
+		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Punga Analytics/0.8.1'], 90);
 
 		if ($response->code < 200 || $response->code >= 300)
 		{
