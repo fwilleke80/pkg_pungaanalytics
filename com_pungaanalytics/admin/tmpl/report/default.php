@@ -134,6 +134,53 @@ elseif (($history['dimension'] ?? '') === 'country')
 $displayTitle = $kind === 'history'
 	? Text::sprintf('COM_PUNGAANALYTICS_HISTORY_TITLE', $historyDisplayValue)
 	: Text::_((string) $this->data['title']);
+$dashboardViewByReport = [
+	'activity' => 'traffic',
+	'hours' => 'traffic',
+	'weekdays' => 'traffic',
+	'pages' => 'content',
+	'notfound' => 'content',
+	'event' => 'engagement',
+	'sources' => 'acquisition',
+	'referrers' => 'acquisition',
+	'countries' => 'audience',
+	'languages' => 'audience',
+	'devices' => 'audience',
+	'browsers' => 'audience',
+	'bots' => 'audience',
+	'events' => 'audience',
+];
+$historyDashboardView = match ((string) ($history['dimension'] ?? ''))
+{
+	'page', 'notfound' => 'content',
+	'event_item' => 'engagement',
+	'source', 'referrer' => 'acquisition',
+	'country', 'language', 'device', 'browser', 'bot', 'event' => 'audience',
+	default => 'overview',
+};
+$dashboardView = $report === 'history'
+	? $historyDashboardView
+	: ($dashboardViewByReport[$report] ?? 'overview');
+$audienceView = match ((string) ($history['dimension'] ?? ''))
+{
+	'country' => 'countries',
+	'language' => 'languages',
+	'device' => 'devices',
+	'browser' => 'browsers',
+	'bot' => 'bots',
+	'event' => 'events',
+	default => \in_array($report, ['countries', 'languages', 'devices', 'browsers', 'bots', 'events'], true)
+		? $report
+		: '',
+};
+$dashboardBackUrl = Route::_(
+	'index.php?option=com_pungaanalytics'
+	. '&days=' . rawurlencode($this->range)
+	. '&dashboardview=' . rawurlencode($dashboardView)
+	. ($dashboardView === 'audience' && $audienceView !== ''
+		? '&audienceview=' . rawurlencode($audienceView)
+		: '')
+);
 $historyDimensionByReport = [
 	'pages' => 'page',
 	'countries' => 'country',
@@ -189,7 +236,7 @@ $sortHeading = static function (
 				<p><?php echo Text::sprintf('COM_PUNGAANALYTICS_DATE_RANGE', $escape($this->data['displayFrom']), $escape($this->data['displayTo'])); ?></p>
 			</div>
 		<div class="pa-report__actions">
-			<a class="btn btn-secondary" href="<?php echo Route::_('index.php?option=com_pungaanalytics&days=' . rawurlencode($this->range)); ?>">
+			<a class="btn btn-secondary" href="<?php echo $dashboardBackUrl; ?>">
 				<span class="icon-arrow-left" aria-hidden="true"></span>
 				<?php echo Text::_('COM_PUNGAANALYTICS_BACK_TO_DASHBOARD'); ?>
 			</a>

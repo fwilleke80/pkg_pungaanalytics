@@ -333,7 +333,7 @@ $sortableHeading = static function (
 	string $label,
 	string $defaultDirection,
 	string $className = ''
-) use ($escape, $getDashboardSortState, $selectedRange): string
+) use ($escape, $getDashboardSortState, $selectedRange, $rankingTableKeys): string
 {
 	[$currentField, $currentDirection] = $getDashboardSortState($table);
 	$active = $currentField === $field;
@@ -349,12 +349,23 @@ $sortableHeading = static function (
 			. '</span>'
 		: '';
 	$classAttribute = $className === '' ? '' : ' class="' . $escape($className) . '"';
+	$tableView = match (true)
+	{
+		\in_array($table, ['activity', 'hours', 'weekdays'], true) => 'traffic',
+		\in_array($table, ['pages', 'notfound'], true) => 'content',
+		\in_array($table, $rankingTableKeys, true) => 'engagement',
+		\in_array($table, ['sources', 'referrers'], true) => 'acquisition',
+		\in_array($table, ['countries', 'languages', 'devices', 'browsers', 'bots', 'events'], true) => 'audience',
+		default => 'overview',
+	};
 	$url = Route::_(
 		'index.php?option=com_pungaanalytics'
 		. '&days=' . rawurlencode($selectedRange)
 		. '&sort_table=' . rawurlencode($table)
 		. '&sort=' . rawurlencode($field)
-		. '&direction=' . rawurlencode($nextDirection),
+		. '&direction=' . rawurlencode($nextDirection)
+		. '&dashboardview=' . rawurlencode($tableView)
+		. ($tableView === 'audience' ? '&audienceview=' . rawurlencode($table) : ''),
 		false
 	) . '#pa-table-' . rawurlencode($table);
 
@@ -524,6 +535,82 @@ $acquisitionSortTables = ['sources', 'referrers'];
 $audienceSortTables = ['countries', 'languages', 'devices', 'browsers', 'bots', 'events'];
 $systemNeedsAttention = $this->countryStatus === []
 	|| !(bool) ($this->countryStatus['files_ready'] ?? false);
+$dashboardViewIds = [
+	'overview' => 'pa-dashboard-overview',
+	'traffic' => 'pa-dashboard-traffic',
+	'content' => 'pa-dashboard-content',
+	'engagement' => 'pa-dashboard-engagement',
+	'acquisition' => 'pa-dashboard-acquisition',
+	'audience' => 'pa-dashboard-audience',
+	'system' => 'pa-dashboard-system',
+];
+$sortTableViews = [
+	'activity' => 'traffic',
+	'hours' => 'traffic',
+	'weekdays' => 'traffic',
+	'pages' => 'content',
+	'notfound' => 'content',
+	'sources' => 'acquisition',
+	'referrers' => 'acquisition',
+	'countries' => 'audience',
+	'languages' => 'audience',
+	'devices' => 'audience',
+	'browsers' => 'audience',
+	'bots' => 'audience',
+	'events' => 'audience',
+];
+
+foreach ($rankingTableKeys as $rankingTableKey)
+{
+	$sortTableViews[(string) $rankingTableKey] = 'engagement';
+}
+
+$requestedDashboardView = strtolower(Factory::getApplication()->input->getCmd('dashboardview', ''));
+$activeDashboardView = isset($dashboardViewIds[$requestedDashboardView])
+	? $requestedDashboardView
+	: ($sortTableViews[$this->sortTable] ?? 'overview');
+
+if ($activeDashboardView === 'engagement' && $rankingDefinitions === [])
+{
+	$activeDashboardView = 'overview';
+}
+
+$audienceViews = ['countries', 'languages', 'devices', 'browsers', 'bots', 'events'];
+$requestedAudienceView = strtolower(Factory::getApplication()->input->getCmd('audienceview', ''));
+$activeAudienceView = \in_array($this->sortTable, $audienceViews, true)
+	? $this->sortTable
+	: (\in_array($requestedAudienceView, $audienceViews, true) ? $requestedAudienceView : 'countries');
+$dashboardBaseUrl = static function (string $view, string $audienceView = '') use ($selectedRange): string
+{
+	$query = [
+		'option' => 'com_pungaanalytics',
+		'days' => $selectedRange,
+		'dashboardview' => $view,
+	];
+
+	if ($view === 'audience' && $audienceView !== '')
+	{
+		$query['audienceview'] = $audienceView;
+	}
+
+	return Route::_('index.php?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986));
+};
+$topPage = $this->data['topPages'][0] ?? null;
+$topSource = $this->data['trafficSources'][0] ?? null;
+$topCountry = $this->data['countries'][0] ?? null;
+$topEngagement = null;
+$topEngagementTitle = '';
+
+foreach ($this->data['customEventRankings'] ?? [] as $ranking)
+{
+	$rows = $ranking['rows'] ?? [];
+
+	if ($rows !== [] && ($topEngagement === null || (int) $rows[0]->count > (int) $topEngagement->count))
+	{
+		$topEngagement = $rows[0];
+		$topEngagementTitle = (string) ($ranking['definition']['title'] ?? '');
+	}
+}
 ?>
 <form action="<?php echo Route::_('index.php?option=com_pungaanalytics'); ?>" method="post" id="adminForm" name="adminForm">
 	<input type="hidden" name="option" value="com_pungaanalytics">
@@ -551,7 +638,11 @@ $systemNeedsAttention = $this->countryStatus === []
 						<?php foreach ($rangeOptions as $value => $label) : ?>
 							<a class="<?php echo $selectedRange === $value ? 'is-active' : ''; ?>"
 								<?php echo $selectedRange === $value ? 'aria-current="page"' : ''; ?>
-								href="<?php echo Route::_('index.php?option=com_pungaanalytics&days=' . rawurlencode((string) $value)); ?>">
+								href="<?php echo Route::_(
+								'index.php?option=com_pungaanalytics&days=' . rawurlencode((string) $value)
+								. '&dashboardview=' . rawurlencode($activeDashboardView)
+								. ($activeDashboardView === 'audience' ? '&audienceview=' . rawurlencode($activeAudienceView) : '')
+							); ?>">
 								<span><?php echo $escape($label); ?></span>
 								<?php if ($selectedRange === $value) : ?>
 									<span class="icon-check" aria-hidden="true"></span>
@@ -566,39 +657,51 @@ $systemNeedsAttention = $this->countryStatus === []
 				</a>
 			</div>
 
-			<details class="pa-dashboard-section" id="pa-section-overview" open>
-				<summary class="pa-dashboard-section__summary">
-					<h2><span class="icon-dashboard" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_OVERVIEW'); ?></h2>
-				</summary>
-				<div class="pa-dashboard-section__content">
-					<section class="pa-panel pa-summary" aria-label="<?php echo Text::_('COM_PUNGAANALYTICS_OVERVIEW'); ?>">
-						<div class="table-responsive">
-							<table class="table mb-0">
-								<thead>
-									<tr>
-									<?php foreach ($summaryMetrics as [, $label, $icon]) : ?>
-										<th><span class="<?php echo $escape($icon); ?>" aria-hidden="true"></span><?php echo $escape($label); ?></th>
-									<?php endforeach; ?>
-									</tr>
-								</thead>
-								<tbody>
-									<tr>
-									<?php foreach ($summaryMetrics as [$value]) : ?>
-										<td><?php echo $number($value); ?></td>
-									<?php endforeach; ?>
-									</tr>
-								</tbody>
-							</table>
-						</div>
-					</section>
-				</div>
-			</details>
+			<div class="pa-dashboard-tabs">
+				<?php echo HTMLHelper::_('uitab.startTabSet', 'pungaAnalyticsDashboardTabs', [
+					'active' => $dashboardViewIds[$activeDashboardView],
+					'breakpoint' => 768,
+				]); ?>
 
-			<details class="pa-dashboard-section" id="pa-section-traffic" open>
-				<summary class="pa-dashboard-section__summary">
-					<h2><span class="icon-chart" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_TRAFFIC'); ?></h2>
-				</summary>
-				<div class="pa-dashboard-section__content">
+				<?php echo HTMLHelper::_('uitab.addTab', 'pungaAnalyticsDashboardTabs', $dashboardViewIds['overview'], Text::_('COM_PUNGAANALYTICS_OVERVIEW')); ?>
+				<div class="pa-dashboard-tab">
+					<section class="pa-summary-metrics" aria-label="<?php echo Text::_('COM_PUNGAANALYTICS_OVERVIEW'); ?>">
+						<?php foreach ($summaryMetrics as [$value, $label, $icon]) : ?>
+							<article class="pa-summary-metric">
+								<span class="pa-summary-metric__label"><span class="<?php echo $escape($icon); ?>" aria-hidden="true"></span><?php echo $escape($label); ?></span>
+								<strong><?php echo $number($value); ?></strong>
+							</article>
+						<?php endforeach; ?>
+					</section>
+					<div class="pa-overview-highlights">
+						<a class="pa-highlight" href="<?php echo $dashboardBaseUrl('content'); ?>">
+							<span class="pa-highlight__label"><?php echo Text::_('COM_PUNGAANALYTICS_TOP_PAGES'); ?></span>
+							<strong><?php echo $topPage === null ? Text::_('COM_PUNGAANALYTICS_NO_DATA') : $escape($topPage->label); ?></strong>
+							<span><?php echo $topPage === null ? '0' : $number($topPage->count); ?></span>
+						</a>
+						<a class="pa-highlight" href="<?php echo $dashboardBaseUrl('acquisition'); ?>">
+							<span class="pa-highlight__label"><?php echo Text::_('COM_PUNGAANALYTICS_TRAFFIC_SOURCES'); ?></span>
+							<strong><?php echo $topSource === null ? Text::_('COM_PUNGAANALYTICS_NO_DATA') : $escape($sourceLabels[(string) $topSource->label] ?? (string) $topSource->label); ?></strong>
+							<span><?php echo $topSource === null ? '0' : $number($topSource->count); ?></span>
+						</a>
+						<a class="pa-highlight" href="<?php echo $dashboardBaseUrl('audience', 'countries'); ?>">
+							<span class="pa-highlight__label"><?php echo Text::_('COM_PUNGAANALYTICS_COUNTRIES'); ?></span>
+							<strong><?php echo $topCountry === null ? Text::_('COM_PUNGAANALYTICS_NO_DATA') : $escape($countryName((string) $topCountry->label)); ?></strong>
+							<span><?php echo $topCountry === null ? '0' : $number($topCountry->count); ?></span>
+						</a>
+						<?php if ($rankingDefinitions !== []) : ?>
+							<a class="pa-highlight" href="<?php echo $dashboardBaseUrl('engagement'); ?>">
+								<span class="pa-highlight__label"><?php echo Text::_('COM_PUNGAANALYTICS_ENGAGEMENT'); ?></span>
+								<strong><?php echo $topEngagement === null ? Text::_('COM_PUNGAANALYTICS_NO_DATA') : $eventItemLabel($topEngagement); ?></strong>
+								<span><?php echo $topEngagement === null ? '0' : $escape($topEngagementTitle . ' · ' . $number($topEngagement->count)); ?></span>
+							</a>
+						<?php endif; ?>
+					</div>
+				</div>
+				<?php echo HTMLHelper::_('uitab.endTab'); ?>
+
+				<?php echo HTMLHelper::_('uitab.addTab', 'pungaAnalyticsDashboardTabs', $dashboardViewIds['traffic'], Text::_('COM_PUNGAANALYTICS_TRAFFIC')); ?>
+				<div class="pa-dashboard-tab">
 					<section class="pa-panel pa-panel--wide">
 						<header class="pa-panel__header">
 							<h3><?php echo Text::_('COM_PUNGAANALYTICS_ACTIVITY_TREND'); ?></h3>
@@ -712,15 +815,9 @@ $systemNeedsAttention = $this->countryStatus === []
 							<?php endif; ?>
 						</div>
 					</section>
-				</div>
-			</details>
-
-			<details class="pa-dashboard-section" id="pa-section-time"<?php echo \in_array($this->sortTable, $timeSortTables, true) ? ' open' : ''; ?>>
-				<summary class="pa-dashboard-section__summary">
-					<h2><span class="icon-clock" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_TIME_OF_DAY'); ?></h2>
-				</summary>
-				<div class="pa-dashboard-section__content">
-					<div class="pa-grid pa-grid--time">
+					<section class="pa-view-section" aria-labelledby="pa-time-of-day-heading">
+						<h2 class="pa-view-heading" id="pa-time-of-day-heading"><span class="icon-clock" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_TIME_OF_DAY'); ?></h2>
+						<div class="pa-grid pa-grid--time">
 					<section class="pa-panel">
 							<header class="pa-panel__header">
 								<h3><?php echo Text::_('COM_PUNGAANALYTICS_BY_HOUR'); ?></h3>
@@ -818,15 +915,13 @@ $systemNeedsAttention = $this->countryStatus === []
 						</table>
 					</div>
 				</section>
-					</div>
+						</div>
+					</section>
 				</div>
-			</details>
+				<?php echo HTMLHelper::_('uitab.endTab'); ?>
 
-			<details class="pa-dashboard-section" id="pa-section-content"<?php echo \in_array($this->sortTable, ['pages', 'notfound'], true) ? ' open' : ''; ?>>
-				<summary class="pa-dashboard-section__summary">
-					<h2><span class="icon-file" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_CONTENT'); ?></h2>
-				</summary>
-				<div class="pa-dashboard-section__content">
+				<?php echo HTMLHelper::_('uitab.addTab', 'pungaAnalyticsDashboardTabs', $dashboardViewIds['content'], Text::_('COM_PUNGAANALYTICS_CONTENT')); ?>
+				<div class="pa-dashboard-tab">
 					<div class="pa-grid pa-grid--content">
 				<section class="pa-panel">
 					<header class="pa-panel__header">
@@ -904,14 +999,11 @@ $systemNeedsAttention = $this->countryStatus === []
 				</section>
 					</div>
 				</div>
-			</details>
+				<?php echo HTMLHelper::_('uitab.endTab'); ?>
 
-			<?php if ($rankingDefinitions !== []) : ?>
-				<details class="pa-dashboard-section" id="pa-section-engagement"<?php echo \in_array($this->sortTable, $engagementSortTables, true) ? ' open' : ''; ?>>
-					<summary class="pa-dashboard-section__summary">
-						<h2><span class="icon-play" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_ENGAGEMENT'); ?></h2>
-					</summary>
-					<div class="pa-dashboard-section__content">
+				<?php if ($rankingDefinitions !== []) : ?>
+					<?php echo HTMLHelper::_('uitab.addTab', 'pungaAnalyticsDashboardTabs', $dashboardViewIds['engagement'], Text::_('COM_PUNGAANALYTICS_ENGAGEMENT')); ?>
+					<div class="pa-dashboard-tab">
 						<div class="pa-grid pa-grid--content">
 							<?php foreach ($rankingDefinitions as $definition) :
 								$tableKey = (string) $definition['table_key'];
@@ -969,14 +1061,11 @@ $systemNeedsAttention = $this->countryStatus === []
 							<?php endforeach; ?>
 						</div>
 					</div>
-				</details>
-			<?php endif; ?>
+					<?php echo HTMLHelper::_('uitab.endTab'); ?>
+				<?php endif; ?>
 
-			<details class="pa-dashboard-section" id="pa-section-acquisition"<?php echo \in_array($this->sortTable, $acquisitionSortTables, true) ? ' open' : ''; ?>>
-				<summary class="pa-dashboard-section__summary">
-					<h2><span class="icon-share" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_ACQUISITION'); ?></h2>
-				</summary>
-				<div class="pa-dashboard-section__content">
+				<?php echo HTMLHelper::_('uitab.addTab', 'pungaAnalyticsDashboardTabs', $dashboardViewIds['acquisition'], Text::_('COM_PUNGAANALYTICS_ACQUISITION')); ?>
+				<div class="pa-dashboard-tab">
 					<div class="pa-grid">
 						<?php
 						$acquisitionTables = [
@@ -1041,14 +1130,10 @@ $systemNeedsAttention = $this->countryStatus === []
 						<?php endforeach; ?>
 					</div>
 				</div>
-			</details>
+				<?php echo HTMLHelper::_('uitab.endTab'); ?>
 
-			<details class="pa-dashboard-section" id="pa-section-audience"<?php echo \in_array($this->sortTable, $audienceSortTables, true) ? ' open' : ''; ?>>
-				<summary class="pa-dashboard-section__summary">
-					<h2><span class="icon-users" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_AUDIENCE_TECHNOLOGY'); ?></h2>
-				</summary>
-				<div class="pa-dashboard-section__content">
-					<div class="pa-grid">
+				<?php echo HTMLHelper::_('uitab.addTab', 'pungaAnalyticsDashboardTabs', $dashboardViewIds['audience'], Text::_('COM_PUNGAANALYTICS_AUDIENCE_TECHNOLOGY')); ?>
+				<div class="pa-dashboard-tab pa-dashboard-tab--audience">
 				<?php
 				$historyDimensions = [
 					'countries' => 'country',
@@ -1066,11 +1151,18 @@ $systemNeedsAttention = $this->countryStatus === []
 					[Text::_('COM_PUNGAANALYTICS_BOT_NAMES'), $this->data['bots'], 'plain', 'bots'],
 					[Text::_('COM_PUNGAANALYTICS_CUSTOM_EVENTS'), $this->data['eventTypes'], 'plain', 'events'],
 				];
+				echo HTMLHelper::_('uitab.startTabSet', 'pungaAnalyticsAudienceTabs', [
+					'active' => 'pa-audience-' . $activeAudienceView,
+					'breakpoint' => 768,
+				]);
 				foreach ($dimensionTables as [$title, $rows, $mode, $report]) :
 					$rows = $sortDashboardRows($rows, $report);
 					$isCountry = $mode === 'country-pie';
 					$isPie = \in_array($mode, ['pie', 'country-pie'], true);
+					$audienceTitle = $title;
 				?>
+					<?php echo HTMLHelper::_('uitab.addTab', 'pungaAnalyticsAudienceTabs', 'pa-audience-' . $report, $audienceTitle); ?>
+					<div class="pa-audience-tab">
 					<section class="pa-panel pa-panel--compact">
 						<header class="pa-panel__header">
 							<h3><?php echo $escape($title); ?></h3>
@@ -1164,17 +1256,16 @@ $systemNeedsAttention = $this->countryStatus === []
 							</table>
 						<?php endif; ?>
 					</div>
-				</section>
-				<?php endforeach; ?>
+					</section>
 					</div>
+					<?php echo HTMLHelper::_('uitab.endTab'); ?>
+				<?php endforeach; ?>
+				<?php echo HTMLHelper::_('uitab.endTabSet'); ?>
 				</div>
-			</details>
+				<?php echo HTMLHelper::_('uitab.endTab'); ?>
 
-			<details class="pa-dashboard-section" id="pa-section-system"<?php echo $systemNeedsAttention ? ' open' : ''; ?>>
-				<summary class="pa-dashboard-section__summary">
-					<h2><span class="icon-cog" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_SYSTEM'); ?></h2>
-				</summary>
-				<div class="pa-dashboard-section__content">
+				<?php echo HTMLHelper::_('uitab.addTab', 'pungaAnalyticsDashboardTabs', $dashboardViewIds['system'], Text::_('COM_PUNGAANALYTICS_SYSTEM')); ?>
+				<div class="pa-dashboard-tab">
 					<section class="pa-panel pa-system">
 				<header class="pa-panel__header"><h3><?php echo Text::_('COM_PUNGAANALYTICS_PRIVACY_STATUS'); ?></h3></header>
 			<div class="pa-system__grid">
@@ -1198,6 +1289,8 @@ $systemNeedsAttention = $this->countryStatus === []
 			</div>
 					</section>
 				</div>
-			</details>
-	</div>
+				<?php echo HTMLHelper::_('uitab.endTab'); ?>
+				<?php echo HTMLHelper::_('uitab.endTabSet'); ?>
+			</div>
+		</div>
 </form>
