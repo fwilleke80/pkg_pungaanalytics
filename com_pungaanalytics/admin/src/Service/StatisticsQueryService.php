@@ -1379,6 +1379,73 @@ final class StatisticsQueryService
 	}
 
 	/**
+	 * Returns successful page views whose latest known response is still successful.
+	 *
+	 * Raw rows and the dedicated page archive are merged. The obsolete generic
+	 * path dimension is intentionally ignored because it did not preserve status.
+	 *
+	 * @param string $from  Inclusive date.
+	 * @param string $to    Inclusive date.
+	 * @param int    $limit Maximum rows, or zero for all.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getPageRows(string $from, string $to, int $limit): array
+	{
+		$db = $this->database;
+		$eventsAlias = 'page_event';
+		$statusAlias = 'page_status';
+		$rawQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName($eventsAlias . '.path') . ' AS ' . $db->quoteName('label'),
+				'COUNT(*) AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__pungaanalytics_events', $eventsAlias))
+			->join(
+				'INNER',
+				$db->quoteName('#__pungaanalytics_page_status', $statusAlias)
+					. ' ON UNHEX(' . $db->quoteName($statusAlias . '.path_hash') . ')'
+					. ' = UNHEX(SHA2(' . $db->quoteName($eventsAlias . '.path') . ', 256))'
+					. ' AND CAST(' . $db->quoteName($statusAlias . '.path') . ' AS BINARY)'
+					. ' = CAST(' . $db->quoteName($eventsAlias . '.path') . ' AS BINARY)'
+			)
+			->where($db->quoteName($eventsAlias . '.is_bot') . ' = 0')
+			->where($db->quoteName($eventsAlias . '.event_type') . ' = ' . $db->quote('pageview'))
+			->where($db->quoteName($eventsAlias . '.http_status') . ' >= 200')
+			->where($db->quoteName($eventsAlias . '.http_status') . ' < 400')
+			->where($db->quoteName($statusAlias . '.last_status') . ' >= 200')
+			->where($db->quoteName($statusAlias . '.last_status') . ' < 400')
+			->group($db->quoteName($eventsAlias . '.path'));
+
+		$this->applyDateRange($rawQuery, $from, $to, true, $eventsAlias);
+		$db->setQuery($rawQuery);
+		$raw = $db->loadObjectList();
+
+		$pagesAlias = 'daily_page';
+		$archiveStatusAlias = 'archive_page_status';
+		$archiveQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName($pagesAlias . '.path') . ' AS ' . $db->quoteName('label'),
+				'SUM(' . $db->quoteName($pagesAlias . '.pageview_count') . ') AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__pungaanalytics_daily_pages', $pagesAlias))
+			->join(
+				'INNER',
+				$db->quoteName('#__pungaanalytics_page_status', $archiveStatusAlias)
+					. ' ON ' . $db->quoteName($archiveStatusAlias . '.path_hash')
+					. ' = ' . $db->quoteName($pagesAlias . '.path_hash')
+			)
+			->where($db->quoteName($archiveStatusAlias . '.last_status') . ' >= 200')
+			->where($db->quoteName($archiveStatusAlias . '.last_status') . ' < 400')
+			->group($db->quoteName($pagesAlias . '.path'));
+
+		$this->applyDateRange($archiveQuery, $from, $to, false, $pagesAlias);
+		$db->setQuery($archiveQuery);
+
+		return $this->mergeCountRows($raw, $db->loadObjectList(), $limit);
+	}
+
+	/**
 	 * Returns grouped event dimensions.
 	 *
 	 * @param string $field        Database field.
@@ -1408,6 +1475,11 @@ final class StatisticsQueryService
 			throw new \InvalidArgumentException('Unsupported statistics dimension.');
 		}
 
+		if ($field === 'path' && $eventType === 'pageview' && !$bots)
+		{
+			return $this->getPageRows($from, $to, $limit);
+		}
+
 		$db = $this->database;
 		$query = $db->getQuery(true)
 			->select([
@@ -1423,12 +1495,6 @@ final class StatisticsQueryService
 		if ($excludeEmpty)
 		{
 			$query->where($db->quoteName($field) . ' <> ' . $db->quote(''));
-		}
-
-		if ($field === 'path' && $eventType === 'pageview')
-		{
-			$query->where($db->quoteName('http_status') . ' >= 200');
-			$query->where($db->quoteName('http_status') . ' < 400');
 		}
 
 		$this->applyDateRange($query, $from, $to);
@@ -1778,6 +1844,7 @@ final class StatisticsQueryService
 	 * @param string        $from  Inclusive date.
 	 * @param string        $to    Inclusive date.
 	 * @param bool          $raw   Whether the query reads timestamped raw events.
+	 * @param string        $alias Optional table alias.
 	 *
 	 * @return void
 	 */
@@ -1785,9 +1852,14 @@ final class StatisticsQueryService
 		DatabaseQuery $query,
 		string $from,
 		string $to,
-		bool $raw = true
+		bool $raw = true,
+		string $alias = ''
 	): void
 	{
+		$column = static function (string $name) use ($alias): string
+		{
+			return $alias !== '' ? $alias . '.' . $name : $name;
+		};
 		if ($this->activeRange === 'last24')
 		{
 			if (!$raw)
@@ -1798,8 +1870,8 @@ final class StatisticsQueryService
 			}
 
 			$query
-				->where($this->database->quoteName('visited_at') . ' >= :fromUtc')
-				->where($this->database->quoteName('visited_at') . ' <= :toUtc')
+				->where($this->database->quoteName($column('visited_at')) . ' >= :fromUtc')
+				->where($this->database->quoteName($column('visited_at')) . ' <= :toUtc')
 				->bind(':fromUtc', $this->rawFromUtc)
 				->bind(':toUtc', $this->rawToUtc);
 
@@ -1807,8 +1879,8 @@ final class StatisticsQueryService
 		}
 
 		$query
-			->where($this->database->quoteName('visit_date') . ' >= :from')
-			->where($this->database->quoteName('visit_date') . ' <= :to')
+			->where($this->database->quoteName($column('visit_date')) . ' >= :from')
+			->where($this->database->quoteName($column('visit_date')) . ' <= :to')
 			->bind(':from', $from)
 			->bind(':to', $to);
 	}

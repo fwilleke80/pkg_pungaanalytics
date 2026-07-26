@@ -363,7 +363,54 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 		];
 
 		$this->getDatabase()->insertObject('#__pungaanalytics_events', $row);
+
+		if ($row->event_type === 'pageview')
+		{
+			$this->updatePageStatus($row->path, $row->http_status, $row->visited_at);
+		}
+
 		$this->maybePurgeExpired((int) $params->get('retention_days', 180), (int) $params->get('cleanup_probability', 2));
+	}
+
+	/**
+	 * Stores the latest known response status for a public path.
+	 *
+	 * @param string $path       Public request path.
+	 * @param int    $status     HTTP response status.
+	 * @param string $visitedAt UTC event timestamp.
+	 *
+	 * @return void
+	 */
+	private function updatePageStatus(string $path, int $status, string $visitedAt): void
+	{
+		if ($path === '' || $status < 100 || $status > 599)
+		{
+			return;
+		}
+
+		$db = $this->getDatabase();
+		$table = $db->quoteName($db->replacePrefix('#__pungaanalytics_page_status'));
+		$sql = 'INSERT INTO ' . $table . ' ('
+			. $db->quoteName('path_hash') . ', '
+			. $db->quoteName('path') . ', '
+			. $db->quoteName('last_status') . ', '
+			. $db->quoteName('last_seen_at')
+			. ') VALUES ('
+			. $db->quote(hash('sha256', $path)) . ', '
+			. $db->quote($path) . ', '
+			. $status . ', '
+			. $db->quote($visitedAt)
+			. ') ON DUPLICATE KEY UPDATE '
+			. $db->quoteName('path') . ' = IF(VALUES(' . $db->quoteName('last_seen_at') . ') >= '
+			. $db->quoteName('last_seen_at') . ', VALUES(' . $db->quoteName('path') . '), '
+			. $db->quoteName('path') . '), '
+			. $db->quoteName('last_status') . ' = IF(VALUES(' . $db->quoteName('last_seen_at') . ') >= '
+			. $db->quoteName('last_seen_at') . ', VALUES(' . $db->quoteName('last_status') . '), '
+			. $db->quoteName('last_status') . '), '
+			. $db->quoteName('last_seen_at') . ' = GREATEST('
+			. $db->quoteName('last_seen_at') . ', VALUES(' . $db->quoteName('last_seen_at') . '))';
+
+		$db->setQuery($sql)->execute();
 	}
 
 	/**
@@ -725,17 +772,51 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 	{
 		$app = $this->getApplication();
 
+		if (method_exists($app, 'getDocument'))
+		{
+			$document = $app->getDocument();
+			$error = \is_object($document) && isset($document->error)
+				? $document->error
+				: null;
+
+			if ($error instanceof \Throwable)
+			{
+				$status = (int) $error->getCode();
+
+				if ($status >= 400 && $status <= 599)
+				{
+					return $status;
+				}
+			}
+		}
+
 		if (method_exists($app, 'getResponse'))
 		{
 			$response = $app->getResponse();
 
-			if (\is_object($response) && method_exists($response, 'getHeaderLine'))
+			if (\is_object($response) && method_exists($response, 'getHeader'))
 			{
-				$statusHeader = trim((string) $response->getHeaderLine('Status'));
+				$statuses = [];
 
-				if (preg_match('/^([1-5][0-9]{2})\b/', $statusHeader, $matches) === 1)
+				foreach ((array) $response->getHeader('Status') as $statusHeader)
 				{
-					return (int) $matches[1];
+					if (preg_match('/^([1-5][0-9]{2})\b/', trim((string) $statusHeader), $matches) === 1)
+					{
+						$statuses[] = (int) $matches[1];
+					}
+				}
+
+				foreach (array_reverse($statuses) as $status)
+				{
+					if ($status >= 400)
+					{
+						return $status;
+					}
+				}
+
+				if ($statuses !== [])
+				{
+					return $statuses[array_key_last($statuses)];
 				}
 			}
 

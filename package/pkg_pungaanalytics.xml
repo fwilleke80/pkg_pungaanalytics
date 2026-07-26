@@ -2,7 +2,7 @@
 <extension type="package" method="upgrade">
 	<name>PKG_PUNGAANALYTICS</name>
 	<packagename>pungaanalytics</packagename>
-	<version>0.8.8</version>
+	<version>0.8.10</version>
 	<targetplatform name="joomla" version="6.*" />
 	<creationDate>2026-07-26</creationDate>
 	<author>Frank Willeke</author>

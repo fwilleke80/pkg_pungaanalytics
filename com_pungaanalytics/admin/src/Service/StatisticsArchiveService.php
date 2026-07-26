@@ -64,6 +64,7 @@ final class StatisticsArchiveService
 			try
 			{
 				$this->archiveDailyTotals($cutoffDate);
+				$this->archivePageViews($cutoffDate);
 				$this->archiveDimensions($cutoffDate);
 				$this->archiveTimeBuckets($cutoffDate);
 				$this->archiveCustomEventTimeBuckets($cutoffDate);
@@ -103,7 +104,9 @@ final class StatisticsArchiveService
 		$db = $this->database;
 		$tables = [
 			'#__pungaanalytics_events',
+			'#__pungaanalytics_page_status',
 			'#__pungaanalytics_daily',
+			'#__pungaanalytics_daily_pages',
 			'#__pungaanalytics_daily_dimensions',
 			'#__pungaanalytics_daily_time',
 			'#__pungaanalytics_daily_event_time',
@@ -214,6 +217,34 @@ final class StatisticsArchiveService
 	}
 
 	/**
+	 * Archives successful page-view counts in a dedicated status-safe table.
+	 *
+	 * @param string $cutoffDate First retained raw-event date.
+	 *
+	 * @return void
+	 */
+	private function archivePageViews(string $cutoffDate): void
+	{
+		$db = $this->database;
+		$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
+		$pagesTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_daily_pages'));
+		$sql = 'INSERT INTO ' . $pagesTable . ' ('
+			. '`visit_date`, `path_hash`, `path`, `pageview_count`'
+			. ') SELECT '
+			. '`visit_date`, SHA2(`path`, 256), `path`, COUNT(*) '
+			. 'FROM ' . $eventsTable
+			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
+			. " AND `is_bot` = 0 AND `event_type` = 'pageview'"
+			. ' AND `http_status` >= 200 AND `http_status` < 400'
+			. ' GROUP BY `visit_date`, `path` '
+			. 'ON DUPLICATE KEY UPDATE '
+			. '`path` = VALUES(`path`), '
+			. '`pageview_count` = `pageview_count` + VALUES(`pageview_count`)';
+
+		$db->setQuery($sql)->execute();
+	}
+
+	/**
 	 * Archives all dashboard breakdowns.
 	 *
 	 * @param string $cutoffDate First retained raw-event date.
@@ -222,12 +253,6 @@ final class StatisticsArchiveService
 	 */
 	private function archiveDimensions(string $cutoffDate): void
 	{
-		$this->archiveDimension(
-			$cutoffDate,
-			'path',
-			'path',
-			"`is_bot` = 0 AND `event_type` = 'pageview' AND `http_status` >= 200 AND `http_status` < 400"
-		);
 		$this->archiveDimension(
 			$cutoffDate,
 			'referrer',

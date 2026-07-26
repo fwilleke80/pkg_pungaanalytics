@@ -39,6 +39,8 @@ return new class implements InstallerScriptInterface
 		$db = Factory::getContainer()->get(DatabaseInterface::class);
 
 		foreach ([
+			'#__pungaanalytics_page_status',
+			'#__pungaanalytics_daily_pages',
 			'#__pungaanalytics_daily_404',
 			'#__pungaanalytics_daily_items',
 			'#__pungaanalytics_daily_event_time',
@@ -72,7 +74,8 @@ return new class implements InstallerScriptInterface
 		}
 
 		$this->ensureSchema();
-		$this->repairLegacyPathAggregates();
+		$this->rebuildPageStatusIndex();
+		$this->discardLegacyPathAggregates();
 		$this->migrateParameters();
 
 		return true;
@@ -191,6 +194,28 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_dimensions` (
 	PRIMARY KEY (`visit_date`, `dimension_key`, `label_hash`),
 	KEY `idx_pungaanalytics_dimension_date` (`dimension_key`, `visit_date`),
 	KEY `idx_pungaanalytics_dimension_label` (`dimension_key`, `label`(191))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
+SQL,
+			<<<'SQL'
+CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_pages` (
+	`visit_date` DATE NOT NULL,
+	`path_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+	`path` VARCHAR(1024) NOT NULL,
+	`pageview_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	PRIMARY KEY (`visit_date`, `path_hash`),
+	KEY `idx_pungaanalytics_daily_pages_date` (`visit_date`),
+	KEY `idx_pungaanalytics_daily_pages_path` (`path`(191))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
+SQL,
+			<<<'SQL'
+CREATE TABLE IF NOT EXISTS `#__pungaanalytics_page_status` (
+	`path_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+	`path` VARCHAR(1024) NOT NULL,
+	`last_status` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+	`last_seen_at` DATETIME NOT NULL,
+	PRIMARY KEY (`path_hash`),
+	KEY `idx_pungaanalytics_page_status_status` (`last_status`),
+	KEY `idx_pungaanalytics_page_status_path` (`path`(191))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
 SQL,
 			<<<'SQL'
@@ -369,46 +394,136 @@ SQL;
 	}
 
 	/**
-	 * Removes legacy page aggregates for paths only ever observed as 404 responses.
+	 * Backfills the latest known status for every retained page path.
 	 *
-	 * Rows recorded before HTTP status tracking used status zero and could therefore
-	 * have entered the old "status below 400" archive filter. A known successful
-	 * response always wins, so legitimate paths with retained success evidence stay.
+	 * The index is permanent, so a path remains classifiable after its raw event
+	 * rows have been archived and removed.
 	 *
 	 * @return void
 	 */
-	private function repairLegacyPathAggregates(): void
+	private function rebuildPageStatusIndex(): void
 	{
 		$db = Factory::getContainer()->get(DatabaseInterface::class);
-		$sql = <<<'SQL'
-DELETE `dimensions`
-FROM `#__pungaanalytics_daily_dimensions` AS `dimensions`
-WHERE `dimensions`.`dimension_key` = 'path'
-	AND (
-		EXISTS (
-			SELECT 1
-			FROM `#__pungaanalytics_events` AS `raw_not_found`
-			WHERE `raw_not_found`.`event_type` = 'pageview'
-				AND `raw_not_found`.`http_status` = 404
-				AND CAST(`raw_not_found`.`path` AS BINARY) = CAST(`dimensions`.`label` AS BINARY)
-		)
-		OR EXISTS (
-			SELECT 1
-			FROM `#__pungaanalytics_daily_404` AS `archived_not_found`
-			WHERE CAST(`archived_not_found`.`path` AS BINARY) = CAST(`dimensions`.`label` AS BINARY)
-		)
-	)
-	AND NOT EXISTS (
-		SELECT 1
-		FROM `#__pungaanalytics_events` AS `successful_page`
-		WHERE `successful_page`.`event_type` = 'pageview'
-			AND `successful_page`.`http_status` >= 200
-			AND `successful_page`.`http_status` < 400
-			AND CAST(`successful_page`.`path` AS BINARY) = CAST(`dimensions`.`label` AS BINARY)
+		$rawSql = <<<'SQL'
+INSERT INTO `#__pungaanalytics_page_status` (
+	`path_hash`, `path`, `last_status`, `last_seen_at`
+)
+SELECT
+	SHA2(`event`.`path`, 256),
+	`event`.`path`,
+	`event`.`http_status`,
+	`event`.`visited_at`
+FROM `#__pungaanalytics_events` AS `event`
+INNER JOIN (
+	SELECT `path`, MAX(`id`) AS `latest_id`
+	FROM `#__pungaanalytics_events`
+	WHERE `event_type` = 'pageview'
+		AND `http_status` >= 100
+		AND `http_status` <= 599
+	GROUP BY `path`
+) AS `latest`
+	ON `latest`.`latest_id` = `event`.`id`
+ON DUPLICATE KEY UPDATE
+	`path` = IF(
+		VALUES(`last_seen_at`) >= `#__pungaanalytics_page_status`.`last_seen_at`,
+		VALUES(`path`),
+		`#__pungaanalytics_page_status`.`path`
+	),
+	`last_status` = IF(
+		VALUES(`last_seen_at`) >= `#__pungaanalytics_page_status`.`last_seen_at`,
+		VALUES(`last_status`),
+		`#__pungaanalytics_page_status`.`last_status`
+	),
+	`last_seen_at` = GREATEST(
+		`#__pungaanalytics_page_status`.`last_seen_at`,
+		VALUES(`last_seen_at`)
 	)
 SQL;
+		$db->setQuery($db->replacePrefix($rawSql))->execute();
 
-		$db->setQuery($db->replacePrefix($sql))->execute();
+		$rawErrorSql = <<<'SQL'
+INSERT INTO `#__pungaanalytics_page_status` (
+	`path_hash`, `path`, `last_status`, `last_seen_at`
+)
+SELECT
+	SHA2(`event`.`path`, 256),
+	`event`.`path`,
+	`event`.`http_status`,
+	`event`.`visited_at`
+FROM `#__pungaanalytics_events` AS `event`
+INNER JOIN (
+	SELECT `path`, MAX(`id`) AS `latest_id`
+	FROM `#__pungaanalytics_events`
+	WHERE `event_type` = 'pageview'
+		AND `http_status` >= 400
+		AND `http_status` <= 599
+	GROUP BY `path`
+) AS `latest_error`
+	ON `latest_error`.`latest_id` = `event`.`id`
+ON DUPLICATE KEY UPDATE
+	`path` = IF(
+		VALUES(`last_seen_at`) >= `#__pungaanalytics_page_status`.`last_seen_at`,
+		VALUES(`path`),
+		`#__pungaanalytics_page_status`.`path`
+	),
+	`last_status` = IF(
+		VALUES(`last_seen_at`) >= `#__pungaanalytics_page_status`.`last_seen_at`,
+		VALUES(`last_status`),
+		`#__pungaanalytics_page_status`.`last_status`
+	),
+	`last_seen_at` = GREATEST(
+		`#__pungaanalytics_page_status`.`last_seen_at`,
+		VALUES(`last_seen_at`)
+	)
+SQL;
+		$db->setQuery($db->replacePrefix($rawErrorSql))->execute();
+
+		$archived404Sql = <<<'SQL'
+INSERT INTO `#__pungaanalytics_page_status` (
+	`path_hash`, `path`, `last_status`, `last_seen_at`
+)
+SELECT
+	SHA2(`path`, 256),
+	`path`,
+	404,
+	MAX(`last_seen`)
+FROM `#__pungaanalytics_daily_404`
+GROUP BY `path`
+ON DUPLICATE KEY UPDATE
+	`path` = IF(
+		VALUES(`last_seen_at`) >= `#__pungaanalytics_page_status`.`last_seen_at`,
+		VALUES(`path`),
+		`#__pungaanalytics_page_status`.`path`
+	),
+	`last_status` = IF(
+		VALUES(`last_seen_at`) >= `#__pungaanalytics_page_status`.`last_seen_at`,
+		404,
+		`#__pungaanalytics_page_status`.`last_status`
+	),
+	`last_seen_at` = GREATEST(
+		`#__pungaanalytics_page_status`.`last_seen_at`,
+		VALUES(`last_seen_at`)
+	)
+SQL;
+		$db->setQuery($db->replacePrefix($archived404Sql))->execute();
+	}
+
+	/**
+	 * Discards the obsolete mixed-status page-path aggregate.
+	 *
+	 * That table did not preserve HTTP status, so contaminated historical counts
+	 * cannot be repaired reliably. Other dimensions and all summary totals remain.
+	 *
+	 * @return void
+	 */
+	private function discardLegacyPathAggregates(): void
+	{
+		$db = Factory::getContainer()->get(DatabaseInterface::class);
+		$query = $db->getQuery(true)
+			->delete($db->quoteName('#__pungaanalytics_daily_dimensions'))
+			->where($db->quoteName('dimension_key') . ' = ' . $db->quote('path'));
+
+		$db->setQuery($query)->execute();
 	}
 
 	/**
