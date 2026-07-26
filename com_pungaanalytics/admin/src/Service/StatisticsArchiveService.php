@@ -226,7 +226,7 @@ final class StatisticsArchiveService
 			$cutoffDate,
 			'path',
 			'path',
-			"`is_bot` = 0 AND `event_type` = 'pageview' AND `http_status` < 400"
+			"`is_bot` = 0 AND `event_type` = 'pageview' AND `http_status` >= 200 AND `http_status` < 400"
 		);
 		$this->archiveDimension(
 			$cutoffDate,
@@ -275,7 +275,7 @@ final class StatisticsArchiveService
 			$cutoffDate,
 			'traffic_source',
 			'traffic_source',
-			"`is_bot` = 0 AND `event_type` = 'pageview' AND `http_status` < 400 "
+			"`is_bot` = 0 AND `event_type` = 'pageview' AND `http_status` >= 200 AND `http_status` < 400 "
 				. "AND `traffic_source` IN ('direct', 'search', 'social', 'ai', 'referral')"
 		);
 	}

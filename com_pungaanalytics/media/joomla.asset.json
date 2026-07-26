@@ -1,14 +1,14 @@
 {
 	"$schema": "https://developer.joomla.org/schemas/json-schema/web_assets.json",
 	"name": "com_pungaanalytics",
-	"version": "0.8.3",
+	"version": "0.8.8",
 	"description": "Punga Analytics administrator assets",
 	"license": "GPL-2.0-or-later",
 	"assets": [
 		{
 			"name": "com_pungaanalytics.admin",
 			"type": "style",
-			"uri": "com_pungaanalytics/admin-0.8.3.css"
+			"uri": "com_pungaanalytics/admin-0.8.8.css"
 		}
 	]
 }

@@ -829,6 +829,7 @@ final class StatisticsQueryService
 			->from($db->quoteName('#__pungaanalytics_events'))
 			->where($db->quoteName('is_bot') . ' = 0')
 			->where($db->quoteName('event_type') . ' = ' . $db->quote('pageview'))
+			->where($db->quoteName('http_status') . ' >= 200')
 			->where($db->quoteName('http_status') . ' < 400')
 			->where($db->quoteName('traffic_source') . ' IN (' . $categoryList . ')')
 			->group($db->quoteName('traffic_source'));
@@ -1145,6 +1146,7 @@ final class StatisticsQueryService
 
 		if ($definition['dimension'] === 'page' || $definition['dimension'] === 'source')
 		{
+			$query->where($db->quoteName('http_status') . ' >= 200');
 			$query->where($db->quoteName('http_status') . ' < 400');
 		}
 
@@ -1425,6 +1427,7 @@ final class StatisticsQueryService
 
 		if ($field === 'path' && $eventType === 'pageview')
 		{
+			$query->where($db->quoteName('http_status') . ' >= 200');
 			$query->where($db->quoteName('http_status') . ' < 400');
 		}
 
@@ -1549,15 +1552,39 @@ final class StatisticsQueryService
 	private function getArchivedDimensionRows(string $dimensionKey, string $from, string $to): array
 	{
 		$db = $this->database;
+		$dimensionsAlias = 'dimensions';
+		$labelColumn = $db->quoteName($dimensionsAlias . '.label');
 		$query = $db->getQuery(true)
 			->select([
-				$db->quoteName('label'),
-				'SUM(' . $db->quoteName('event_count') . ') AS ' . $db->quoteName('count'),
+				$labelColumn . ' AS ' . $db->quoteName('label'),
+				'SUM(' . $db->quoteName($dimensionsAlias . '.event_count') . ') AS ' . $db->quoteName('count'),
 			])
-			->from($db->quoteName('#__pungaanalytics_daily_dimensions'))
-			->where($db->quoteName('dimension_key') . ' = :dimensionKey')
-			->group($db->quoteName('label'))
+			->from($db->quoteName('#__pungaanalytics_daily_dimensions', $dimensionsAlias))
+			->where($db->quoteName($dimensionsAlias . '.dimension_key') . ' = :dimensionKey')
+			->group($labelColumn)
 			->bind(':dimensionKey', $dimensionKey);
+
+		if ($dimensionKey === 'path')
+		{
+			$rawNotFound = 'EXISTS (SELECT 1 FROM '
+				. $db->quoteName('#__pungaanalytics_events', 'raw_not_found')
+				. ' WHERE ' . $db->quoteName('raw_not_found.event_type') . ' = ' . $db->quote('pageview')
+				. ' AND ' . $db->quoteName('raw_not_found.http_status') . ' = 404'
+				. ' AND ' . $db->quoteName('raw_not_found.path') . ' = ' . $labelColumn . ')';
+			$archivedNotFound = 'EXISTS (SELECT 1 FROM '
+				. $db->quoteName('#__pungaanalytics_daily_404', 'archived_not_found')
+				. ' WHERE ' . $db->quoteName('archived_not_found.path') . ' = ' . $labelColumn . ')';
+			$knownSuccess = 'EXISTS (SELECT 1 FROM '
+				. $db->quoteName('#__pungaanalytics_events', 'successful_page')
+				. ' WHERE ' . $db->quoteName('successful_page.event_type') . ' = ' . $db->quote('pageview')
+				. ' AND ' . $db->quoteName('successful_page.http_status') . ' >= 200'
+				. ' AND ' . $db->quoteName('successful_page.http_status') . ' < 400'
+				. ' AND ' . $db->quoteName('successful_page.path') . ' = ' . $labelColumn . ')';
+
+			$query->where(
+				'NOT ((' . $rawNotFound . ' OR ' . $archivedNotFound . ') AND NOT ' . $knownSuccess . ')'
+			);
+		}
 
 		$this->applyDateRange($query, $from, $to, false);
 		$db->setQuery($query);
