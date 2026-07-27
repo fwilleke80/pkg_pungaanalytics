@@ -29,9 +29,9 @@ Punga Analytics is a small, self-hosted statistics package for Joomla 6. It prov
 
 ## Package contents
 
-- `com_pungaanalytics` — administrator dashboard, configuration, database schema, and country-database maintenance
-- `mod_pungaanalytics` — compact statistics overview for the Joomla administrator Home Dashboard
-- `plg_system_pungaanalytics` — frontend page-view collector and custom-event listener
+- `com_pungaanalytics` — Administrator dashboard, configuration, database schema, and country-database maintenance
+- `mod_pungaanalytics` — Compact statistics overview for the Joomla administrator Home Dashboard
+- `plg_system_pungaanalytics` — Frontend page-view collector and custom-event listener
 
 The system plugin is enabled automatically when the package is installed. A
 published Punga Analytics module is also created on the administrator Home
