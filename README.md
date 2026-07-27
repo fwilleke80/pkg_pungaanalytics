@@ -2,8 +2,7 @@
 
 Punga Analytics is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.8.1`
->
+> **Current version:** `0.8.1`  
 > **Package:** `pkg_pungaanalytics`
 
 ## Table of Contents
@@ -103,8 +102,8 @@ Ordinary public HTML page views are recorded automatically. This includes, subje
 
 - Home and article pages
 - Archive/list pages
-- Audio Archive clip detail pages
 - Module and component pages with their own public URL
+- Basically all menu items
 
 The **Most viewed pages** report groups these page views by path. Query strings are excluded by default, so filtered variants of one page normally remain grouped together.
 
@@ -114,13 +113,17 @@ A page view does not prove that embedded audio was played. Play and download cou
 
 Other Joomla extensions can record a semantic event by dispatching `onPungaAnalyticsRecord`. Punga Analytics listens when installed and enabled. The emitting extension does not need to require or import any Punga Analytics PHP class.
 
+This enables extension developers to have any Joomla extension hook into Punga Analytics and record custom events.
+
+### Event production
+
 Event production and event presentation are deliberately separate:
 
 - The source extension decides when a real action happened and dispatches the event.
 - Punga Analytics options decide whether that identifier is accepted and where its totals appear.
 - Adding a definition does not create a browser listener or infer an action from a page view.
 
-Supported event arguments:
+Supported event arguments (using the extension _Audio Archive_ as example):
 
 | Argument | Required | Purpose |
 | --- | --- | --- |
@@ -139,7 +142,7 @@ use Joomla\CMS\Event\GenericEvent;
 use Joomla\CMS\Factory;
 
 /**
- * Records an optional Punga Analytics event without creating a package dependency.
+ * @brief Records an optional Punga Analytics event without creating a package dependency.
  *
  * @param string $eventType Event type.
  * @param object $clip      Audio Archive clip.
@@ -148,30 +151,30 @@ use Joomla\CMS\Factory;
  */
 private function recordPungaAnalyticsEvent(string $eventType, object $clip): void
 {
-	$eventName = 'onPungaAnalyticsRecord';
-	$dispatcher = Factory::getApplication()->getDispatcher();
+  $eventName = 'onPungaAnalyticsRecord';
+  $dispatcher = Factory::getApplication()->getDispatcher();
 
-	$statsEvent = new GenericEvent(
-		$eventName,
-		[
-			'subject' => $this,
-			'event_type' => $eventType,
-			'component' => 'com_audioarchive',
-			'view_name' => 'clip',
-			'item_type' => 'audioarchive.clip',
-			'item_id' => (string) $clip->id,
-			'item_title' => (string) $clip->title,
-		]
-	);
+  $statsEvent = new GenericEvent(
+    $eventName,
+    [
+      'subject' => $this,
+      'event_type' => $eventType,
+      'component' => 'com_audioarchive',
+      'view_name' => 'clip',
+      'item_type' => 'audioarchive.clip',
+      'item_id' => (string) $clip->id,
+      'item_title' => (string) $clip->title,
+    ]
+  );
 
-	$dispatcher->dispatch($eventName, $statsEvent);
+  $dispatcher->dispatch($eventName, $statsEvent);
 
-	// Optional diagnostic only. A missing listener leaves this argument unset.
-	$recorded = (bool) $statsEvent->getArgument('pungaanalytics_recorded', false);
+  // Optional diagnostic only. A missing listener leaves this argument unset.
+  $recorded = (bool) $statsEvent->getArgument('pungaanalytics_recorded', false);
 }
 ```
 
-Then call the helper at the two successful server-side action points:
+Then call the helper function at the two successful server-side action points:
 
 ```php
 $this->recordPungaAnalyticsEvent('audio.play', $clip);
@@ -195,19 +198,19 @@ available:
 use Joomla\CMS\Event\GenericEvent;
 
 $dispatcher->dispatch(
-	'onPungaAnalyticsRecord',
-	new GenericEvent(
-		'onPungaAnalyticsRecord',
-		[
-			'subject' => $this,
-			'event_type' => 'audio.play',
-			'component' => 'com_audioarchive',
-			'view_name' => 'clip',
-			'item_type' => 'audioarchive.clip',
-			'item_id' => (string) $clipId,
-			'item_title' => $clipTitle,
-		]
-	)
+  'onPungaAnalyticsRecord',
+  new GenericEvent(
+  'onPungaAnalyticsRecord',
+    [
+      'subject' => $this,
+      'event_type' => 'audio.play',
+      'component' => 'com_audioarchive',
+      'view_name' => 'clip',
+      'item_type' => 'audioarchive.clip',
+      'item_id' => (string) $clipId,
+      'item_title' => $clipTitle,
+    ]
+  )
 );
 ```
 
@@ -219,6 +222,8 @@ Recommended Audio Archive event types are:
 Audio Archive can dispatch these events next to its existing aggregate play/download counter updates. If Punga Analytics is not installed, the Joomla event is simply dispatched without a listener and Audio Archive continues normally.
 
 ### Configuring generic event definitions
+
+You can configure which events to listen to:
 
 Open **Components → Punga Analytics → Options → Custom events**. The
 **Recording policy** has two modes:
@@ -250,7 +255,7 @@ presentation. The fields have these meanings:
 For Audio Archive, a useful configuration is:
 
 | Event identifier | Display title | Component | Overview | Trend | Time | Ranking | Ranking title |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 | `audio.play` | Audio plays | `com_audioarchive` | Yes | Yes | Yes | Yes | Most played clips |
 | `audio.download` | Audio downloads | `com_audioarchive` | Yes | Yes | Yes | Yes | Most downloaded clips |
 
@@ -298,6 +303,8 @@ Use **Components → Punga Analytics → Update country database** after install
 cache/com_pungaanalytics/
 ```
 
+It is recommended to do this right after installing Punga Analytics.
+
 Visitor IP addresses never leave the server. Only the administrator-triggered database download contacts DB-IP.
 
 IPv4-mapped IPv6 addresses are normalised before lookup. When the web server
@@ -318,11 +325,10 @@ DB-IP Lite is updated monthly and licensed under Creative Commons Attribution 4.
 
 ## Dashboard
 
-The redesigned administrator dashboard includes:
+The administrator dashboard includes:
 
 - Installed Punga Analytics version
-- Modern range picker for Today, Yesterday, Last 24 hours, 7, 30, 90,
-  365-day, and all-time reports
+- Range picker for Today, Yesterday, Last 24 hours, 7, 30, 90, 365-day, and all-time reports
 - Compact tabular overview of human visitor-days and page views
 - Logged-in frontend page views
 - Configurable custom-event overview totals
@@ -332,16 +338,14 @@ The redesigned administrator dashboard includes:
 - Sortable dashboard and full-report table columns with report-specific default ordering
 - Most viewed pages
 - Not-found (404) paths with human, bot, and combined request totals
-- Broad acquisition categories for direct, search, social, AI-assistant, and
-  external referral traffic
+- Broad acquisition categories for direct, search, social, AI-assistant, and external referral traffic
 - Configurable generic item-ranking cards for events such as plays and downloads
 - Countries pie chart, localized country names, Unicode flags, and exact table
 - External referrers
 - Browser-language, device-category, and browser-family pie charts with exact tables
 - Detected bots
 - Custom event types
-- Row-level history links for pages, 404 paths, countries, sources, referrers,
-  languages, devices, browsers, bots, event types, and configured event items
+- Row-level history links for pages, 404 paths, countries, sources, referrers, languages, devices, browsers, bots, event types, and configured event items
 - Clearly labeled paginated full-report links on dashboard panels
 - CSV export of every full report and the complete selected range
 - One-click ZIP download containing every core CSV plus configured event-ranking CSVs
@@ -409,147 +413,13 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 
 ## Installation and update
 
-1. Open **System → Install → Extensions** in Joomla Administrator.
-2. Upload `pkg_pungaanalytics_v0-8-1.zip`.
-3. Open **Components → Punga Analytics**.
-4. Click **Update country database**.
-5. Review the options and optionally exclude the site owner's Joomla user ID.
+1. Open **System → Install → Extensions** in Joomla Administrator
+2. Upload `pkg_pungaanalytics_vx-x-x.zip`
+3. Open **Components → Punga Analytics**
+4. Click **Update country database**
+5. Review the options
 
-Install newer versions directly over the existing package. Version 0.3.0 also
-repairs the Joomla database-maintenance definition for `event_type`; it does not
-alter or remove collected statistics.
-
-When 0.7.0 is installed over SimpleStats, the package automatically migrates the
-statistics tables, component options, and local country database,
-enables the Punga Analytics collector, and removes the old component, plugin,
-and package records. Existing raw events and permanent reports remain intact.
-The legacy custom-event name remains accepted so an integration can be updated
-independently.
-
-Versions 0.3.1 and later use versioned administrator stylesheets to bypass
-stale browser and server caches. Version 0.3.2 also renders the browser
-language, device, and browser doughnut charts as SVG so they work under
-restrictive content security policies. Version 0.3.3 and later register their stylesheet
-under a version-specific asset name to avoid stale Joomla asset-registry entries.
-
-Version 0.4.0 creates permanent daily aggregate tables. Existing raw events are
-left untouched during the update and remain fully visible. On the next eligible
-cleanup, expired complete days are archived before their raw rows are removed.
-Data already deleted by an earlier Punga Analytics version cannot be reconstructed.
-
-Version 0.5.0 adds permanent site-local hour and weekday aggregates, adaptive
-long-term trends, full paginated reports, and CSV export. Weekdays are
-backfilled from the calendar date of both existing raw events and permanent
-daily reports. Exact hours were not stored by older versions, so hour-of-day
-reporting begins with events collected after updating to 0.5.0. This avoids
-inventing historical time-of-day data.
-
-Version 0.5.1 refines the dashboard presentation, defaults its activity table
-to the eight most recent periods, and makes the audio report family activate
-automatically from recorded bridge events. It does not remove or rewrite any
-statistics.
-
-Version 0.5.2 adds sortable dashboard and full-report tables, applies the
-dashboard row setting to the optional audio tables, and makes full reports and
-their CSV exports visibly discoverable from the dashboard. Full-report sorting
-is applied before pagination and is also preserved in CSV exports.
-
-Version 0.5.3 replaces button-like dashboard sort controls with ordinary table
-heading links and compact direction arrows. It also initializes dashboard
-sorting reliably whether the script loads before or after the document-ready
-event, and promotes the former eyebrow labels to standalone visual and semantic
-section headings.
-
-Version 0.5.4 replaces dashboard JavaScript sorting with the same server-side
-URL pattern used by Audio Archive. Sort links preserve the selected date range,
-reload at the affected table, and expose the active direction through both a
-small arrow and `aria-sort`. Punga Analytics no longer ships dashboard JavaScript.
-
-Version 0.5.5 renders sort arrows as explicit HTML so they remain visible
-independently of generated CSS content. It also gives every activity-chart
-label and its bar group one shared X coordinate, reserves horizontal edge
-space for complete dates, and keeps the chart readable inside a horizontally
-scrollable viewport on narrow screens.
-
-Version 0.5.6 reorganizes the dashboard into modern native collapsible cards.
-Overview and Traffic are open initially, while detailed sections remain compact
-until requested. Sorting automatically reopens the section that contains the
-selected table, and System opens when the country database needs attention.
-The card controls use semantic headings and native keyboard-accessible
-`details` and `summary` elements without JavaScript.
-
-Version 0.6.0 replaces the audio-specific report switches with repeatable,
-generic custom-event definitions. Administrators can allowlist identifiers,
-optionally restrict their source component, and independently place each event
-in the Overview, activity trend, time-distribution reports, or an item-ranking
-card with a full sortable report and CSV export. Custom-event hour and weekday
-data now use a generic permanent archive table. Existing recorded event types
-are converted into editable ranking definitions during update; no statistics
-are deleted.
-
-Version 0.7.0 rebrands the complete extension as Punga Analytics. Component,
-plugin, package, language, media, namespace, cache, and database identifiers now
-use `pungaanalytics`, with PHP classes under `Punga\Component\PungaAnalytics`
-and `Punga\Plugin\System\PungaAnalytics`. The dashboard adds a selected-state
-range dropdown, an all-reports CSV ZIP, and a larger set of event-summary
-icons. The version remains available in the System card but is no longer
-repeated in the dashboard header.
-
-Version 0.7.1 adds a compact administrator dashboard module with configurable
-range, Overview event totals, bot traffic, most-viewed pages, and a direct link
-to the full analytics dashboard. Joomla's new unconfigured module instance is
-completed automatically, or one published Home Dashboard instance is created
-when no instance exists.
-
-Version 0.7.2 restores the requested human-visitor bar charts above the
-hour-of-day and weekday tables, changes the full dashboard and report fallback
-range from 30 to 7 days, and gives the collapsible-card titles their distinct
-accent color. The existing exact tables and full reports remain available
-below and through the chart panels.
-
-Version 0.7.3 makes the hour-of-day and weekday charts use the exact same
-visual system as the existing Activity over time bar chart: chart container,
-legend, scrolling viewport, grid and axes, label typography, visitor color,
-bar corners, and responsive behavior are shared instead of independently
-styled.
-
-Version 0.7.4 also gives those charts the Activity over time chart's exact SVG
-dimensions, aspect ratio, plot margins, plot height, and bar width. This keeps
-the charts compact inside their half-width panels and prevents their axis text
-from being scaled larger than the traffic chart.
-
-Version 0.7.5 corrects the administrator stylesheet URIs for both the component
-and Home Dashboard module. It gives the module properly spaced two-column
-metrics, a smaller Most viewed pages heading, and clickable frontend page
-links. Hard-coded Overview-event behaviour is replaced by a dynamic checkbox
-list of every globally configured custom event, with independent selections
-per module instance and a compatibility fallback for existing instances.
-
-Version 0.7.6 completes the Home Dashboard module styling with the same visual
-separation used by Joomla's built-in administrator cards: a divider beneath the
-module title and a consistent inset between the module content and card border.
-
-Version 0.8.0 adds Today, Yesterday, and exact rolling Last 24 hours ranges,
-row-level history charts and tables, broad traffic-source categorisation, and
-a dedicated 404 report. Page views are now recorded immediately before Joomla
-sends the response so the collector can store the final HTTP status. The raw
-retention minimum is two days so a rolling 24-hour query remains exact.
-
-Traffic-source categories deliberately use only the external referrer hostname;
-Punga Analytics still does not store full referrer URLs. Internal navigation is
-classified separately and omitted from the acquisition report. Traffic-source
-history is complete for events collected by 0.8.0 and later. Existing archived
-external referrer hostnames are categorised during update, but older blank
-archived referrers cannot reliably be divided into direct and internal traffic.
-
-Version 0.8.1 corrects final HTTP-status detection for Joomla error documents.
-Joomla can place a status such as `404 Not Found` in its special `Status`
-response header while the PSR-7 response object's numeric status remains 200.
-The collector now reads that header first and retains the response object and
-`http_response_code()` as fallbacks. Newly requested nonexistent paths are
-therefore recorded correctly for both human and bot traffic. Reliable 404
-history begins with version 0.8.1; requests misclassified by version 0.8.0
-cannot be reconstructed from the stored data.
+Install newer versions directly over the existing package.
 
 ## Resetting statistics
 
@@ -600,12 +470,5 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Existing Unknown country rows cannot be reclassified after a country-database update because raw IP addresses are not stored.
 - Country data must currently be updated manually.
 - Requests served before the collector runs, for example by an earlier full-page cache plugin, may not be recorded.
-- Punga Analytics cannot infer a media play from a page view; the media extension must emit a custom event.
-- Exact hour-of-day data is unavailable for events recorded before version 0.5.0.
-- Traffic-source categorisation is heuristic and depends on the referrer header
-  supplied by the visitor's browser.
-- Traffic-source history is complete from version 0.8.0 onward. Older archived
-  external referrers are categorised during update, but old blank referrers
-  cannot be distinguished as direct or internal.
-- 404 responses recorded before version 0.8.1, including requests misclassified
-  by version 0.8.0, cannot be reconstructed.
+- Punga Analytics cannot infer a media play from a page view; the media extension must emit a [custom event](#custom-event-bridge).
+- Traffic-source categorisation is heuristic and depends on the referrer header supplied by the visitor's browser.
