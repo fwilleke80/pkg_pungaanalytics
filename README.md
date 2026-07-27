@@ -2,7 +2,6 @@
 
 Punga Analytics is a small, self-hosted statistics package for Joomla 6. It provides basic traffic and engagement information without Google Analytics, an external analytics account, analytics cookies, or third-party requests containing visitor data.
 
-> **Current version:** `0.8.1`  
 > **Package:** `pkg_pungaanalytics`
 
 ## Table of Contents
