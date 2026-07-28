@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension type="component" method="upgrade">
 	<name>COM_PUNGAANALYTICS</name>
-	<version>0.8.10</version>
+	<version>0.8.11</version>
 	<targetplatform name="joomla" version="6.*" />
-	<creationDate>2026-07-26</creationDate>
+	<creationDate>2026-07-28</creationDate>
 	<author>Frank Willeke</author>
 	<copyright>Copyright (C) 2026 Frank Willeke</copyright>
 	<license>GNU General Public License version 2 or later</license>

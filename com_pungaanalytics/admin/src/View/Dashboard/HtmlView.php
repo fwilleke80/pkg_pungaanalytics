@@ -8,7 +8,6 @@ use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
-use Joomla\CMS\Toolbar\Toolbar;
 use Joomla\CMS\Toolbar\ToolbarHelper;
 use Punga\Component\PungaAnalytics\Administrator\Service\CountryDatabaseService;
 use Punga\Component\PungaAnalytics\Administrator\Service\CustomEventDefinitionService;
@@ -106,14 +105,14 @@ final class HtmlView extends BaseHtmlView
 		$document = $app->getDocument();
 		$webAssetManager = $document->getWebAssetManager();
 		$webAssetManager->registerAndUseStyle(
-			'com_pungaanalytics.admin.0.8.10',
-			'com_pungaanalytics/admin-0.8.10.css',
-			['version' => '0.8.10']
+			'com_pungaanalytics.admin.0.8.11',
+			'com_pungaanalytics/admin-0.8.11.css',
+			['version' => '0.8.11']
 		);
 		$webAssetManager->registerAndUseScript(
-			'com_pungaanalytics.dashboard.0.8.10',
-			'com_pungaanalytics/admin-0.8.10.js',
-			['version' => '0.8.10'],
+			'com_pungaanalytics.dashboard.0.8.11',
+			'com_pungaanalytics/admin-0.8.11.js',
+			['version' => '0.8.11'],
 			['defer' => true]
 		);
 
@@ -129,26 +128,6 @@ final class HtmlView extends BaseHtmlView
 	private function addToolbar(): void
 	{
 		ToolbarHelper::title(Text::_('COM_PUNGAANALYTICS'), 'chart');
-		ToolbarHelper::custom(
-			'dashboard.updateCountryDatabase',
-			'refresh',
-			'refresh',
-			'COM_PUNGAANALYTICS_UPDATE_COUNTRY_DATABASE',
-			false
-		);
-		ToolbarHelper::custom(
-			'dashboard.purgeExpired',
-			'delete',
-			'delete',
-			'COM_PUNGAANALYTICS_PURGE_EXPIRED',
-			false
-		);
-		Toolbar::getInstance('toolbar')
-			->confirmButton('resetStats', 'COM_PUNGAANALYTICS_RESET_STATS', 'dashboard.resetStats')
-			->icon('trash')
-			->buttonClass('btn btn-danger')
-			->message(Text::_('COM_PUNGAANALYTICS_RESET_CONFIRM'))
-			->listCheck(false);
 
 		if (Factory::getApplication()->getIdentity()->authorise('core.admin', 'com_pungaanalytics'))
 		{

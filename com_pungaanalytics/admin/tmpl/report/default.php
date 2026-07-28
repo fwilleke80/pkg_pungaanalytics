@@ -228,6 +228,23 @@ $sortHeading = static function (
 		. $escape($label) . $indicator . '</a></th>';
 };
 ?>
+<form action="<?php echo Route::_('index.php'); ?>" method="get" id="adminForm" name="adminForm">
+	<input type="hidden" name="option" value="com_pungaanalytics">
+	<input type="hidden" name="view" value="report">
+	<input type="hidden" name="task" value="">
+	<input type="hidden" name="report" value="<?php echo $escape($report); ?>">
+	<?php if ($eventType !== '') : ?>
+		<input type="hidden" name="event_type" value="<?php echo $escape($eventType); ?>">
+	<?php endif; ?>
+	<?php foreach ($historyParameters as $name => $value) : ?>
+		<input type="hidden" name="<?php echo $escape($name); ?>" value="<?php echo $escape($value); ?>">
+	<?php endforeach; ?>
+	<input type="hidden" name="days" value="<?php echo $escape($this->range); ?>">
+	<input type="hidden" name="limit" value="<?php echo (int) $this->limit; ?>">
+	<input type="hidden" name="sort" value="<?php echo $escape($this->sort); ?>">
+	<input type="hidden" name="direction" value="<?php echo $escape($this->direction); ?>">
+	<input type="hidden" name="limitstart" value="<?php echo (int) $this->start; ?>">
+
 	<div class="pa-dashboard pa-report">
 		<header class="pa-hero">
 			<div class="pa-hero__copy">
@@ -549,4 +566,5 @@ $sortHeading = static function (
 			</footer>
 		<?php endif; ?>
 	</section>
-</div>
+	</div>
+</form>

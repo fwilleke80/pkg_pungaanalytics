@@ -615,6 +615,7 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 <form action="<?php echo Route::_('index.php?option=com_pungaanalytics'); ?>" method="post" id="adminForm" name="adminForm">
 	<input type="hidden" name="option" value="com_pungaanalytics">
 	<input type="hidden" name="task" value="">
+	<input type="hidden" name="days" value="<?php echo $escape($selectedRange); ?>">
 	<?php echo HTMLHelper::_('form.token'); ?>
 
 		<div class="pa-dashboard">
@@ -1286,6 +1287,26 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 				<?php endif; ?>
 				<p><?php echo Text::_('COM_PUNGAANALYTICS_COUNTRY_DATABASE_FORWARD_ONLY'); ?></p>
 				<p class="small text-muted mb-0"><?php echo Text::_('COM_PUNGAANALYTICS_DBIP_ATTRIBUTION'); ?></p>
+			</div>
+			<div class="pa-system__actions">
+				<div class="pa-system__actions-copy">
+					<h4><?php echo Text::_('COM_PUNGAANALYTICS_SYSTEM_MAINTENANCE'); ?></h4>
+					<p><?php echo Text::_('COM_PUNGAANALYTICS_SYSTEM_MAINTENANCE_DESC'); ?></p>
+				</div>
+				<div class="pa-system__action-buttons">
+					<button type="button" class="btn btn-primary" data-pa-dashboard-task="dashboard.updateCountryDatabase">
+						<span class="icon-refresh" aria-hidden="true"></span>
+						<?php echo Text::_('COM_PUNGAANALYTICS_UPDATE_COUNTRY_DATABASE'); ?>
+					</button>
+					<button type="button" class="btn btn-secondary" data-pa-dashboard-task="dashboard.purgeExpired">
+						<span class="icon-archive" aria-hidden="true"></span>
+						<?php echo Text::_('COM_PUNGAANALYTICS_PURGE_EXPIRED'); ?>
+					</button>
+					<button type="button" class="btn btn-danger" data-pa-dashboard-task="dashboard.resetStats" data-pa-confirm="<?php echo $escape(Text::_('COM_PUNGAANALYTICS_RESET_CONFIRM')); ?>">
+						<span class="icon-trash" aria-hidden="true"></span>
+						<?php echo Text::_('COM_PUNGAANALYTICS_RESET_STATS'); ?>
+					</button>
+				</div>
 			</div>
 					</section>
 				</div>

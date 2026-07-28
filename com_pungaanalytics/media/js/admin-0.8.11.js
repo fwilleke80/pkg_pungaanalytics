@@ -100,6 +100,21 @@ const initialisePungaAnalyticsDashboardTabs = () =>
 		});
 	}
 
+	document.querySelectorAll('[data-pa-dashboard-task]').forEach((button) =>
+	{
+		button.addEventListener('click', () =>
+		{
+			const confirmation = button.dataset.paConfirm || '';
+
+			if (confirmation !== '' && !window.confirm(confirmation))
+			{
+				return;
+			}
+
+			Joomla.submitbutton(button.dataset.paDashboardTask);
+		});
+	});
+
 	document.querySelectorAll('.pa-range-picker__menu a').forEach((link) =>
 	{
 		link.addEventListener('click', () =>

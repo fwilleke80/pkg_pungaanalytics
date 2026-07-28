@@ -44,7 +44,7 @@ final class DashboardController extends BaseController
 			$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_COUNTRY_DATABASE_UPDATE_FAILED', $exception->getMessage()), 'error');
 		}
 
-		$this->setRedirect(Route::_('index.php?option=com_pungaanalytics', false));
+		$this->setRedirect($this->getSystemRedirect());
 	}
 
 	/**
@@ -63,7 +63,7 @@ final class DashboardController extends BaseController
 		$count = $model->purgeExpired((int) $retentionDays);
 
 		$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_PURGED_EVENTS', $count));
-		$this->setRedirect(Route::_('index.php?option=com_pungaanalytics', false));
+		$this->setRedirect($this->getSystemRedirect());
 	}
 
 	/**
@@ -81,7 +81,25 @@ final class DashboardController extends BaseController
 		$count = $model->resetStats();
 
 		$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_RESET_COMPLETE', $count));
-		$this->setRedirect(Route::_('index.php?option=com_pungaanalytics', false));
+		$this->setRedirect($this->getSystemRedirect());
+	}
+
+	/**
+	 * Returns the dashboard System-tab URL while preserving the selected range.
+	 *
+	 * @return string
+	 */
+	private function getSystemRedirect(): string
+	{
+		$allowedRanges = ['today', 'yesterday', 'last24', '7', '30', '90', '365', 'all', '0'];
+		$range = strtolower($this->input->getCmd('days', '7'));
+		$range = \in_array($range, $allowedRanges, true) ? $range : '7';
+		$range = $range === '0' ? 'all' : $range;
+
+		return Route::_(
+			'index.php?option=com_pungaanalytics&dashboardview=system&days=' . rawurlencode($range),
+			false
+		);
 	}
 
 	/**
