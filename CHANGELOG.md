@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.8.12 — 2026-07-29
+
+- Fixed configured custom-event item histories returning zero for every date
+  because multiple Joomla database parameters were bound through one reused
+  loop variable.
+- Bound `event_type`, `item_type`, `item_id`, `item_title`, and `path` through
+  stable values for both retained raw events and permanent daily item reports.
+- Restored exact daily history totals for ranked items such as `audio.play`
+  clips without requiring a database migration, statistics reset, or data
+  reconstruction.
+- Updated all extension manifests, release metadata, documentation, and
+  versioned administrator assets.
+
+## 0.8.11 — 2026-07-29
+
+- Fixed full-report pagination by providing Joomla's required `adminForm`,
+  `limitstart` field, and preserved report, range, sorting, and filter state.
+- Changed the date-range selector menu to use an opaque, theme-aware background.
+- Moved **Update country database**, **Archive expired raw data**, and
+  **Reset all statistics** from the main toolbar into the dashboard's
+  **System** tab.
+- Preserved the selected reporting range and returned to the System tab after a
+  maintenance action.
+- Left only the Joomla **Options** action in the main component toolbar.
+- Updated all extension manifests, release metadata, documentation, and
+  versioned administrator assets.
+
 ## 0.8.1 — 2026-07-26
 
 - Fixed Joomla error-document status detection by reading the final `Status`
