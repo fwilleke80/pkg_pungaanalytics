@@ -95,6 +95,10 @@ change dimension breakdowns. The cleanup probability only controls how soon an
 eligible request performs this archival work; it does not decide which
 statistics survive.
 
+The dashboard's **System** tab also provides **Archive expired raw data** for
+running the same safe archival process manually. It archives every eligible
+complete day before removing its detailed rows.
+
 ## Page views
 
 Ordinary public HTML page views are recorded automatically. This includes, subject to configured exclusions:
@@ -263,6 +267,11 @@ Item rankings group by the generic `item_title`, `item_id`, `item_type`, and
 `item_type` plus a stable `item_id` and preferably `item_title`. Events without
 item data are still counted, but their ranking row is shown as an unknown item.
 
+The history icon beside a ranking row opens an exact daily breakdown for that
+same item identity and selected reporting range. The table combines retained
+raw events with permanent daily item reports, so its total matches the ranking
+count even after raw-event archival.
+
 Changing presentation switches does not delete statistics. Disabling
 **Record this event** stops new matching events while preserving existing raw
 and archived counts. Removing a definition removes its dedicated metrics,
@@ -296,7 +305,9 @@ The event table stores only whether the visitor was authenticated. It does not s
 
 Punga Analytics can resolve all countries locally using the free monthly DB-IP Lite IP-to-Country database.
 
-Use **Components → Punga Analytics → Update country database** after installation. The action downloads the compressed CSV, streams it into compact fixed-record IPv4 and IPv6 lookup files, and stores them under:
+Use **Components → Punga Analytics → System → Update country database**
+after installation. The action downloads the compressed CSV, streams it into
+compact fixed-record IPv4 and IPv6 lookup files, and stores them under:
 
 ```text
 cache/com_pungaanalytics/
@@ -334,7 +345,7 @@ The administrator dashboard includes:
 - Bot page views
 - Adaptive day, ISO-week, or month activity trend for the complete selected range
 - Site-local hour-of-day and weekday visitor bar charts with exact activity tables
-- Sortable dashboard and full-report table columns with report-specific default ordering
+- Sortable dashboard and paginated full-report tables with report-specific default ordering
 - Most viewed pages
 - Not-found (404) paths with human, bot, and combined request totals
 - Broad acquisition categories for direct, search, social, AI-assistant, and external referral traffic
@@ -344,13 +355,13 @@ The administrator dashboard includes:
 - Browser-language, device-category, and browser-family pie charts with exact tables
 - Detected bots
 - Custom event types
-- Row-level history links for pages, 404 paths, countries, sources, referrers, languages, devices, browsers, bots, event types, and configured event items
+- Row-level daily history links for pages, 404 paths, countries, sources, referrers, languages, devices, browsers, bots, event types, and configured event items
 - Clearly labeled paginated full-report links on dashboard panels
 - CSV export of every full report and the complete selected range
 - One-click ZIP download containing every core CSV plus configured event-ranking CSVs
 - Configurable row count for dashboard activity and custom-event ranking tables
 - Retention and country-database status
-- Confirmed toolbar action for permanently resetting all collected statistics
+- System-tab actions for updating the country database, archiving expired raw data, and permanently resetting all collected statistics
 
 ## Administrator dashboard module
 
@@ -415,14 +426,14 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 1. Open **System → Install → Extensions** in Joomla Administrator
 2. Upload `pkg_pungaanalytics_vx-x-x.zip`
 3. Open **Components → Punga Analytics**
-4. Click **Update country database**
+4. Open the **System** tab and click **Update country database**
 5. Review the options
 
 Install newer versions directly over the existing package.
 
 ## Resetting statistics
 
-Use **Components → Punga Analytics → Reset all statistics** in the toolbar to
+Use **Components → Punga Analytics → System → Reset all statistics** to
 permanently remove every detailed raw event and every permanent aggregate
 report. A confirmation dialog is shown before anything is deleted.
 Configuration and the downloaded country database are retained.
