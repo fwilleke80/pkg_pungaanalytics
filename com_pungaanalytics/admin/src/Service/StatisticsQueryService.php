@@ -1183,13 +1183,11 @@ final class StatisticsQueryService
 	private function getEventItemHistoryDailyRows(array $definition, string $from, string $to): array
 	{
 		$db = $this->database;
-		$filters = [
-			'event_type' => $definition['event_type'],
-			'item_type' => $definition['item_type'],
-			'item_id' => $definition['item_id'],
-			'item_title' => $definition['item_title'],
-			'path' => $definition['path'],
-		];
+		$eventType = $definition['event_type'];
+		$itemType = $definition['item_type'];
+		$itemId = $definition['item_id'];
+		$itemTitle = $definition['item_title'];
+		$path = $definition['path'];
 		$query = $db->getQuery(true)
 			->select([
 				$db->quoteName('visit_date'),
@@ -1206,17 +1204,28 @@ final class StatisticsQueryService
 			->from($db->quoteName('#__pungaanalytics_daily_items'))
 			->group($db->quoteName('visit_date'));
 
-		foreach ($filters as $field => $value)
-		{
-			$rawParameter = ':history_' . $field;
-			$archiveParameter = ':archive_history_' . $field;
-			$query
-				->where($db->quoteName($field) . ' = ' . $rawParameter)
-				->bind($rawParameter, $value);
-			$archiveQuery
-				->where($db->quoteName($field) . ' = ' . $archiveParameter)
-				->bind($archiveParameter, $value);
-		}
+		$query
+			->where($db->quoteName('event_type') . ' = :history_event_type')
+			->where($db->quoteName('item_type') . ' = :history_item_type')
+			->where($db->quoteName('item_id') . ' = :history_item_id')
+			->where($db->quoteName('item_title') . ' = :history_item_title')
+			->where($db->quoteName('path') . ' = :history_path')
+			->bind(':history_event_type', $eventType)
+			->bind(':history_item_type', $itemType)
+			->bind(':history_item_id', $itemId)
+			->bind(':history_item_title', $itemTitle)
+			->bind(':history_path', $path);
+		$archiveQuery
+			->where($db->quoteName('event_type') . ' = :archive_history_event_type')
+			->where($db->quoteName('item_type') . ' = :archive_history_item_type')
+			->where($db->quoteName('item_id') . ' = :archive_history_item_id')
+			->where($db->quoteName('item_title') . ' = :archive_history_item_title')
+			->where($db->quoteName('path') . ' = :archive_history_path')
+			->bind(':archive_history_event_type', $eventType)
+			->bind(':archive_history_item_type', $itemType)
+			->bind(':archive_history_item_id', $itemId)
+			->bind(':archive_history_item_title', $itemTitle)
+			->bind(':archive_history_path', $path);
 
 		$this->applyDateRange($query, $from, $to);
 		$db->setQuery($query);
