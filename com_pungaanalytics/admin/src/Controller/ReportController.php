@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Punga\Component\PungaAnalytics\Administrator\Controller;
 
+use DateTimeImmutable;
+use DateTimeZone;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Controller\BaseController;
@@ -99,6 +101,7 @@ final class ReportController extends BaseController
 			['pages', ''],
 			['notfound', ''],
 			['countries', ''],
+			['networks', ''],
 			['referrers', ''],
 			['sources', ''],
 			['languages', ''],
@@ -447,6 +450,32 @@ final class ReportController extends BaseController
 			return;
 		}
 
+		if ($kind === 'network')
+		{
+			fputcsv($stream, [
+				Text::_('COM_PUNGAANALYTICS_ASN'),
+				Text::_('COM_PUNGAANALYTICS_NETWORK_ORGANIZATION'),
+				Text::_('COM_PUNGAANALYTICS_HUMAN_VISITS'),
+				Text::_('COM_PUNGAANALYTICS_HUMAN_PAGEVIEWS'),
+				Text::_('COM_PUNGAANALYTICS_KNOWN_BOT_PAGEVIEWS'),
+				Text::_('COM_PUNGAANALYTICS_TOTAL_PAGEVIEWS'),
+			]);
+
+			foreach ($data['rows'] as $row)
+			{
+				fputcsv($stream, [
+					'AS' . (int) $row->asn_number,
+					(string) $row->organization,
+					(int) $row->human_visits,
+					(int) $row->human_pageviews,
+					(int) $row->bot_pageviews,
+					(int) $row->total_pageviews,
+				]);
+			}
+
+			return;
+		}
+
 		if ($kind === 'notfound')
 		{
 			fputcsv($stream, [
@@ -467,8 +496,8 @@ final class ReportController extends BaseController
 					(int) $row->bots,
 					(int) $row->total,
 					(string) $row->top_referrer,
-					(string) $row->first_seen,
-					(string) $row->last_seen,
+					$this->formatUtcTimestamp((string) $row->first_seen),
+					$this->formatUtcTimestamp((string) $row->last_seen),
 				]);
 			}
 
@@ -498,6 +527,36 @@ final class ReportController extends BaseController
 			}
 
 			fputcsv($stream, [$label, (int) $row->count]);
+		}
+	}
+
+	/**
+	 * Formats a stored UTC timestamp in the configured Joomla site timezone.
+	 *
+	 * @param string $value UTC SQL timestamp.
+	 *
+	 * @return string Site-local timestamp suitable for CSV output.
+	 */
+	private function formatUtcTimestamp(string $value): string
+	{
+		$value = trim($value);
+
+		if ($value === '')
+		{
+			return '';
+		}
+
+		try
+		{
+			$siteTimezone = new DateTimeZone((string) Factory::getApplication()->get('offset', 'UTC'));
+
+			return (new DateTimeImmutable($value, new DateTimeZone('UTC')))
+				->setTimezone($siteTimezone)
+				->format('Y-m-d H:i');
+		}
+		catch (\Throwable)
+		{
+			return $value;
 		}
 	}
 

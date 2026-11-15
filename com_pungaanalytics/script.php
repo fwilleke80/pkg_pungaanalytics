@@ -43,6 +43,7 @@ return new class implements InstallerScriptInterface
 			'#__pungaanalytics_daily_pages',
 			'#__pungaanalytics_daily_session_events',
 			'#__pungaanalytics_daily_sessions',
+			'#__pungaanalytics_daily_networks',
 			'#__pungaanalytics_daily_404',
 			'#__pungaanalytics_daily_items',
 			'#__pungaanalytics_daily_event_time',
@@ -103,6 +104,7 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	`referrer_host` VARCHAR(255) NOT NULL DEFAULT '',
 	`traffic_source` VARCHAR(16) NOT NULL DEFAULT '',
 	`country_code` CHAR(2) NOT NULL DEFAULT 'ZZ',
+	`asn_number` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`language_code` VARCHAR(16) NOT NULL DEFAULT '',
 	`device_type` VARCHAR(16) NOT NULL DEFAULT 'unknown',
 	`browser_family` VARCHAR(32) NOT NULL DEFAULT 'Other',
@@ -124,6 +126,7 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	KEY `idx_pungaanalytics_bot_date` (`is_bot`, `visit_date`),
 	KEY `idx_pungaanalytics_auth_date` (`is_authenticated`, `visit_date`),
 	KEY `idx_pungaanalytics_country_date` (`country_code`, `visit_date`),
+	KEY `idx_pungaanalytics_asn_date` (`asn_number`, `visit_date`),
 	KEY `idx_pungaanalytics_event_date` (`event_type`, `visit_date`),
 	KEY `idx_pungaanalytics_item` (`item_type`, `item_id`(64)),
 	KEY `idx_pungaanalytics_path` (`path`(191)),
@@ -137,6 +140,7 @@ SQL;
 		$table = $db->replacePrefix('#__pungaanalytics_events');
 		$columns = $db->getTableColumns($table, false);
 
+		$this->ensureColumn($db, $table, $columns, 'asn_number', "BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `country_code`");
 		$this->ensureColumn($db, $table, $columns, 'visit_hour', "TINYINT UNSIGNED NOT NULL DEFAULT 255 AFTER `visit_date`");
 		$this->ensureColumn($db, $table, $columns, 'visit_weekday', "TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER `visit_hour`");
 		$this->ensureColumn($db, $table, $columns, 'is_authenticated', "TINYINT(1) NOT NULL DEFAULT 0 AFTER `browser_family`");
@@ -150,6 +154,7 @@ SQL;
 			. " VARCHAR(64) NOT NULL DEFAULT 'pageview'"
 		)->execute();
 
+		$this->ensureIndex($db, $table, 'idx_pungaanalytics_asn_date', '(`asn_number`, `visit_date`)');
 		$this->ensureIndex($db, $table, 'idx_pungaanalytics_auth_date', '(`is_authenticated`, `visit_date`)');
 		$this->ensureIndex($db, $table, 'idx_pungaanalytics_hour_date', '(`visit_hour`, `visit_date`)');
 		$this->ensureIndex($db, $table, 'idx_pungaanalytics_weekday_date', '(`visit_weekday`, `visit_date`)');
@@ -258,6 +263,17 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_items` (
 	PRIMARY KEY (`visit_date`, `row_hash`),
 	KEY `idx_pungaanalytics_daily_item_event` (`event_type`, `visit_date`),
 	KEY `idx_pungaanalytics_daily_item` (`item_type`, `item_id`(64))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
+SQL,
+			<<<'SQL'
+CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_networks` (
+	`visit_date` DATE NOT NULL,
+	`asn_number` BIGINT UNSIGNED NOT NULL,
+	`human_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`human_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`bot_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	PRIMARY KEY (`visit_date`, `asn_number`),
+	KEY `idx_pungaanalytics_network_asn_date` (`asn_number`, `visit_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
 SQL,
 			<<<'SQL'

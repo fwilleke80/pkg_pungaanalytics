@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Joomla\CMS\Factory;
-use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Layout\LayoutHelper;
 use Joomla\CMS\Router\Route;
@@ -14,6 +13,27 @@ use Joomla\CMS\Uri\Uri;
 
 $escape = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 $number = static fn(mixed $value): string => number_format((int) $value);
+$siteTimezone = new \DateTimeZone((string) Factory::getApplication()->get('offset', 'UTC'));
+$formatUtcTimestamp = static function (mixed $value) use ($siteTimezone): string
+{
+	$value = trim((string) $value);
+
+	if ($value === '')
+	{
+		return '';
+	}
+
+	try
+	{
+		return (new \DateTimeImmutable($value, new \DateTimeZone('UTC')))
+			->setTimezone($siteTimezone)
+			->format('Y-m-d H:i');
+	}
+	catch (\Throwable)
+	{
+		return $value;
+	}
+};
 $decimal = static fn(mixed $value): string => number_format((float) $value, 2);
 $duration = static function (mixed $seconds): string
 {
@@ -142,6 +162,14 @@ elseif (($history['dimension'] ?? '') === 'country')
 {
 	$historyDisplayValue = $countryName($historyDisplayValue);
 }
+elseif (($history['dimension'] ?? '') === 'network')
+{
+	$historyAsn = (int) $historyDisplayValue;
+	$historyOrganization = (new \Punga\Component\PungaAnalytics\Administrator\Service\AsnDatabaseService())
+		->getOrganization($historyAsn);
+	$historyDisplayValue = 'AS' . $historyAsn
+		. ($historyOrganization !== '' ? ' — ' . $historyOrganization : '');
+}
 
 $displayTitle = $kind === 'history'
 	? Text::sprintf('COM_PUNGAANALYTICS_HISTORY_TITLE', $historyDisplayValue)
@@ -169,7 +197,7 @@ $historyDashboardView = match ((string) ($history['dimension'] ?? ''))
 	'page', 'notfound' => 'content',
 	'event_item' => 'engagement',
 	'source', 'referrer' => 'acquisition',
-	'country', 'language', 'device', 'browser', 'bot', 'event' => 'audience',
+	'country', 'network', 'language', 'device', 'browser', 'bot', 'event' => 'audience',
 	default => 'overview',
 };
 $dashboardView = $report === 'history'
@@ -178,12 +206,13 @@ $dashboardView = $report === 'history'
 $audienceView = match ((string) ($history['dimension'] ?? ''))
 {
 	'country' => 'countries',
+	'network' => 'networks',
 	'language' => 'languages',
 	'device' => 'devices',
 	'browser' => 'browsers',
 	'bot' => 'bots',
 	'event' => 'events',
-	default => \in_array($report, ['countries', 'languages', 'devices', 'browsers', 'bots', 'events'], true)
+	default => \in_array($report, ['countries', 'networks', 'languages', 'devices', 'browsers', 'bots', 'events'], true)
 		? $report
 		: '',
 };
@@ -337,7 +366,7 @@ $sortHeading = static function (
 							);
 							?>
 							<?php echo $sortHeading('visits', Text::_('COM_PUNGAANALYTICS_VISITS'), 'desc', 'text-end'); ?>
-							<?php echo $sortHeading('pageviews', Text::_('COM_PUNGAANALYTICS_PAGEVIEWS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_PAGES'), 'desc', 'text-end'); ?>
 							<?php foreach ($eventDefinitions as $definition) : ?>
 								<?php echo $sortHeading((string) $definition['key'], (string) $definition['title'], 'desc', 'text-end'); ?>
 							<?php endforeach; ?>
@@ -372,14 +401,14 @@ $sortHeading = static function (
 						<tr>
 							<?php echo $sortHeading('period', Text::_('COM_PUNGAANALYTICS_PERIOD'), 'desc'); ?>
 							<?php echo $sortHeading('sessions', Text::_('COM_PUNGAANALYTICS_SESSIONS'), 'desc', 'text-end'); ?>
-							<?php echo $sortHeading('pageviews', Text::_('COM_PUNGAANALYTICS_PAGEVIEWS'), 'desc', 'text-end'); ?>
-							<?php echo $sortHeading('custom_events', Text::_('COM_PUNGAANALYTICS_CUSTOM_EVENT_OCCURRENCES'), 'desc', 'text-end'); ?>
-							<?php echo $sortHeading('duration', Text::_('COM_PUNGAANALYTICS_TOTAL_SESSION_DURATION'), 'desc', 'text-end'); ?>
-							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_PAGEVIEWS_PER_SESSION'); ?></th>
-							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_CUSTOM_EVENTS_PER_SESSION'); ?></th>
-							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_AVG_SESSION_DURATION'); ?></th>
-							<?php echo $sortHeading('single_page', Text::_('COM_PUNGAANALYTICS_SINGLE_PAGE_SESSIONS'), 'desc', 'text-end'); ?>
-							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SINGLE_PAGE_RATE'); ?></th>
+							<?php echo $sortHeading('pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_PAGES'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('custom_events', Text::_('COM_PUNGAANALYTICS_TABLE_EVENTS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('duration', Text::_('COM_PUNGAANALYTICS_TABLE_DURATION'), 'desc', 'text-end'); ?>
+							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_PAGES_PER_SESSION'); ?></th>
+							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_EVENTS_PER_SESSION'); ?></th>
+							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_AVG_DURATION'); ?></th>
+							<?php echo $sortHeading('single_page', Text::_('COM_PUNGAANALYTICS_TABLE_SINGLE_PAGE_SESSIONS'), 'desc', 'text-end'); ?>
+							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_SINGLE_PAGE_RATE'); ?></th>
 						</tr>
 					</thead>
 					<tbody>
@@ -406,10 +435,10 @@ $sortHeading = static function (
 						<tr>
 							<?php echo $sortHeading('title', Text::_('COM_PUNGAANALYTICS_EVENT'), 'asc'); ?>
 							<?php echo $sortHeading('events', Text::_('COM_PUNGAANALYTICS_EVENTS'), 'desc', 'text-end'); ?>
-							<?php echo $sortHeading('sessions', Text::_('COM_PUNGAANALYTICS_SESSIONS_WITH_EVENT'), 'desc', 'text-end'); ?>
-							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SESSION_SHARE'); ?></th>
-							<?php echo $sortHeading('multiple', Text::_('COM_PUNGAANALYTICS_SESSIONS_WITH_MULTIPLE'), 'desc', 'text-end'); ?>
-							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_EVENTS_PER_MATCHING_SESSION'); ?></th>
+							<?php echo $sortHeading('sessions', Text::_('COM_PUNGAANALYTICS_TABLE_SESSIONS_WITH_EVENT'), 'desc', 'text-end'); ?>
+							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_SESSION_SHARE'); ?></th>
+							<?php echo $sortHeading('multiple', Text::_('COM_PUNGAANALYTICS_TABLE_MULTI_EVENT_SESSIONS'), 'desc', 'text-end'); ?>
+							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_EVENTS_PER_SESSION'); ?></th>
 						</tr>
 					</thead>
 					<tbody>
@@ -496,14 +525,53 @@ $sortHeading = static function (
 						<?php endforeach; ?>
 					</tbody>
 				</table>
+			<?php elseif ($kind === 'network') : ?>
+				<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_NETWORKS_NOTE'); ?></p>
+				<table class="table pa-table mb-0" id="pa-report-table">
+					<thead>
+						<tr>
+							<?php echo $sortHeading('asn', Text::_('COM_PUNGAANALYTICS_ASN'), 'asc'); ?>
+							<?php echo $sortHeading('organization', Text::_('COM_PUNGAANALYTICS_TABLE_NETWORK'), 'asc'); ?>
+							<?php echo $sortHeading('human_visits', Text::_('COM_PUNGAANALYTICS_TABLE_VISITORS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('human_pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_PAGEVIEWS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('bot_pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_BOT_VIEWS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('total_pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_TOTAL_VIEWS'), 'desc', 'text-end'); ?>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach ($this->data['rows'] as $row) : ?>
+						<tr>
+							<td class="text-nowrap">
+								AS<?php echo (int) $row->asn_number; ?>
+								<a class="pa-history-link"
+									href="<?php echo Route::_(
+										'index.php?option=com_pungaanalytics&view=report&report=history'
+										. '&dimension=network&value=' . rawurlencode((string) $row->asn_number)
+										. '&days=' . rawurlencode($currentRange)
+									); ?>"
+									title="<?php echo $escape(Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY')); ?>">
+									<span class="icon-chart" aria-hidden="true"></span>
+									<span class="visually-hidden"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY'); ?></span>
+								</a>
+							</td>
+							<td class="text-break"><?php echo $row->organization !== '' ? $escape($row->organization) : Text::_('COM_PUNGAANALYTICS_UNKNOWN'); ?></td>
+							<td class="text-end"><?php echo $number($row->human_visits); ?></td>
+							<td class="text-end"><?php echo $number($row->human_pageviews); ?></td>
+							<td class="text-end"><?php echo $number($row->bot_pageviews); ?></td>
+							<td class="text-end pa-count"><?php echo $number($row->total_pageviews); ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+				<p class="small text-muted mt-3 mb-0"><?php echo Text::_('COM_PUNGAANALYTICS_DBIP_ASN_ATTRIBUTION'); ?></p>
 			<?php elseif ($kind === 'notfound') : ?>
 				<table class="table pa-table mb-0" id="pa-report-table">
 					<thead>
 						<tr>
 							<?php echo $sortHeading('path', Text::_('COM_PUNGAANALYTICS_CSV_PATH'), 'asc'); ?>
-							<?php echo $sortHeading('human', Text::_('COM_PUNGAANALYTICS_HUMAN_REQUESTS'), 'desc', 'text-end'); ?>
-							<?php echo $sortHeading('bots', Text::_('COM_PUNGAANALYTICS_BOT_REQUESTS'), 'desc', 'text-end'); ?>
-							<?php echo $sortHeading('total', Text::_('COM_PUNGAANALYTICS_REQUESTS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('human', Text::_('COM_PUNGAANALYTICS_TABLE_HUMAN_REQUESTS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('bots', Text::_('COM_PUNGAANALYTICS_TABLE_BOT_REQUESTS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('total', Text::_('COM_PUNGAANALYTICS_TABLE_TOTAL_REQUESTS'), 'desc', 'text-end'); ?>
 							<?php echo $sortHeading('referrer', Text::_('COM_PUNGAANALYTICS_TOP_REFERRER'), 'asc'); ?>
 							<?php echo $sortHeading('first_seen', Text::_('COM_PUNGAANALYTICS_FIRST_SEEN'), 'desc'); ?>
 							<?php echo $sortHeading('last_seen', Text::_('COM_PUNGAANALYTICS_LAST_SEEN'), 'desc'); ?>
@@ -529,8 +597,8 @@ $sortHeading = static function (
 								<td class="text-end"><?php echo $number($row->bots); ?></td>
 								<td class="text-end pa-count"><?php echo $number($row->total); ?></td>
 								<td class="text-break"><?php echo $row->top_referrer !== '' ? $escape($row->top_referrer) : '—'; ?></td>
-								<td class="text-nowrap"><?php echo $row->first_seen !== '' ? HTMLHelper::_('date', $row->first_seen, 'Y-m-d H:i') : '—'; ?></td>
-								<td class="text-nowrap"><?php echo $row->last_seen !== '' ? HTMLHelper::_('date', $row->last_seen, 'Y-m-d H:i') : '—'; ?></td>
+								<td class="text-nowrap"><?php echo $row->first_seen !== '' ? $escape($formatUtcTimestamp($row->first_seen)) : '—'; ?></td>
+								<td class="text-nowrap"><?php echo $row->last_seen !== '' ? $escape($formatUtcTimestamp($row->last_seen)) : '—'; ?></td>
 							</tr>
 						<?php endforeach; ?>
 					</tbody>

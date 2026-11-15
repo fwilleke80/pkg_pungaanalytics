@@ -6,6 +6,7 @@ namespace Punga\Plugin\System\PungaAnalytics\Extension;
 
 use Punga\Component\PungaAnalytics\Administrator\Service\StatisticsArchiveService;
 use Punga\Component\PungaAnalytics\Administrator\Service\CustomEventDefinitionService;
+use Punga\Plugin\System\PungaAnalytics\Service\AsnDatabaseMatcher;
 use Punga\Plugin\System\PungaAnalytics\Service\CountryDatabaseMatcher;
 use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Date\Date;
@@ -349,6 +350,10 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 				(string) $params->get('country_detection', 'local_dbip'),
 				(string) $params->get('trusted_country_header', 'HTTP_CF_IPCOUNTRY')
 			),
+			'asn_number' => $this->getAsnNumber(
+				$ipAddress,
+				(string) $params->get('asn_detection', 'local_dbip')
+			),
 			'language_code' => $this->getPrimaryLanguage(),
 			'device_type' => $this->classifyDevice($userAgent, $isBot),
 			'browser_family' => $this->classifyBrowser($userAgent),
@@ -507,6 +512,24 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 	 *
 	 * @return string
 	 */
+	/**
+	 * Returns an Autonomous System number without calling an external API.
+	 *
+	 * @param string $ipAddress Visitor IP address.
+	 * @param string $method    Detection method.
+	 *
+	 * @return int AS number, or zero when unknown/disabled.
+	 */
+	private function getAsnNumber(string $ipAddress, string $method): int
+	{
+		if ($method === 'local_dbip')
+		{
+			return (new AsnDatabaseMatcher())->lookup($ipAddress);
+		}
+
+		return 0;
+	}
+
 	private function getPrimaryLanguage(): string
 	{
 		$header = strtolower($this->getApplication()->input->server->getString('HTTP_ACCEPT_LANGUAGE', ''));

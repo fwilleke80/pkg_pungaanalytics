@@ -15,6 +15,7 @@ Punga Analytics is a small, self-hosted statistics package for Joomla 6. It prov
 - [Cookieless sessions](#cookieless-sessions)
 - [Logged-in users](#logged-in-users)
 - [Country detection](#country-detection)
+- [Network / ASN detection](#network--asn-detection)
 - [Dashboard](#dashboard)
 - [Administrator dashboard module](#administrator-dashboard-module)
 - [Default configuration](#default-configuration)
@@ -29,7 +30,7 @@ Punga Analytics is a small, self-hosted statistics package for Joomla 6. It prov
 
 ## Package contents
 
-- `com_pungaanalytics` — Administrator dashboard, configuration, database schema, and country-database maintenance
+- `com_pungaanalytics` — Administrator dashboard, configuration, database schema, and local country/ASN database maintenance
 - `mod_pungaanalytics` — Compact statistics overview for the Joomla administrator Home Dashboard
 - `plg_system_pungaanalytics` — Frontend page-view collector and custom-event listener
 
@@ -51,6 +52,7 @@ For eligible frontend page views and custom events, Punga Analytics stores:
   social, AI assistant, referral, or internal
 - Final HTTP response status for ordinary page views
 - ISO 3166-1 alpha-2 country code, or `ZZ` when unknown
+- Autonomous System number (ASN), or `0` when unavailable or disabled
 - Primary browser language
 - Broad device category
 - Broad browser family
@@ -90,6 +92,7 @@ The permanent reports preserve:
   occurrence, and the most common external referrer
 - Custom-event types and generic item-level event totals
 - Cookieless daily session totals and configured-event session participation for data archived by Punga Analytics 0.9.0 and later
+- Daily ASN/network visitor-day, human page-view, and known-bot page-view totals for data collected by Punga Analytics 0.10.0 and later
 
 Dashboard queries combine retained raw events with the permanent reports.
 Cleanup therefore does not reduce all-time totals, rewrite older charts, or
@@ -348,6 +351,8 @@ The event table stores only whether the visitor was authenticated. It does not s
 
 ## Country detection
 
+Country and ASN/network lookup settings share the **Components → Punga Analytics → Options → Location & Network** tab.
+
 Punga Analytics can resolve all countries locally using the free monthly DB-IP Lite IP-to-Country database.
 
 Use **Components → Punga Analytics → System → Update country database**
@@ -378,6 +383,53 @@ The dashboard reports country codes and, when PHP's Internationalisation extensi
 
 DB-IP Lite is updated monthly and licensed under Creative Commons Attribution 4.0. Attribution is displayed in the dashboard.
 
+## Network / ASN detection
+
+Punga Analytics 0.10.0 can resolve the visitor IP to an **Autonomous System
+number (ASN)** locally using the free monthly **DB-IP ASN Lite** database. An ASN
+identifies the network that announces an IP range on the Internet. Depending on
+the address, this can reveal an ISP, mobile carrier, hosting company, cloud
+provider, university, corporate network, or other network operator.
+
+Use **Components → Punga Analytics → System → Update ASN database** after
+upgrading to 0.10.0. The action downloads the compressed monthly ASN dataset and
+compiles it into fixed-record IPv4/IPv6 lookup files plus a local ASN-to-name map
+under:
+
+```text
+cache/com_pungaanalytics/
+```
+
+Lookups happen during event collection while the request IP is already available.
+Punga Analytics stores only the resulting numeric ASN in the event row; it does
+**not** retain the raw IP address. The network/organization name shown in reports
+comes from the locally installed ASN database and is not duplicated into every
+event.
+
+The **Audience & technology → Networks / ASNs** report shows, per ASN:
+
+- human visitor-days
+- human page views
+- known-bot page views
+- total page views in the full report
+- the network/organization name from the installed DB-IP ASN database
+- row-level daily history for human visitor-days
+
+This deliberately does **not** turn network type into a bot verdict. Traffic that
+Punga Analytics currently classifies as human stays in the human columns even
+when it comes from a cloud or hosting ASN. The report is therefore useful for
+spotting suspicious infrastructure traffic without silently reclassifying it.
+
+ASN attribution is forward-only. Events collected before 0.10.0 have no stored
+source IP and therefore cannot be backfilled. Likewise, if ASN detection was
+disabled or no usable ASN database was installed when an event was recorded, its
+ASN remains unknown. Future raw-event cleanup preserves resolved ASN totals in
+`#__pungaanalytics_daily_networks`.
+
+DB-IP ASN Lite is updated monthly and distributed under Creative Commons
+Attribution 4.0. The required attribution is displayed in the Networks / ASNs
+report.
+
 ## Dashboard
 
 The administrator dashboard includes:
@@ -397,17 +449,18 @@ The administrator dashboard includes:
 - Broad acquisition categories for direct, search, social, AI-assistant, and external referral traffic
 - Configurable generic item-ranking cards for events such as plays and downloads
 - Countries pie chart, localized country names, Unicode flags, and exact table
+- Networks / ASNs with organization names, human visitor-days, human page views, known-bot page views, full report, CSV, and daily row history
 - External referrers
 - Browser-language, device-category, and browser-family pie charts with exact tables
 - Detected bots
 - Custom event types
-- Row-level daily history links for pages, 404 paths, countries, sources, referrers, languages, devices, browsers, bots, event types, and configured event items
+- Row-level daily history links for pages, 404 paths, countries, networks/ASNs, sources, referrers, languages, devices, browsers, bots, event types, and configured event items
 - Clearly labeled paginated full-report links on dashboard panels
 - CSV export of every full report and the complete selected range
 - One-click ZIP download containing every core CSV, session reports, and configured event-ranking CSVs
 - Configurable row count for dashboard activity and custom-event ranking tables
-- Retention and country-database status
-- System-tab actions for updating the country database, archiving expired raw data, and permanently resetting all collected statistics
+- Retention plus country- and ASN-database status
+- System-tab actions for updating the country database, updating the ASN database, archiving expired raw data, and permanently resetting all collected statistics
 
 ## Administrator dashboard module
 
@@ -440,7 +493,7 @@ fallback. The package creates and publishes one instance in the administrator
 - Opportunistic archival probability: 2 percent per recorded event
 - Dashboard activity and custom-event ranking tables: 8 rows
 - Default dashboard reporting range: 7 days
-- Country detection: local DB-IP Lite database
+- Location & Network: country detection uses the local DB-IP Country Lite database; ASN/network detection uses the local DB-IP ASN Lite database
 - Excluded components: `com_ajax`, `com_users`, `com_pungaanalytics`
 - Excluded paths: `/administrator`, `/api`
 
@@ -473,7 +526,8 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 2. Upload `pkg_pungaanalytics_vx-x-x.zip`
 3. Open **Components → Punga Analytics**
 4. Open the **System** tab and click **Update country database**
-5. Review the options
+5. Click **Update ASN database**
+6. Review the options
 
 Install newer versions directly over the existing package.
 
@@ -482,7 +536,7 @@ Install newer versions directly over the existing package.
 Use **Components → Punga Analytics → System → Reset all statistics** to
 permanently remove every detailed raw event and every permanent aggregate
 report. A confirmation dialog is shown before anything is deleted.
-Configuration and the downloaded country database are retained.
+Configuration and the downloaded country and ASN databases are retained.
 
 ## Uninstallation
 
@@ -511,21 +565,25 @@ Enabling query-string storage can collect search terms and other user input. It 
 - PHP: a version supported by Joomla 6
 - License: GPL-2.0-or-later
 - Runtime JavaScript: none required
+- Calendar dates, Today/Yesterday boundaries, hour/weekday buckets, session day boundaries, archival cutoffs, and displayed timestamps use the configured Joomla site timezone; canonical event timestamps remain stored in UTC
 - Composer dependencies: none bundled
 - Raw-event table: `#__pungaanalytics_events`
 - Permanent report tables: `#__pungaanalytics_daily`,
   `#__pungaanalytics_daily_dimensions`, `#__pungaanalytics_daily_items`,
   `#__pungaanalytics_daily_time`, `#__pungaanalytics_daily_event_time`,
-  `#__pungaanalytics_daily_sessions`, `#__pungaanalytics_daily_session_events`, and
-  `#__pungaanalytics_daily_404`
-- Country source: DB-IP Lite CSV
+  `#__pungaanalytics_daily_sessions`, `#__pungaanalytics_daily_session_events`,
+  `#__pungaanalytics_daily_networks`, and `#__pungaanalytics_daily_404`
+- Country source: DB-IP Country Lite CSV
+- ASN/network source: DB-IP ASN Lite CSV
 
 ## Known limitations
 
 - Bot detection is based on User-Agent patterns and is not authoritative.
 - Visitor-days are estimates, not unique people.
 - Existing Unknown country rows cannot be reclassified after a country-database update because raw IP addresses are not stored.
-- Country data must currently be updated manually.
+- Existing events cannot be assigned an ASN retrospectively after installing or updating the ASN database because raw IP addresses are not stored.
+- ASN organization names and IP-to-ASN assignments are approximate Internet-routing metadata and can change over time; the report is diagnostic context, not proof that a request originated from a particular person or company.
+- Country and ASN data must currently be updated manually.
 - Requests served before the collector runs, for example by an earlier full-page cache plugin, may not be recorded.
 - Punga Analytics cannot infer a media play from a page view; the media extension must emit a [custom event](#custom-event-bridge).
 - Traffic-source categorisation is heuristic and depends on the referrer header supplied by the visitor's browser.

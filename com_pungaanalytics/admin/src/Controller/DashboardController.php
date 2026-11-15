@@ -9,6 +9,7 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Controller\BaseController;
 use Joomla\CMS\Router\Route;
 use Joomla\CMS\Session\Session;
+use Punga\Component\PungaAnalytics\Administrator\Service\AsnDatabaseService;
 use Punga\Component\PungaAnalytics\Administrator\Service\CountryDatabaseService;
 
 \defined('_JEXEC') or die;
@@ -42,6 +43,36 @@ final class DashboardController extends BaseController
 		catch (\Throwable $exception)
 		{
 			$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_COUNTRY_DATABASE_UPDATE_FAILED', $exception->getMessage()), 'error');
+		}
+
+		$this->setRedirect($this->getSystemRedirect());
+	}
+
+	/**
+	 * Downloads and compiles the current DB-IP ASN Lite database.
+	 *
+	 * @return void
+	 */
+	public function updateAsnDatabase(): void
+	{
+		Session::checkToken('request') or jexit(Text::_('JINVALID_TOKEN'));
+		$this->assertManagePermission();
+
+		try
+		{
+			$result = (new AsnDatabaseService())->update();
+			$this->setMessage(
+				Text::sprintf(
+					'COM_PUNGAANALYTICS_ASN_DATABASE_UPDATED',
+					$result['ipv4_count'],
+					$result['ipv6_count'],
+					$result['organization_count']
+				)
+			);
+		}
+		catch (\Throwable $exception)
+		{
+			$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_ASN_DATABASE_UPDATE_FAILED', $exception->getMessage()), 'error');
 		}
 
 		$this->setRedirect($this->getSystemRedirect());

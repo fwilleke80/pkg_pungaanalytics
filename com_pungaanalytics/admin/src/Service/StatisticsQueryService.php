@@ -31,6 +31,7 @@ final class StatisticsQueryService
 		'pages' => ['title' => 'COM_PUNGAANALYTICS_TOP_PAGES', 'kind' => 'dimension'],
 		'notfound' => ['title' => 'COM_PUNGAANALYTICS_NOT_FOUND', 'kind' => 'notfound'],
 		'countries' => ['title' => 'COM_PUNGAANALYTICS_COUNTRIES', 'kind' => 'country'],
+		'networks' => ['title' => 'COM_PUNGAANALYTICS_NETWORKS', 'kind' => 'network'],
 		'referrers' => ['title' => 'COM_PUNGAANALYTICS_REFERRERS', 'kind' => 'dimension'],
 		'sources' => ['title' => 'COM_PUNGAANALYTICS_TRAFFIC_SOURCES', 'kind' => 'source'],
 		'languages' => ['title' => 'COM_PUNGAANALYTICS_LANGUAGES', 'kind' => 'dimension'],
@@ -45,6 +46,9 @@ final class StatisticsQueryService
 
 	/** @var array<int, array<string, mixed>> */
 	private array $customEventDefinitions;
+
+	/** Joomla site timezone used for all calendar calculations and display bounds. */
+	private DateTimeZone $siteTimezone;
 
 	/** @var string */
 	private string $activeRange = '7';
@@ -72,6 +76,7 @@ final class StatisticsQueryService
 		private string $timezone
 	)
 	{
+		$this->siteTimezone = new DateTimeZone($this->timezone);
 		$this->customEventDefinitions = (new CustomEventDefinitionService())->getDefinitions(
 			ComponentHelper::getParams('com_pungaanalytics')
 		);
@@ -125,6 +130,7 @@ final class StatisticsQueryService
 			'notFound' => $this->getNotFoundRows($from, $to, 15),
 			'eventTypes' => $this->getEventTypes($from, $to, 15),
 			'countries' => $this->getCountryRows($from, $to, 20),
+			'networks' => $this->getNetworkRows($from, $to, 20),
 			'referrers' => $this->getDimensionRows('referrer_host', $from, $to, 15, false, 'pageview', true),
 			'trafficSources' => $this->getTrafficSourceRows($from, $to),
 			'languages' => $this->getDimensionRows('language_code', $from, $to, 12, false, 'pageview', true),
@@ -220,6 +226,7 @@ final class StatisticsQueryService
 			'notfound' => $this->getNotFoundRows($from, $to, 0),
 			'event' => $this->getEventItems($eventType, $from, $to, 0),
 			'countries' => $this->getCountryRows($from, $to, 0),
+			'networks' => $this->getNetworkRows($from, $to, 0),
 			'referrers' => $this->getDimensionRows('referrer_host', $from, $to, 0, false, 'pageview', true),
 			'sources' => $this->getTrafficSourceRows($from, $to),
 			'languages' => $this->getDimensionRows('language_code', $from, $to, 0, false, 'pageview', true),
@@ -288,8 +295,7 @@ final class StatisticsQueryService
 		$allowed = ['today', 'yesterday', 'last24', '7', '30', '90', '365', 'all', '0'];
 		$this->activeRange = \in_array($range, $allowed, true) ? $range : '7';
 		$this->activeRange = $this->activeRange === '0' ? 'all' : $this->activeRange;
-		$timezone = new DateTimeZone($this->timezone);
-		$now = new DateTimeImmutable('now', $timezone);
+		$now = new DateTimeImmutable('now', $this->siteTimezone);
 		$from = $now;
 		$to = $now;
 		$this->rawFromUtc = '';
@@ -301,7 +307,7 @@ final class StatisticsQueryService
 
 			if ($earliest !== '')
 			{
-				$from = new DateTimeImmutable($earliest . ' 00:00:00', $timezone);
+				$from = new DateTimeImmutable($earliest . ' 00:00:00', $this->siteTimezone);
 			}
 		}
 		elseif ($this->activeRange === 'today')
@@ -315,7 +321,7 @@ final class StatisticsQueryService
 		}
 		elseif ($this->activeRange === 'last24')
 		{
-			$from = $now->modify('-24 hours');
+			$from = $now->setTimestamp($now->getTimestamp() - 86400);
 			$this->rawFromUtc = $from->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
 			$this->rawToUtc = $now->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
 		}
@@ -419,11 +425,11 @@ final class StatisticsQueryService
 		$eventTypes = array_column($this->getDefinitionsFor('show_trend'), 'event_type');
 		$cursor = match ($granularity)
 		{
-			'month' => new DateTimeImmutable(substr($from, 0, 7) . '-01'),
-			'week' => (new DateTimeImmutable($from))->modify('monday this week'),
-			default => new DateTimeImmutable($from),
+			'month' => new DateTimeImmutable(substr($from, 0, 7) . '-01', $this->siteTimezone),
+			'week' => (new DateTimeImmutable($from, $this->siteTimezone))->modify('monday this week'),
+			default => new DateTimeImmutable($from, $this->siteTimezone),
 		};
-		$end = new DateTimeImmutable($to);
+		$end = new DateTimeImmutable($to, $this->siteTimezone);
 		$step = match ($granularity)
 		{
 			'month' => '+1 month',
@@ -459,7 +465,7 @@ final class StatisticsQueryService
 			$periodStart = match ($granularity)
 			{
 				'month' => substr($date, 0, 7) . '-01',
-				'week' => (new DateTimeImmutable($date))->modify('monday this week')->format('Y-m-d'),
+				'week' => (new DateTimeImmutable($date, $this->siteTimezone))->modify('monday this week')->format('Y-m-d'),
 				default => $date,
 			};
 			$key = $periodStart;
@@ -476,7 +482,7 @@ final class StatisticsQueryService
 			$periodStart = match ($granularity)
 			{
 				'month' => substr($date, 0, 7) . '-01',
-				'week' => (new DateTimeImmutable($date))->modify('monday this week')->format('Y-m-d'),
+				'week' => (new DateTimeImmutable($date, $this->siteTimezone))->modify('monday this week')->format('Y-m-d'),
 				default => $date,
 			};
 			$eventType = (string) $row->event_type;
@@ -1018,6 +1024,34 @@ final class StatisticsQueryService
 			'notfound' => ['field' => 'path', 'archive' => 'notfound', 'metric' => 'COM_PUNGAANALYTICS_REQUESTS'],
 		];
 
+		if ($dimension === 'network')
+		{
+			if (preg_match('/^(?:AS)?(\d{1,10})$/i', $value, $matches) !== 1)
+			{
+				return null;
+			}
+
+			$asn = (int) $matches[1];
+
+			if ($asn <= 0 || $asn > 4294967295)
+			{
+				return null;
+			}
+
+			return [
+				'dimension' => 'network',
+				'value' => (string) $asn,
+				'field' => 'asn_number',
+				'archive' => 'network',
+				'metric' => 'COM_PUNGAANALYTICS_HUMAN_VISITS',
+				'event_type' => '',
+				'item_type' => '',
+				'item_id' => '',
+				'item_title' => '',
+				'path' => '',
+			];
+		}
+
 		if ($dimension === 'event_item')
 		{
 			$eventType = strtolower(trim((string) ($history['event_type'] ?? '')));
@@ -1086,6 +1120,7 @@ final class StatisticsQueryService
 		$dailyRows = match ($definition['dimension'])
 		{
 			'event_item' => $this->getEventItemHistoryDailyRows($definition, $from, $to),
+			'network' => $this->getNetworkHistoryDailyRows((int) $definition['value'], $from, $to),
 			'notfound' => $this->getNotFoundHistoryDailyRows($definition['value'], $from, $to),
 			default => $this->getDimensionHistoryDailyRows($definition, $from, $to),
 		};
@@ -1174,6 +1209,54 @@ final class StatisticsQueryService
 			->group($db->quoteName('visit_date'))
 			->bind(':historyDimension', $definition['archive'])
 			->bind(':archivedHistoryValue', $definition['value']);
+
+		$this->applyDateRange($archiveQuery, $from, $to, false);
+		$db->setQuery($archiveQuery);
+
+		return array_merge($raw, $db->loadObjectList());
+	}
+
+	/**
+	 * Returns daily human visitor-day history for one Autonomous System.
+	 *
+	 * @param int    $asn  Autonomous System number.
+	 * @param string $from Inclusive date.
+	 * @param string $to   Inclusive date.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getNetworkHistoryDailyRows(int $asn, string $from, string $to): array
+	{
+		if ($asn <= 0)
+		{
+			return [];
+		}
+
+		$db = $this->database;
+		$query = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				'COUNT(DISTINCT ' . $db->quoteName('visitor_hash') . ') AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__pungaanalytics_events'))
+			->where($db->quoteName('event_type') . ' = ' . $db->quote('pageview'))
+			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('asn_number') . ' = :historyAsn')
+			->group($db->quoteName('visit_date'))
+			->bind(':historyAsn', $asn, \Joomla\Database\ParameterType::INTEGER);
+
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
+		$raw = $db->loadObjectList();
+		$archiveQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				'SUM(' . $db->quoteName('human_visits') . ') AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__pungaanalytics_daily_networks'))
+			->where($db->quoteName('asn_number') . ' = :archiveHistoryAsn')
+			->group($db->quoteName('visit_date'))
+			->bind(':archiveHistoryAsn', $asn, \Joomla\Database\ParameterType::INTEGER);
 
 		$this->applyDateRange($archiveQuery, $from, $to, false);
 		$db->setQuery($archiveQuery);
@@ -1309,11 +1392,11 @@ final class StatisticsQueryService
 		$buckets = [];
 		$cursor = match ($granularity)
 		{
-			'month' => new DateTimeImmutable(substr($from, 0, 7) . '-01'),
-			'week' => (new DateTimeImmutable($from))->modify('monday this week'),
-			default => new DateTimeImmutable($from),
+			'month' => new DateTimeImmutable(substr($from, 0, 7) . '-01', $this->siteTimezone),
+			'week' => (new DateTimeImmutable($from, $this->siteTimezone))->modify('monday this week'),
+			default => new DateTimeImmutable($from, $this->siteTimezone),
 		};
-		$end = new DateTimeImmutable($to);
+		$end = new DateTimeImmutable($to, $this->siteTimezone);
 		$step = match ($granularity)
 		{
 			'month' => '+1 month',
@@ -1349,7 +1432,7 @@ final class StatisticsQueryService
 			$key = match ($granularity)
 			{
 				'month' => substr($date, 0, 7) . '-01',
-				'week' => (new DateTimeImmutable($date))->modify('monday this week')->format('Y-m-d'),
+				'week' => (new DateTimeImmutable($date, $this->siteTimezone))->modify('monday this week')->format('Y-m-d'),
 				default => $date,
 			};
 
@@ -1395,6 +1478,92 @@ final class StatisticsQueryService
 			$this->getArchivedDimensionRows('country', $from, $to),
 			$limit
 		);
+	}
+
+	/**
+	 * Returns page-view traffic grouped by Autonomous System number.
+	 *
+	 * Human visitors are counted as visitor-days, matching the Countries report.
+	 * Known bots remain visible in a separate page-view column so network-level
+	 * infrastructure traffic can be compared without changing bot classification.
+	 *
+	 * @param string $from  Inclusive date.
+	 * @param string $to    Inclusive date.
+	 * @param int    $limit Maximum rows, or zero for all.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getNetworkRows(string $from, string $to, int $limit): array
+	{
+		$db = $this->database;
+		$dailyVisitor = 'CONCAT(' . $db->quoteName('visit_date') . ', ' . $db->quote(':') . ', ' . $db->quoteName('visitor_hash') . ')';
+		$query = $db->getQuery(true)
+			->select([
+				$db->quoteName('asn_number'),
+				'COUNT(DISTINCT CASE WHEN ' . $db->quoteName('is_bot') . ' = 0 THEN ' . $dailyVisitor . ' END) AS ' . $db->quoteName('human_visits'),
+				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 0 THEN 1 ELSE 0 END) AS ' . $db->quoteName('human_pageviews'),
+				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 1 THEN 1 ELSE 0 END) AS ' . $db->quoteName('bot_pageviews'),
+			])
+			->from($db->quoteName('#__pungaanalytics_events'))
+			->where($db->quoteName('event_type') . ' = ' . $db->quote('pageview'))
+			->where($db->quoteName('asn_number') . ' > 0')
+			->group($db->quoteName('asn_number'));
+
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
+		$rawRows = $db->loadObjectList();
+		$archiveQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('asn_number'),
+				'SUM(' . $db->quoteName('human_visits') . ') AS ' . $db->quoteName('human_visits'),
+				'SUM(' . $db->quoteName('human_pageviews') . ') AS ' . $db->quoteName('human_pageviews'),
+				'SUM(' . $db->quoteName('bot_pageviews') . ') AS ' . $db->quoteName('bot_pageviews'),
+			])
+			->from($db->quoteName('#__pungaanalytics_daily_networks'))
+			->group($db->quoteName('asn_number'));
+		$this->applyDateRange($archiveQuery, $from, $to, false);
+		$db->setQuery($archiveQuery);
+		$archivedRows = $db->loadObjectList();
+		$rows = [];
+		$organizations = (new AsnDatabaseService())->getOrganizations();
+
+		foreach (array_merge($rawRows, $archivedRows) as $source)
+		{
+			$asn = (int) ($source->asn_number ?? 0);
+
+			if ($asn <= 0)
+			{
+				continue;
+			}
+
+			if (!isset($rows[$asn]))
+			{
+				$rows[$asn] = (object) [
+					'asn_number' => $asn,
+					'organization' => (string) ($organizations[(string) $asn] ?? ''),
+					'human_visits' => 0,
+					'human_pageviews' => 0,
+					'bot_pageviews' => 0,
+					'total_pageviews' => 0,
+				];
+			}
+
+			$rows[$asn]->human_visits += (int) ($source->human_visits ?? 0);
+			$rows[$asn]->human_pageviews += (int) ($source->human_pageviews ?? 0);
+			$rows[$asn]->bot_pageviews += (int) ($source->bot_pageviews ?? 0);
+			$rows[$asn]->total_pageviews = $rows[$asn]->human_pageviews + $rows[$asn]->bot_pageviews;
+		}
+
+		$rows = array_values($rows);
+		usort(
+			$rows,
+			static fn(object $left, object $right): int =>
+				((int) $right->human_visits <=> (int) $left->human_visits)
+				?: ((int) $right->human_pageviews <=> (int) $left->human_pageviews)
+				?: ((int) $left->asn_number <=> (int) $right->asn_number)
+		);
+
+		return $limit > 0 ? array_slice($rows, 0, $limit) : $rows;
 	}
 
 	/**
@@ -2159,13 +2328,13 @@ final class StatisticsQueryService
 			$periodStart = match ($granularity)
 			{
 				'month' => substr($date, 0, 7) . '-01',
-				'week' => (new DateTimeImmutable($date))->modify('monday this week')->format('Y-m-d'),
+				'week' => (new DateTimeImmutable($date, $this->siteTimezone))->modify('monday this week')->format('Y-m-d'),
 				default => $date,
 			};
 
 			if (!isset($buckets[$periodStart]))
 			{
-				$periodDate = new DateTimeImmutable($periodStart);
+				$periodDate = new DateTimeImmutable($periodStart, $this->siteTimezone);
 				$buckets[$periodStart] = (object) [
 					'period_start' => $periodStart,
 					'period_label' => match ($granularity)
@@ -2334,7 +2503,7 @@ final class StatisticsQueryService
 	 */
 	private function getTrendGranularity(string $from, string $to): string
 	{
-		$span = (new DateTimeImmutable($from))->diff(new DateTimeImmutable($to))->days + 1;
+		$span = (new DateTimeImmutable($from, $this->siteTimezone))->diff(new DateTimeImmutable($to, $this->siteTimezone))->days + 1;
 
 		if ($span <= 90)
 		{

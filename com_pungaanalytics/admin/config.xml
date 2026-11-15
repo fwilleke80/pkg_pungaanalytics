@@ -45,13 +45,17 @@
 			description="COM_PUNGAANALYTICS_CONFIG_CUSTOM_EVENT_DEFINITIONS_DESC"
 		/>
 	</fieldset>
-	<fieldset name="country" label="COM_PUNGAANALYTICS_CONFIG_COUNTRY">
+	<fieldset name="location_network" label="COM_PUNGAANALYTICS_CONFIG_LOCATION_NETWORK">
 		<field name="country_detection" type="list" default="local_dbip" label="COM_PUNGAANALYTICS_CONFIG_COUNTRY_DETECTION" description="COM_PUNGAANALYTICS_CONFIG_COUNTRY_DETECTION_DESC">
 			<option value="disabled">COM_PUNGAANALYTICS_CONFIG_COUNTRY_DISABLED</option>
 			<option value="local_dbip">COM_PUNGAANALYTICS_CONFIG_COUNTRY_LOCAL_DBIP</option>
 			<option value="header">COM_PUNGAANALYTICS_CONFIG_COUNTRY_HEADER</option>
 		</field>
 		<field name="trusted_country_header" type="text" default="HTTP_CF_IPCOUNTRY" label="COM_PUNGAANALYTICS_CONFIG_TRUSTED_COUNTRY_HEADER" description="COM_PUNGAANALYTICS_CONFIG_TRUSTED_COUNTRY_HEADER_DESC" />
+		<field name="asn_detection" type="list" default="local_dbip" label="COM_PUNGAANALYTICS_CONFIG_ASN_DETECTION" description="COM_PUNGAANALYTICS_CONFIG_ASN_DETECTION_DESC">
+			<option value="disabled">COM_PUNGAANALYTICS_CONFIG_ASN_DISABLED</option>
+			<option value="local_dbip">COM_PUNGAANALYTICS_CONFIG_ASN_LOCAL_DBIP</option>
+		</field>
 	</fieldset>
 	<fieldset name="permissions" label="JCONFIG_PERMISSIONS_LABEL" description="JCONFIG_PERMISSIONS_DESC">
 		<field name="rules" type="rules" label="JCONFIG_PERMISSIONS_LABEL" filter="rules" validate="rules" component="com_pungaanalytics" section="component" />

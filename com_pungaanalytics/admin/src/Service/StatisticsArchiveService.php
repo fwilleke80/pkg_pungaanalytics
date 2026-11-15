@@ -69,6 +69,7 @@ final class StatisticsArchiveService
 				$this->archiveDailyTotals($cutoffDate);
 				$this->archivePageViews($cutoffDate);
 				$this->archiveDimensions($cutoffDate);
+				$this->archiveNetworks($cutoffDate);
 				$this->archiveTimeBuckets($cutoffDate);
 				$this->archiveCustomEventTimeBuckets($cutoffDate);
 				$this->archiveEventItems($cutoffDate);
@@ -113,6 +114,7 @@ final class StatisticsArchiveService
 			'#__pungaanalytics_daily',
 			'#__pungaanalytics_daily_pages',
 			'#__pungaanalytics_daily_dimensions',
+			'#__pungaanalytics_daily_networks',
 			'#__pungaanalytics_daily_time',
 			'#__pungaanalytics_daily_event_time',
 			'#__pungaanalytics_daily_items',
@@ -367,6 +369,37 @@ final class StatisticsArchiveService
 			. 'ON DUPLICATE KEY UPDATE '
 			. '`label` = VALUES(`label`), '
 			. '`event_count` = `event_count` + VALUES(`event_count`)';
+
+		$db->setQuery($sql)->execute();
+	}
+
+	/**
+	 * Archives page-view traffic by Autonomous System number.
+	 *
+	 * @param string $cutoffDate First retained raw-event date.
+	 *
+	 * @return void
+	 */
+	private function archiveNetworks(string $cutoffDate): void
+	{
+		$db = $this->database;
+		$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
+		$networkTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_daily_networks'));
+		$sql = 'INSERT INTO ' . $networkTable . ' ('
+			. '`visit_date`, `asn_number`, `human_visits`, `human_pageviews`, `bot_pageviews`'
+			. ') SELECT '
+			. '`visit_date`, `asn_number`, '
+			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 THEN `visitor_hash` END), "
+			. "SUM(CASE WHEN `is_bot` = 0 THEN 1 ELSE 0 END), "
+			. "SUM(CASE WHEN `is_bot` = 1 THEN 1 ELSE 0 END) "
+			. 'FROM ' . $eventsTable
+			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
+			. " AND `event_type` = 'pageview' AND `asn_number` > 0"
+			. ' GROUP BY `visit_date`, `asn_number` '
+			. 'ON DUPLICATE KEY UPDATE '
+			. '`human_visits` = `human_visits` + VALUES(`human_visits`), '
+			. '`human_pageviews` = `human_pageviews` + VALUES(`human_pageviews`), '
+			. '`bot_pageviews` = `bot_pageviews` + VALUES(`bot_pageviews`)';
 
 		$db->setQuery($sql)->execute();
 	}

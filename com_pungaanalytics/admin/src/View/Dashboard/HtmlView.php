@@ -9,6 +9,7 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\View\HtmlView as BaseHtmlView;
 use Joomla\CMS\Toolbar\ToolbarHelper;
+use Punga\Component\PungaAnalytics\Administrator\Service\AsnDatabaseService;
 use Punga\Component\PungaAnalytics\Administrator\Service\CountryDatabaseService;
 use Punga\Component\PungaAnalytics\Administrator\Service\CustomEventDefinitionService;
 
@@ -24,6 +25,9 @@ final class HtmlView extends BaseHtmlView
 
 	/** @var array<string, mixed> */
 	public array $countryStatus = [];
+
+	/** @var array<string, mixed> */
+	public array $asnStatus = [];
 
 	/** @var string */
 	public string $version = 'unknown';
@@ -70,6 +74,7 @@ final class HtmlView extends BaseHtmlView
 			'pages',
 			'notfound',
 			'countries',
+			'networks',
 			'referrers',
 			'sources',
 			'languages',
@@ -100,19 +105,20 @@ final class HtmlView extends BaseHtmlView
 		$model = $this->getModel();
 		$this->data = $model->getDashboardData($this->range, $this->activityTableRows);
 		$this->countryStatus = (new CountryDatabaseService())->getStatus();
+		$this->asnStatus = (new AsnDatabaseService())->getStatus();
 		$this->version = $model->getInstalledVersion();
 
 		$document = $app->getDocument();
 		$webAssetManager = $document->getWebAssetManager();
 		$webAssetManager->registerAndUseStyle(
-			'com_pungaanalytics.admin.0.9.0',
-			'com_pungaanalytics/admin-0.9.0.css',
-			['version' => '0.9.0']
+			'com_pungaanalytics.admin.0.10.1',
+			'com_pungaanalytics/admin-0.10.1.css',
+			['version' => '0.10.1']
 		);
 		$webAssetManager->registerAndUseScript(
-			'com_pungaanalytics.dashboard.0.9.0',
-			'com_pungaanalytics/admin-0.9.0.js',
-			['version' => '0.9.0'],
+			'com_pungaanalytics.dashboard.0.10.1',
+			'com_pungaanalytics/admin-0.10.1.js',
+			['version' => '0.10.1'],
 			['defer' => true]
 		);
 

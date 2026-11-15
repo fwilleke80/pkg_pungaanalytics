@@ -88,6 +88,18 @@ final class ReportModel extends BaseDatabaseModel
 				'count' => 'count',
 			],
 		],
+		'networks' => [
+			'default' => 'human_visits',
+			'direction' => 'desc',
+			'fields' => [
+				'asn' => 'asn_number',
+				'organization' => 'organization',
+				'human_visits' => 'human_visits',
+				'human_pageviews' => 'human_pageviews',
+				'bot_pageviews' => 'bot_pageviews',
+				'total_pageviews' => 'total_pageviews',
+			],
+		],
 		'notfound' => [
 			'default' => 'total',
 			'direction' => 'desc',
@@ -132,6 +144,11 @@ final class ReportModel extends BaseDatabaseModel
 		'session_count',
 		'multi_event_sessions',
 		'human',
+		'human_visits',
+		'human_pageviews',
+		'bot_pageviews',
+		'total_pageviews',
+		'asn_number',
 		'total',
 	];
 

@@ -37,6 +37,27 @@ $duration = static function (mixed $seconds): string
 		: sprintf('%d:%02d', $minutes, $remaining);
 };
 $escape = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+$siteTimezone = new \DateTimeZone((string) Factory::getApplication()->get('offset', 'UTC'));
+$formatUtcTimestamp = static function (mixed $value) use ($siteTimezone): string
+{
+	$value = trim((string) $value);
+
+	if ($value === '')
+	{
+		return '';
+	}
+
+	try
+	{
+		return (new \DateTimeImmutable($value, new \DateTimeZone('UTC')))
+			->setTimezone($siteTimezone)
+			->format('Y-m-d H:i T');
+	}
+	catch (\Throwable)
+	{
+		return $value;
+	}
+};
 $siteRoot = rtrim(Uri::root(), '/');
 $displayLocale = str_replace('-', '_', Factory::getApplication()->getLanguage()->getTag());
 $countryName = static function (string $code) use ($displayLocale): string
@@ -233,6 +254,20 @@ foreach (['countries', 'referrers', 'sources', 'languages', 'devices', 'browsers
 	];
 }
 
+
+$dashboardSortDefinitions['networks'] = [
+	'defaultField' => 'human_visits',
+	'defaultDirection' => 'desc',
+	'fields' => [
+		'asn' => ['property' => 'asn_number', 'type' => 'number'],
+		'organization' => ['property' => 'organization', 'type' => 'text'],
+		'human_visits' => ['property' => 'human_visits', 'type' => 'number'],
+		'human_pageviews' => ['property' => 'human_pageviews', 'type' => 'number'],
+		'bot_pageviews' => ['property' => 'bot_pageviews', 'type' => 'number'],
+		'total_pageviews' => ['property' => 'total_pageviews', 'type' => 'number'],
+	],
+];
+
 $dashboardSortDefinitions['notfound'] = [
 	'defaultField' => 'total',
 	'defaultDirection' => 'desc',
@@ -375,7 +410,7 @@ $sortableHeading = static function (
 		\in_array($table, ['pages', 'notfound'], true) => 'content',
 		\in_array($table, $rankingTableKeys, true) => 'engagement',
 		\in_array($table, ['sources', 'referrers'], true) => 'acquisition',
-		\in_array($table, ['countries', 'languages', 'devices', 'browsers', 'bots', 'events'], true) => 'audience',
+		\in_array($table, ['countries', 'networks', 'languages', 'devices', 'browsers', 'bots', 'events'], true) => 'audience',
 		default => 'overview',
 	};
 	$url = Route::_(
@@ -552,9 +587,11 @@ $showCountryWarning = $this->countryStatus !== []
 $timeSortTables = ['hours', 'weekdays'];
 $engagementSortTables = $rankingTableKeys;
 $acquisitionSortTables = ['sources', 'referrers'];
-$audienceSortTables = ['countries', 'languages', 'devices', 'browsers', 'bots', 'events'];
+$audienceSortTables = ['countries', 'networks', 'languages', 'devices', 'browsers', 'bots', 'events'];
 $systemNeedsAttention = $this->countryStatus === []
-	|| !(bool) ($this->countryStatus['files_ready'] ?? false);
+	|| !(bool) ($this->countryStatus['files_ready'] ?? false)
+	|| $this->asnStatus === []
+	|| !(bool) ($this->asnStatus['files_ready'] ?? false);
 $dashboardViewIds = [
 	'overview' => 'pa-dashboard-overview',
 	'traffic' => 'pa-dashboard-traffic',
@@ -574,6 +611,7 @@ $sortTableViews = [
 	'sources' => 'acquisition',
 	'referrers' => 'acquisition',
 	'countries' => 'audience',
+	'networks' => 'audience',
 	'languages' => 'audience',
 	'devices' => 'audience',
 	'browsers' => 'audience',
@@ -596,7 +634,7 @@ if ($activeDashboardView === 'engagement' && $rankingDefinitions === [])
 	$activeDashboardView = 'overview';
 }
 
-$audienceViews = ['countries', 'languages', 'devices', 'browsers', 'bots', 'events'];
+$audienceViews = ['countries', 'networks', 'languages', 'devices', 'browsers', 'bots', 'events'];
 $requestedAudienceView = strtolower(Factory::getApplication()->input->getCmd('audienceview', ''));
 $activeAudienceView = \in_array($this->sortTable, $audienceViews, true)
 	? $this->sortTable
@@ -986,9 +1024,9 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 										<tr>
 											<th scope="col"><?php echo Text::_('COM_PUNGAANALYTICS_PERIOD'); ?></th>
 											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SESSIONS'); ?></th>
-											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_PAGEVIEWS_PER_SESSION'); ?></th>
-											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_AVG_SESSION_DURATION'); ?></th>
-											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SINGLE_PAGE_RATE'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_PAGES_PER_SESSION'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_AVG_DURATION'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_SINGLE_PAGE_RATE'); ?></th>
 										</tr>
 									</thead>
 									<tbody>
@@ -1022,9 +1060,9 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 										<tr>
 											<th scope="col"><?php echo Text::_('COM_PUNGAANALYTICS_EVENT'); ?></th>
 											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_EVENTS'); ?></th>
-											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SESSIONS_WITH_EVENT'); ?></th>
-											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SESSION_SHARE'); ?></th>
-											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SESSIONS_WITH_MULTIPLE'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_SESSIONS_WITH_EVENT'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_SESSION_SHARE'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_MULTI_EVENT_SESSIONS'); ?></th>
 										</tr>
 									</thead>
 									<tbody>
@@ -1101,9 +1139,9 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 								<thead>
 									<tr>
 										<?php echo $sortableHeading('notfound', 'path', Text::_('COM_PUNGAANALYTICS_CSV_PATH'), 'asc'); ?>
-										<?php echo $sortableHeading('notfound', 'human', Text::_('COM_PUNGAANALYTICS_HUMAN_REQUESTS'), 'desc', 'text-end'); ?>
-										<?php echo $sortableHeading('notfound', 'bots', Text::_('COM_PUNGAANALYTICS_BOT_REQUESTS'), 'desc', 'text-end'); ?>
-										<?php echo $sortableHeading('notfound', 'total', Text::_('COM_PUNGAANALYTICS_REQUESTS'), 'desc', 'text-end'); ?>
+										<?php echo $sortableHeading('notfound', 'human', Text::_('COM_PUNGAANALYTICS_TABLE_HUMAN_REQUESTS'), 'desc', 'text-end'); ?>
+										<?php echo $sortableHeading('notfound', 'bots', Text::_('COM_PUNGAANALYTICS_TABLE_BOT_REQUESTS'), 'desc', 'text-end'); ?>
+										<?php echo $sortableHeading('notfound', 'total', Text::_('COM_PUNGAANALYTICS_TABLE_TOTAL_REQUESTS'), 'desc', 'text-end'); ?>
 									</tr>
 								</thead>
 								<tbody>
@@ -1214,6 +1252,9 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 							],
 						];
 						foreach ($acquisitionTables as [$title, $rows, $report, $historyDimension]) :
+							$columnTitle = $report === 'sources'
+								? Text::_('COM_PUNGAANALYTICS_TABLE_SOURCE')
+								: Text::_('COM_PUNGAANALYTICS_TABLE_REFERRER');
 						?>
 							<section class="pa-panel pa-panel--compact">
 								<header class="pa-panel__header">
@@ -1230,7 +1271,7 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 										<table class="table pa-table mb-0" id="pa-table-<?php echo $escape($report); ?>">
 											<thead>
 												<tr>
-													<?php echo $sortableHeading($report, 'label', $title, 'asc'); ?>
+													<?php echo $sortableHeading($report, 'label', $columnTitle, 'asc'); ?>
 													<?php echo $sortableHeading($report, 'count', Text::_('COM_PUNGAANALYTICS_CSV_COUNT'), 'desc', 'text-end'); ?>
 												</tr>
 											</thead>
@@ -1288,6 +1329,16 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 				]);
 				foreach ($dimensionTables as [$title, $rows, $mode, $report]) :
 					$rows = $sortDashboardRows($rows, $report);
+					$columnTitle = Text::_(match ($report)
+					{
+						'countries' => 'COM_PUNGAANALYTICS_TABLE_COUNTRY',
+						'languages' => 'COM_PUNGAANALYTICS_TABLE_LANGUAGE',
+						'devices' => 'COM_PUNGAANALYTICS_TABLE_DEVICE',
+						'browsers' => 'COM_PUNGAANALYTICS_TABLE_BROWSER',
+						'bots' => 'COM_PUNGAANALYTICS_TABLE_BOT',
+						'events' => 'COM_PUNGAANALYTICS_TABLE_EVENT',
+						default => 'COM_PUNGAANALYTICS_CSV_LABEL',
+					});
 					$isCountry = $mode === 'country-pie';
 					$isPie = \in_array($mode, ['pie', 'country-pie'], true);
 					$audienceTitle = $title;
@@ -1359,7 +1410,7 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 							<table class="table pa-table mb-0" id="pa-table-<?php echo $escape($report); ?>">
 								<thead>
 									<tr>
-										<?php echo $sortableHeading($report, 'label', $title, 'asc'); ?>
+										<?php echo $sortableHeading($report, 'label', $columnTitle, 'asc'); ?>
 										<?php echo $sortableHeading($report, 'count', Text::_('COM_PUNGAANALYTICS_CSV_COUNT'), 'desc', 'text-end'); ?>
 									</tr>
 								</thead>
@@ -1391,6 +1442,64 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 					</div>
 					<?php echo HTMLHelper::_('uitab.endTab'); ?>
 				<?php endforeach; ?>
+				<?php
+				$networkRows = $sortDashboardRows($this->data['networks'] ?? [], 'networks');
+				echo HTMLHelper::_('uitab.addTab', 'pungaAnalyticsAudienceTabs', 'pa-audience-networks', Text::_('COM_PUNGAANALYTICS_NETWORKS'));
+				?>
+				<div class="pa-audience-tab">
+					<section class="pa-panel pa-panel--compact">
+						<header class="pa-panel__header">
+							<h3><?php echo Text::_('COM_PUNGAANALYTICS_NETWORKS'); ?></h3>
+							<a class="pa-view-all" href="<?php echo $reportUrl('networks'); ?>"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_ALL'); ?></a>
+						</header>
+						<div class="pa-panel__body pa-panel__body--flush">
+							<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_NETWORKS_NOTE'); ?></p>
+							<?php if ($this->asnStatus === []) : ?>
+								<div class="alert alert-warning mb-3"><?php echo Text::_('COM_PUNGAANALYTICS_ASN_DATABASE_MISSING'); ?></div>
+							<?php elseif (!(bool) ($this->asnStatus['files_ready'] ?? false)) : ?>
+								<div class="alert alert-danger mb-3"><?php echo Text::_('COM_PUNGAANALYTICS_ASN_DATABASE_UNREADABLE'); ?></div>
+							<?php endif; ?>
+							<?php if ($networkRows === []) : ?>
+								<div class="pa-empty"><?php echo Text::_('COM_PUNGAANALYTICS_NO_DATA'); ?></div>
+							<?php else : ?>
+								<div class="table-responsive">
+								<table class="table pa-table mb-0" id="pa-table-networks">
+									<thead>
+										<tr>
+											<?php echo $sortableHeading('networks', 'asn', Text::_('COM_PUNGAANALYTICS_ASN'), 'asc'); ?>
+											<?php echo $sortableHeading('networks', 'organization', Text::_('COM_PUNGAANALYTICS_TABLE_NETWORK'), 'asc'); ?>
+											<?php echo $sortableHeading('networks', 'human_visits', Text::_('COM_PUNGAANALYTICS_TABLE_VISITORS'), 'desc', 'text-end'); ?>
+											<?php echo $sortableHeading('networks', 'human_pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_PAGEVIEWS'), 'desc', 'text-end'); ?>
+											<?php echo $sortableHeading('networks', 'bot_pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_BOT_VIEWS'), 'desc', 'text-end'); ?>
+										</tr>
+									</thead>
+									<tbody>
+									<?php foreach ($networkRows as $row) : ?>
+										<tr>
+											<td class="text-nowrap" data-sort-value="<?php echo (int) $row->asn_number; ?>">
+												AS<?php echo (int) $row->asn_number; ?>
+												<a class="pa-history-link"
+													href="<?php echo $historyUrl('network', (string) $row->asn_number); ?>"
+													title="<?php echo $escape(Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY')); ?>">
+													<span class="icon-chart" aria-hidden="true"></span>
+													<span class="visually-hidden"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_HISTORY'); ?></span>
+												</a>
+											</td>
+											<td class="text-break"><?php echo $row->organization !== '' ? $escape($row->organization) : Text::_('COM_PUNGAANALYTICS_UNKNOWN'); ?></td>
+											<td class="text-end" data-sort-value="<?php echo (int) $row->human_visits; ?>"><?php echo $number($row->human_visits); ?></td>
+											<td class="text-end" data-sort-value="<?php echo (int) $row->human_pageviews; ?>"><?php echo $number($row->human_pageviews); ?></td>
+											<td class="text-end" data-sort-value="<?php echo (int) $row->bot_pageviews; ?>"><?php echo $number($row->bot_pageviews); ?></td>
+										</tr>
+									<?php endforeach; ?>
+									</tbody>
+								</table>
+								</div>
+							<?php endif; ?>
+							<p class="small text-muted px-3 pb-3 mb-0"><?php echo Text::_('COM_PUNGAANALYTICS_DBIP_ASN_ATTRIBUTION'); ?></p>
+						</div>
+					</section>
+				</div>
+				<?php echo HTMLHelper::_('uitab.endTab'); ?>
 				<?php echo HTMLHelper::_('uitab.endTabSet'); ?>
 				</div>
 				<?php echo HTMLHelper::_('uitab.endTab'); ?>
@@ -1404,18 +1513,28 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 				<div><span><?php echo Text::_('COM_PUNGAANALYTICS_RETENTION'); ?></span><strong><?php echo Text::sprintf('COM_PUNGAANALYTICS_DAYS_VALUE', $this->retentionDays); ?></strong></div>
 				<div><span><?php echo Text::_('COM_PUNGAANALYTICS_GERMAN_VISITS'); ?></span><strong><?php echo $number($summary->german_visits ?? 0); ?></strong></div>
 				<div><span><?php echo Text::_('COM_PUNGAANALYTICS_COUNTRY_DATABASE'); ?></span><strong><?php echo $this->countryStatus === [] ? Text::_('COM_PUNGAANALYTICS_NOT_INSTALLED') : $escape($this->countryStatus['release'] ?? ''); ?></strong></div>
+				<div><span><?php echo Text::_('COM_PUNGAANALYTICS_ASN_DATABASE'); ?></span><strong><?php echo $this->asnStatus === [] ? Text::_('COM_PUNGAANALYTICS_NOT_INSTALLED') : $escape($this->asnStatus['release'] ?? ''); ?></strong></div>
 			</div>
 			<div class="pa-system__notes">
 				<p><?php echo Text::_('COM_PUNGAANALYTICS_PRIVACY_NOTE'); ?></p>
 				<?php if ($this->countryStatus !== []) : ?>
-					<p><?php echo Text::sprintf('COM_PUNGAANALYTICS_COUNTRY_DATABASE_STATUS', $escape($this->countryStatus['updated_at'] ?? ''), (int) ($this->countryStatus['ipv4_count'] ?? 0), (int) ($this->countryStatus['ipv6_count'] ?? 0)); ?></p>
+					<p><?php echo Text::sprintf('COM_PUNGAANALYTICS_COUNTRY_DATABASE_STATUS', $escape($formatUtcTimestamp($this->countryStatus['updated_at'] ?? '')), (int) ($this->countryStatus['ipv4_count'] ?? 0), (int) ($this->countryStatus['ipv6_count'] ?? 0)); ?></p>
 					<?php if (!(bool) ($this->countryStatus['files_ready'] ?? false)) : ?>
 						<div class="alert alert-danger mb-3"><?php echo Text::_('COM_PUNGAANALYTICS_COUNTRY_DATABASE_UNREADABLE'); ?></div>
 					<?php endif; ?>
 				<?php else : ?>
 					<div class="alert alert-warning mb-3"><?php echo Text::_('COM_PUNGAANALYTICS_COUNTRY_DATABASE_MISSING'); ?></div>
 				<?php endif; ?>
+				<?php if ($this->asnStatus !== []) : ?>
+					<p><?php echo Text::sprintf('COM_PUNGAANALYTICS_ASN_DATABASE_STATUS', $escape($formatUtcTimestamp($this->asnStatus['updated_at'] ?? '')), (int) ($this->asnStatus['ipv4_count'] ?? 0), (int) ($this->asnStatus['ipv6_count'] ?? 0), (int) ($this->asnStatus['organization_count'] ?? 0)); ?></p>
+					<?php if (!(bool) ($this->asnStatus['files_ready'] ?? false)) : ?>
+						<div class="alert alert-danger mb-3"><?php echo Text::_('COM_PUNGAANALYTICS_ASN_DATABASE_UNREADABLE'); ?></div>
+					<?php endif; ?>
+				<?php else : ?>
+					<div class="alert alert-warning mb-3"><?php echo Text::_('COM_PUNGAANALYTICS_ASN_DATABASE_MISSING'); ?></div>
+				<?php endif; ?>
 				<p><?php echo Text::_('COM_PUNGAANALYTICS_COUNTRY_DATABASE_FORWARD_ONLY'); ?></p>
+				<p><?php echo Text::_('COM_PUNGAANALYTICS_ASN_DATABASE_FORWARD_ONLY'); ?></p>
 				<p class="small text-muted mb-0"><?php echo Text::_('COM_PUNGAANALYTICS_DBIP_ATTRIBUTION'); ?></p>
 			</div>
 			<div class="pa-system__actions">
@@ -1427,6 +1546,10 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 					<button type="button" class="btn btn-primary" data-pa-dashboard-task="dashboard.updateCountryDatabase">
 						<span class="icon-refresh" aria-hidden="true"></span>
 						<?php echo Text::_('COM_PUNGAANALYTICS_UPDATE_COUNTRY_DATABASE'); ?>
+					</button>
+					<button type="button" class="btn btn-primary" data-pa-dashboard-task="dashboard.updateAsnDatabase">
+						<span class="icon-refresh" aria-hidden="true"></span>
+						<?php echo Text::_('COM_PUNGAANALYTICS_UPDATE_ASN_DATABASE'); ?>
 					</button>
 					<button type="button" class="btn btn-secondary" data-pa-dashboard-task="dashboard.purgeExpired">
 						<span class="icon-archive" aria-hidden="true"></span>

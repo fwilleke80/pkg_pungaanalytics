@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	`referrer_host` VARCHAR(255) NOT NULL DEFAULT '',
 	`traffic_source` VARCHAR(16) NOT NULL DEFAULT '',
 	`country_code` CHAR(2) NOT NULL DEFAULT 'ZZ',
+	`asn_number` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`language_code` VARCHAR(16) NOT NULL DEFAULT '',
 	`device_type` VARCHAR(16) NOT NULL DEFAULT 'unknown',
 	`browser_family` VARCHAR(32) NOT NULL DEFAULT 'Other',
@@ -32,6 +33,7 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	KEY `idx_pungaanalytics_bot_date` (`is_bot`, `visit_date`),
 	KEY `idx_pungaanalytics_auth_date` (`is_authenticated`, `visit_date`),
 	KEY `idx_pungaanalytics_country_date` (`country_code`, `visit_date`),
+	KEY `idx_pungaanalytics_asn_date` (`asn_number`, `visit_date`),
 	KEY `idx_pungaanalytics_event_date` (`event_type`, `visit_date`),
 	KEY `idx_pungaanalytics_item` (`item_type`, `item_id`(64)),
 	KEY `idx_pungaanalytics_path` (`path`(191)),
@@ -117,6 +119,16 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_items` (
 	KEY `idx_pungaanalytics_daily_item` (`item_type`, `item_id`(64))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci;
 
+
+CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_networks` (
+	`visit_date` DATE NOT NULL,
+	`asn_number` BIGINT UNSIGNED NOT NULL,
+	`human_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`human_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`bot_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	PRIMARY KEY (`visit_date`, `asn_number`),
+	KEY `idx_pungaanalytics_network_asn_date` (`asn_number`, `visit_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_sessions` (
 	`visit_date` DATE NOT NULL,

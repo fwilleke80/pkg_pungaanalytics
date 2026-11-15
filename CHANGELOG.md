@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.10.1 — 2026-11-15
+
+- Merged the separate **Country detection** and **Network detection** component-option tabs into **Location & Network**.
+- Added the proper Joomla component configuration title **Punga Analytics: Options** instead of exposing the untranslated `com_pungaanalytics_configuration` key.
+- Shortened verbose administrator table headings where appropriate and made table-header typography smaller, lighter, non-uppercase, and wrap-friendly to reduce unnecessary horizontal width.
+- Audited date/time handling so reporting ranges, calendar bucketing, session date grouping, displayed 404 timestamps, CSV timestamps, and database-maintenance timestamps consistently use the configured Joomla site timezone.
+- Made **Last 24 hours** an exact rolling 86,400-second interval while still displaying its bounds in the configured Joomla site timezone.
+- Updated manifests, release metadata, administrator assets, language files, and documentation.
+
+## 0.10.0 — 2026-11-15
+
+- Added privacy-preserving local ASN/network detection using the monthly DB-IP ASN
+  Lite database; event rows store only the resolved numeric ASN and never retain
+  the visitor IP address.
+- Added **Networks / ASNs** under Audience & technology with network/organization
+  names, human visitor-days, human page views, known-bot page views, and total
+  page views.
+- Added sortable paginated network full reports, CSV export, inclusion in the
+  all-reports ZIP, and daily row history for each ASN.
+- Kept ASN diagnostics separate from bot classification: traffic already
+  classified as human remains human even when it originates from hosting or
+  cloud infrastructure.
+- Added a local ASN database status panel and **Update ASN database** maintenance
+  action to the System tab, alongside the existing country database controls.
+- Added permanent `#__pungaanalytics_daily_networks` aggregates so resolved
+  network statistics survive raw-event archival.
+- Added a raw-event ASN column and supporting index through the installer-managed
+  schema repair path for MySQL/MariaDB compatibility.
+- Documented that ASN attribution is forward-only because Punga Analytics does
+  not retain raw source IP addresses, so pre-0.10.0 events cannot be backfilled.
+- Updated manifests, release metadata, administrator assets, language files, and
+  documentation.
+
 ## 0.9.0 — 2026-11-15
 
 - Added privacy-preserving, cookieless session analytics derived from the existing
