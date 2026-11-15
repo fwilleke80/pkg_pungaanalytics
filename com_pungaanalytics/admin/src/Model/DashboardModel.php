@@ -6,6 +6,7 @@ namespace Punga\Component\PungaAnalytics\Administrator\Model;
 
 use Joomla\CMS\Factory;
 use Joomla\CMS\MVC\Model\BaseDatabaseModel;
+use Punga\Component\PungaAnalytics\Administrator\Service\AutomationClassificationService;
 use Punga\Component\PungaAnalytics\Administrator\Service\StatisticsArchiveService;
 use Punga\Component\PungaAnalytics\Administrator\Service\StatisticsQueryService;
 
@@ -46,6 +47,16 @@ final class DashboardModel extends BaseDatabaseModel
 		$manifest = json_decode((string) $db->loadResult(), true);
 
 		return is_array($manifest) && isset($manifest['version']) ? (string) $manifest['version'] : 'unknown';
+	}
+
+	/**
+	 * Re-evaluates all retained anonymous visitor-days for suspected automation.
+	 *
+	 * @return int Number of visitor-days evaluated.
+	 */
+	public function reclassifyAutomation(): int
+	{
+		return (new AutomationClassificationService($this->getDatabase()))->reclassifyRetained();
 	}
 
 	/**

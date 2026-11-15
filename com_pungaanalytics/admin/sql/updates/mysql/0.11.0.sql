@@ -1,0 +1,2 @@
+-- Punga Analytics 0.11.0 schema is repaired by the component installer script.
+-- This marker keeps Joomla's database schema version aligned with the manifest.

@@ -79,6 +79,24 @@ final class DashboardController extends BaseController
 	}
 
 	/**
+	 * Re-evaluates all retained anonymous visitor-days for suspected automation.
+	 *
+	 * @return void
+	 */
+	public function reclassifyAutomation(): void
+	{
+		Session::checkToken('request') or jexit(Text::_('JINVALID_TOKEN'));
+		$this->assertManagePermission();
+
+		/** @var \Punga\Component\PungaAnalytics\Administrator\Model\DashboardModel $model */
+		$model = $this->getModel('Dashboard');
+		$count = $model->reclassifyAutomation();
+
+		$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_AUTOMATION_RECLASSIFIED', $count));
+		$this->setRedirect($this->getSystemRedirect());
+	}
+
+	/**
 	 * Archives raw events older than the configured retention period.
 	 *
 	 * @return void

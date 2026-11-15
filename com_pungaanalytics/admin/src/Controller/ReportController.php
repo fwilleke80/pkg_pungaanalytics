@@ -109,6 +109,10 @@ final class ReportController extends BaseController
 			['browsers', ''],
 			['bots', ''],
 			['events', ''],
+			['automationcountries', ''],
+			['automationnetworks', ''],
+			['automationpaths', ''],
+			['automationreasons', ''],
 		];
 		$activityData = $model->getExportData('activity', $range, '', '');
 
@@ -314,6 +318,7 @@ final class ReportController extends BaseController
 				},
 				Text::_('COM_PUNGAANALYTICS_VISITS'),
 				Text::_('COM_PUNGAANALYTICS_PAGEVIEWS'),
+				Text::_('COM_PUNGAANALYTICS_SUSPECTED_AUTOMATED'),
 			];
 
 			foreach ($definitions as $definition)
@@ -336,6 +341,7 @@ final class ReportController extends BaseController
 					$label,
 					(int) $row->visits,
 					(int) $row->pageviews,
+					(int) ($row->automated ?? 0),
 				];
 
 				foreach ($definitions as $definition)
@@ -457,6 +463,8 @@ final class ReportController extends BaseController
 				Text::_('COM_PUNGAANALYTICS_NETWORK_ORGANIZATION'),
 				Text::_('COM_PUNGAANALYTICS_HUMAN_VISITS'),
 				Text::_('COM_PUNGAANALYTICS_HUMAN_PAGEVIEWS'),
+				Text::_('COM_PUNGAANALYTICS_SUSPECTED_AUTOMATED_VISITS'),
+				Text::_('COM_PUNGAANALYTICS_SUSPECTED_AUTOMATED_PAGEVIEWS'),
 				Text::_('COM_PUNGAANALYTICS_KNOWN_BOT_PAGEVIEWS'),
 				Text::_('COM_PUNGAANALYTICS_TOTAL_PAGEVIEWS'),
 			]);
@@ -468,9 +476,49 @@ final class ReportController extends BaseController
 					(string) $row->organization,
 					(int) $row->human_visits,
 					(int) $row->human_pageviews,
+					(int) ($row->automated_visits ?? 0),
+					(int) ($row->automated_pageviews ?? 0),
 					(int) $row->bot_pageviews,
 					(int) $row->total_pageviews,
 				]);
+			}
+
+			return;
+		}
+
+		if ($kind === 'automationnetwork')
+		{
+			fputcsv($stream, [
+				Text::_('COM_PUNGAANALYTICS_ASN'),
+				Text::_('COM_PUNGAANALYTICS_NETWORK_ORGANIZATION'),
+				Text::_('COM_PUNGAANALYTICS_SUSPECTED_AUTOMATED_VISITS'),
+				Text::_('COM_PUNGAANALYTICS_SUSPECTED_AUTOMATED_PAGEVIEWS'),
+			]);
+
+			foreach ($data['rows'] as $row)
+			{
+				fputcsv($stream, [
+					'AS' . (int) $row->asn_number,
+					(string) $row->organization,
+					(int) $row->automated_visits,
+					(int) $row->automated_pageviews,
+				]);
+			}
+
+			return;
+		}
+
+		if ($kind === 'automation')
+		{
+			fputcsv($stream, [
+				Text::_('COM_PUNGAANALYTICS_CSV_LABEL'),
+				Text::_('COM_PUNGAANALYTICS_VISITORS'),
+				Text::_('COM_PUNGAANALYTICS_PAGEVIEWS'),
+			]);
+
+			foreach ($data['rows'] as $row)
+			{
+				fputcsv($stream, [(string) $row->label, (int) $row->visitors, (int) $row->pageviews]);
 			}
 
 			return;
@@ -481,6 +529,7 @@ final class ReportController extends BaseController
 			fputcsv($stream, [
 				Text::_('COM_PUNGAANALYTICS_CSV_PATH'),
 				Text::_('COM_PUNGAANALYTICS_HUMAN_REQUESTS'),
+				Text::_('COM_PUNGAANALYTICS_AUTOMATED_REQUESTS'),
 				Text::_('COM_PUNGAANALYTICS_BOT_REQUESTS'),
 				Text::_('COM_PUNGAANALYTICS_REQUESTS'),
 				Text::_('COM_PUNGAANALYTICS_TOP_REFERRER'),
@@ -493,6 +542,7 @@ final class ReportController extends BaseController
 				fputcsv($stream, [
 					(string) $row->path,
 					(int) $row->human,
+					(int) ($row->automated ?? 0),
 					(int) $row->bots,
 					(int) $row->total,
 					(string) $row->top_referrer,

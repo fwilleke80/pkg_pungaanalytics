@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.11.1 — 2026-11-15
+
+- Renamed the Traffic Quality child tab from **Known bots** to **Detected bots**, reflecting that bot detection includes both named crawlers and strong generic User-Agent signatures.
+- Replaced the `Other bot` fallback for newly recorded traffic with specific categories for generic bots/crawlers/spiders, headless browsers, Python Requests, cURL, Wget, Yahoo Slurp, and requests without a User-Agent.
+- Relabeled existing `Other bot` statistics as **Unclassified bot (legacy)**; older rows cannot be split further because complete User-Agent strings were deliberately never stored.
+- Stacked **Activity by hour** and **Activity by weekday** vertically so each chart and table uses the full dashboard width.
+- Increased the fixed-bucket chart legend text now that the hour and weekday panels no longer share a row.
+- Renamed the misleading **Dashboard table rows** option to **Dashboard preview rows** and documented exactly which three preview-table groups it limits.
+- Added Joomla inline-help descriptions for every component option and every custom-event-definition setting; descriptions remain hidden until **Toggle Inline Help** is enabled.
+- Updated versioned administrator assets and release metadata.
+
+## 0.11.0 — 2026-11-15
+
+- Added a three-way traffic-quality model: **Human**, **Suspected automated**, and **Known bot**.
+- Added conservative visitor-day automation scoring using multiple infrastructure and behavioural signals; a hosting/cloud ASN alone is deliberately insufficient to classify traffic as automated.
+- Reduced suspicion when configured custom-event engagement is present, keeping automation detection generic rather than hard-coding any producer or event identifier.
+- Excluded suspected automation from normal human visitor, page-view, page, country, acquisition, session, and configured-event totals while retaining every request for diagnostics.
+- Added permanent suspected-automation totals to daily, time-distribution, network, and 404 aggregates plus dedicated country, network, page, and detection-reason aggregates.
+- Added **Traffic Quality** with separate **Suspected automation** and **Known bots** child tabs, sortable full reports, CSV export, and all-report ZIP entries.
+- Added **Reclassify retained traffic** to System so current ASN information, configured engagement events, and heuristics can be applied again to retained raw visitor-days.
+- Extended ASN database compilation with a conservative local hosting/cloud signal map without storing or exporting visitor IP addresses.
+- Reorganised dashboard navigation into **Overview**, **Traffic**, **Content & Engagement**, **Audience**, **Traffic Quality**, and **System**, with coherent child tabs and report/range navigation that preserves the selected section.
+- Added suspected-automation columns to activity, time, 404, and network tables and an optional suspected-automation metric to the administrator Home Dashboard module.
+- Documented that traffic archived before 0.11.0 cannot be retrospectively separated into human and suspected-automated categories because older privacy-minimised aggregates no longer contain visitor-level request sequences.
+- Updated schema repair, manifests, release metadata, administrator assets, language files, README, and source-package build metadata.
+
 ## 0.10.1 — 2026-11-15
 
 - Merged the separate **Country detection** and **Network detection** component-option tabs into **Location & Network**.

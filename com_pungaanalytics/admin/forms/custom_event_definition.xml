@@ -10,15 +10,15 @@
 		</field>
 	</fieldset>
 	<fieldset name="presentation" label="COM_PUNGAANALYTICS_CONFIG_EVENT_PRESENTATION">
-		<field name="show_summary" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_SUMMARY">
+		<field name="show_summary" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_SUMMARY" description="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_SUMMARY_DESC">
 			<option value="0">JNO</option>
 			<option value="1">JYES</option>
 		</field>
-		<field name="show_trend" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_TREND">
+		<field name="show_trend" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_TREND" description="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_TREND_DESC">
 			<option value="0">JNO</option>
 			<option value="1">JYES</option>
 		</field>
-		<field name="show_time" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_TIME">
+		<field name="show_time" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_TIME" description="COM_PUNGAANALYTICS_CONFIG_EVENT_SHOW_TIME_DESC">
 			<option value="0">JNO</option>
 			<option value="1">JYES</option>
 		</field>
@@ -28,8 +28,8 @@
 		</field>
 		<field name="ranking_title" type="text" maxlength="150" label="COM_PUNGAANALYTICS_CONFIG_EVENT_RANKING_TITLE" description="COM_PUNGAANALYTICS_CONFIG_EVENT_RANKING_TITLE_DESC" hint="Most played clips" />
 		<field name="report_title" type="text" maxlength="150" label="COM_PUNGAANALYTICS_CONFIG_EVENT_REPORT_TITLE" description="COM_PUNGAANALYTICS_CONFIG_EVENT_REPORT_TITLE_DESC" hint="Audio plays" />
-		<field name="color" type="color" format="hex" default="#198754" label="COM_PUNGAANALYTICS_CONFIG_EVENT_COLOR" />
-		<field name="icon" type="list" default="icon-chart" label="COM_PUNGAANALYTICS_CONFIG_EVENT_ICON">
+		<field name="color" type="color" format="hex" default="#198754" label="COM_PUNGAANALYTICS_CONFIG_EVENT_COLOR" description="COM_PUNGAANALYTICS_CONFIG_EVENT_COLOR_DESC" />
+		<field name="icon" type="list" default="icon-chart" label="COM_PUNGAANALYTICS_CONFIG_EVENT_ICON" description="COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_DESC">
 			<option value="icon-chart">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_CHART</option>
 			<option value="icon-play">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_PLAY</option>
 			<option value="icon-download">COM_PUNGAANALYTICS_CONFIG_EVENT_ICON_DOWNLOAD</option>

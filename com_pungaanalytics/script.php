@@ -44,6 +44,7 @@ return new class implements InstallerScriptInterface
 			'#__pungaanalytics_daily_session_events',
 			'#__pungaanalytics_daily_sessions',
 			'#__pungaanalytics_daily_networks',
+			'#__pungaanalytics_daily_automation',
 			'#__pungaanalytics_daily_404',
 			'#__pungaanalytics_daily_items',
 			'#__pungaanalytics_daily_event_time',
@@ -110,6 +111,9 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	`browser_family` VARCHAR(32) NOT NULL DEFAULT 'Other',
 	`is_authenticated` TINYINT(1) NOT NULL DEFAULT 0,
 	`is_bot` TINYINT(1) NOT NULL DEFAULT 0,
+	`is_automated` TINYINT(1) NOT NULL DEFAULT 0,
+	`automation_score` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+	`automation_reason` VARCHAR(255) NOT NULL DEFAULT '',
 	`bot_name` VARCHAR(64) NOT NULL DEFAULT '',
 	`event_type` VARCHAR(64) NOT NULL DEFAULT 'pageview',
 	`item_type` VARCHAR(64) NOT NULL DEFAULT '',
@@ -124,6 +128,7 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	KEY `idx_pungaanalytics_visitor_hash` (`visitor_hash`),
 	KEY `idx_pungaanalytics_session_scan` (`is_bot`, `visit_date`, `visitor_hash`, `visited_at`, `id`),
 	KEY `idx_pungaanalytics_bot_date` (`is_bot`, `visit_date`),
+	KEY `idx_pungaanalytics_automated_date` (`is_automated`, `visit_date`),
 	KEY `idx_pungaanalytics_auth_date` (`is_authenticated`, `visit_date`),
 	KEY `idx_pungaanalytics_country_date` (`country_code`, `visit_date`),
 	KEY `idx_pungaanalytics_asn_date` (`asn_number`, `visit_date`),
@@ -144,6 +149,9 @@ SQL;
 		$this->ensureColumn($db, $table, $columns, 'visit_hour', "TINYINT UNSIGNED NOT NULL DEFAULT 255 AFTER `visit_date`");
 		$this->ensureColumn($db, $table, $columns, 'visit_weekday', "TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER `visit_hour`");
 		$this->ensureColumn($db, $table, $columns, 'is_authenticated', "TINYINT(1) NOT NULL DEFAULT 0 AFTER `browser_family`");
+		$this->ensureColumn($db, $table, $columns, 'is_automated', "TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_bot`");
+		$this->ensureColumn($db, $table, $columns, 'automation_score', "TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER `is_automated`");
+		$this->ensureColumn($db, $table, $columns, 'automation_reason', "VARCHAR(255) NOT NULL DEFAULT '' AFTER `automation_score`");
 		$this->ensureColumn($db, $table, $columns, 'item_type', "VARCHAR(64) NOT NULL DEFAULT '' AFTER `event_type`");
 		$this->ensureColumn($db, $table, $columns, 'item_id', "VARCHAR(128) NOT NULL DEFAULT '' AFTER `item_type`");
 		$this->ensureColumn($db, $table, $columns, 'item_title', "VARCHAR(255) NOT NULL DEFAULT '' AFTER `item_id`");
@@ -156,6 +164,7 @@ SQL;
 
 		$this->ensureIndex($db, $table, 'idx_pungaanalytics_asn_date', '(`asn_number`, `visit_date`)');
 		$this->ensureIndex($db, $table, 'idx_pungaanalytics_auth_date', '(`is_authenticated`, `visit_date`)');
+		$this->ensureIndex($db, $table, 'idx_pungaanalytics_automated_date', '(`is_automated`, `visit_date`)');
 		$this->ensureIndex($db, $table, 'idx_pungaanalytics_hour_date', '(`visit_hour`, `visit_date`)');
 		$this->ensureIndex($db, $table, 'idx_pungaanalytics_weekday_date', '(`visit_weekday`, `visit_date`)');
 		$this->ensureIndex($db, $table, 'idx_pungaanalytics_event_date', '(`event_type`, `visit_date`)');
@@ -188,6 +197,8 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily` (
 	`human_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`authenticated_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`german_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`automated_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`automated_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`bot_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`custom_events` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	PRIMARY KEY (`visit_date`)
@@ -234,6 +245,8 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_time` (
 	`bucket_value` TINYINT UNSIGNED NOT NULL,
 	`human_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`human_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`automated_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`automated_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`bot_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	PRIMARY KEY (`visit_date`, `bucket_kind`, `bucket_value`),
 	KEY `idx_pungaanalytics_time_kind_date` (`bucket_kind`, `visit_date`)
@@ -271,6 +284,8 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_networks` (
 	`asn_number` BIGINT UNSIGNED NOT NULL,
 	`human_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`human_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`automated_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`automated_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`bot_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	PRIMARY KEY (`visit_date`, `asn_number`),
 	KEY `idx_pungaanalytics_network_asn_date` (`asn_number`, `visit_date`)
@@ -300,12 +315,26 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_session_events` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
 SQL,
 			<<<'SQL'
+CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_automation` (
+	`visit_date` DATE NOT NULL,
+	`dimension_key` VARCHAR(32) NOT NULL,
+	`label_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+	`label` VARCHAR(1024) NOT NULL,
+	`visitor_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`pageview_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	PRIMARY KEY (`visit_date`, `dimension_key`, `label_hash`),
+	KEY `idx_pungaanalytics_automation_dimension_date` (`dimension_key`, `visit_date`),
+	KEY `idx_pungaanalytics_automation_label` (`dimension_key`, `label`(191))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
+SQL,
+			<<<'SQL'
 CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_404` (
 	`visit_date` DATE NOT NULL,
 	`row_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
 	`path` VARCHAR(1024) NOT NULL,
 	`referrer_host` VARCHAR(255) NOT NULL DEFAULT '',
 	`is_bot` TINYINT(1) NOT NULL DEFAULT 0,
+	`is_automated` TINYINT(1) NOT NULL DEFAULT 0,
 	`request_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`first_seen` DATETIME NOT NULL,
 	`last_seen` DATETIME NOT NULL,
@@ -321,21 +350,42 @@ SQL,
 			$db->setQuery($db->replacePrefix($query))->execute();
 		}
 
+		$dailyTable = $db->replacePrefix('#__pungaanalytics_daily');
+		$dailyColumns = $db->getTableColumns($dailyTable, false);
+		$this->ensureColumn($db, $dailyTable, $dailyColumns, 'automated_visits', "BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `german_visits`");
+		$this->ensureColumn($db, $dailyTable, $dailyColumns, 'automated_pageviews', "BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `automated_visits`");
+
+		$timeTable = $db->replacePrefix('#__pungaanalytics_daily_time');
+		$timeColumns = $db->getTableColumns($timeTable, false);
+		$this->ensureColumn($db, $timeTable, $timeColumns, 'automated_visits', "BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `human_pageviews`");
+		$this->ensureColumn($db, $timeTable, $timeColumns, 'automated_pageviews', "BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `automated_visits`");
+
+		$networkTable = $db->replacePrefix('#__pungaanalytics_daily_networks');
+		$networkColumns = $db->getTableColumns($networkTable, false);
+		$this->ensureColumn($db, $networkTable, $networkColumns, 'automated_visits', "BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `human_pageviews`");
+		$this->ensureColumn($db, $networkTable, $networkColumns, 'automated_pageviews', "BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `automated_visits`");
+
+		$notFoundTable = $db->replacePrefix('#__pungaanalytics_daily_404');
+		$notFoundColumns = $db->getTableColumns($notFoundTable, false);
+		$this->ensureColumn($db, $notFoundTable, $notFoundColumns, 'is_automated', "TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_bot`");
+
 		$this->migrateLegacyEventTime($db);
 		$db->setQuery(
 			$db->replacePrefix(
 				<<<'SQL'
 INSERT INTO `#__pungaanalytics_daily_time` (
 	`visit_date`, `bucket_kind`, `bucket_value`, `human_visits`,
-	`human_pageviews`, `bot_pageviews`
+	`human_pageviews`, `automated_visits`, `automated_pageviews`, `bot_pageviews`
 )
 SELECT
 	`visit_date`, 'weekday', WEEKDAY(`visit_date`) + 1, `human_visits`,
-	`human_pageviews`, `bot_pageviews`
+	`human_pageviews`, `automated_visits`, `automated_pageviews`, `bot_pageviews`
 FROM `#__pungaanalytics_daily`
 ON DUPLICATE KEY UPDATE
 	`human_visits` = VALUES(`human_visits`),
 	`human_pageviews` = VALUES(`human_pageviews`),
+	`automated_visits` = VALUES(`automated_visits`),
+	`automated_pageviews` = VALUES(`automated_pageviews`),
 	`bot_pageviews` = VALUES(`bot_pageviews`)
 SQL
 			)

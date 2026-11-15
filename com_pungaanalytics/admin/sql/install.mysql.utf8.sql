@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	`browser_family` VARCHAR(32) NOT NULL DEFAULT 'Other',
 	`is_authenticated` TINYINT(1) NOT NULL DEFAULT 0,
 	`is_bot` TINYINT(1) NOT NULL DEFAULT 0,
+	`is_automated` TINYINT(1) NOT NULL DEFAULT 0,
+	`automation_score` TINYINT UNSIGNED NOT NULL DEFAULT 0,
+	`automation_reason` VARCHAR(255) NOT NULL DEFAULT '',
 	`bot_name` VARCHAR(64) NOT NULL DEFAULT '',
 	`event_type` VARCHAR(64) NOT NULL DEFAULT 'pageview',
 	`item_type` VARCHAR(64) NOT NULL DEFAULT '',
@@ -31,6 +34,7 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	KEY `idx_pungaanalytics_visitor_hash` (`visitor_hash`),
 	KEY `idx_pungaanalytics_session_scan` (`is_bot`, `visit_date`, `visitor_hash`, `visited_at`, `id`),
 	KEY `idx_pungaanalytics_bot_date` (`is_bot`, `visit_date`),
+	KEY `idx_pungaanalytics_automated_date` (`is_automated`, `visit_date`),
 	KEY `idx_pungaanalytics_auth_date` (`is_authenticated`, `visit_date`),
 	KEY `idx_pungaanalytics_country_date` (`country_code`, `visit_date`),
 	KEY `idx_pungaanalytics_asn_date` (`asn_number`, `visit_date`),
@@ -48,6 +52,8 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily` (
 	`human_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`authenticated_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`german_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`automated_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`automated_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`bot_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`custom_events` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	PRIMARY KEY (`visit_date`)
@@ -90,6 +96,8 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_time` (
 	`bucket_value` TINYINT UNSIGNED NOT NULL,
 	`human_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`human_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`automated_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`automated_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`bot_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	PRIMARY KEY (`visit_date`, `bucket_kind`, `bucket_value`),
 	KEY `idx_pungaanalytics_time_kind_date` (`bucket_kind`, `visit_date`)
@@ -125,6 +133,8 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_networks` (
 	`asn_number` BIGINT UNSIGNED NOT NULL,
 	`human_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`human_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`automated_visits` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`automated_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`bot_pageviews` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	PRIMARY KEY (`visit_date`, `asn_number`),
 	KEY `idx_pungaanalytics_network_asn_date` (`asn_number`, `visit_date`)
@@ -157,10 +167,24 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_404` (
 	`path` VARCHAR(1024) NOT NULL,
 	`referrer_host` VARCHAR(255) NOT NULL DEFAULT '',
 	`is_bot` TINYINT(1) NOT NULL DEFAULT 0,
+	`is_automated` TINYINT(1) NOT NULL DEFAULT 0,
 	`request_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
 	`first_seen` DATETIME NOT NULL,
 	`last_seen` DATETIME NOT NULL,
 	PRIMARY KEY (`visit_date`, `row_hash`),
 	KEY `idx_pungaanalytics_404_date` (`visit_date`),
 	KEY `idx_pungaanalytics_404_path` (`path`(191))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_automation` (
+	`visit_date` DATE NOT NULL,
+	`dimension_key` VARCHAR(32) NOT NULL,
+	`label_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+	`label` VARCHAR(1024) NOT NULL,
+	`visitor_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`pageview_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	PRIMARY KEY (`visit_date`, `dimension_key`, `label_hash`),
+	KEY `idx_pungaanalytics_automation_dimension_date` (`dimension_key`, `visit_date`),
+	KEY `idx_pungaanalytics_automation_label` (`dimension_key`, `label`(191))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci;

@@ -82,6 +82,10 @@ final class HtmlView extends BaseHtmlView
 			'browsers',
 			'bots',
 			'events',
+			'automationcountries',
+			'automationnetworks',
+			'automationpaths',
+			'automationreasons',
 		];
 
 		foreach ((new CustomEventDefinitionService())->getDefinitions($params) as $definition)
@@ -111,14 +115,14 @@ final class HtmlView extends BaseHtmlView
 		$document = $app->getDocument();
 		$webAssetManager = $document->getWebAssetManager();
 		$webAssetManager->registerAndUseStyle(
-			'com_pungaanalytics.admin.0.10.1',
-			'com_pungaanalytics/admin-0.10.1.css',
-			['version' => '0.10.1']
+			'com_pungaanalytics.admin.0.11.1',
+			'com_pungaanalytics/admin-0.11.1.css',
+			['version' => '0.11.1']
 		);
 		$webAssetManager->registerAndUseScript(
-			'com_pungaanalytics.dashboard.0.10.1',
-			'com_pungaanalytics/admin-0.10.1.js',
-			['version' => '0.10.1'],
+			'com_pungaanalytics.dashboard.0.11.1',
+			'com_pungaanalytics/admin-0.11.1.js',
+			['version' => '0.11.1'],
 			['defer' => true]
 		);
 

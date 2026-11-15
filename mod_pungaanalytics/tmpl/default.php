@@ -17,7 +17,7 @@ if ($statistics === [])
 Factory::getApplication()->getDocument()->getWebAssetManager()->registerAndUseStyle(
 	'mod_pungaanalytics.admin',
 	'mod_pungaanalytics/admin.css',
-	['version' => '0.10.1']
+	['version' => '0.11.1']
 );
 
 $summary = $statistics['summary'];
@@ -56,6 +56,15 @@ foreach ($statistics['moduleEventDefinitions'] as $definition)
 		'value' => (int) (($summary->events ?? [])[$eventType] ?? 0),
 		'label' => (string) $definition['title'],
 		'icon' => (string) $definition['icon'],
+	];
+}
+
+if ((bool) $params->get('show_automated', 1))
+{
+	$metrics[] = [
+		'value' => (int) ($summary->automated_pageviews ?? 0),
+		'label' => Text::_('MOD_PUNGAANALYTICS_AUTOMATED'),
+		'icon' => 'icon-warning-2',
 	];
 }
 

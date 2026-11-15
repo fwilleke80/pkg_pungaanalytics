@@ -42,6 +42,7 @@ final class AsnDatabaseService
 		$ipv4Temp = $directory . '/asn-ipv4.bin.tmp';
 		$ipv6Temp = $directory . '/asn-ipv6.bin.tmp';
 		$organizationsTemp = $directory . '/asn-organizations.json.tmp';
+		$automationSignalsTemp = $directory . '/asn-automation-signals.json.tmp';
 		$result = [
 			'ipv4_count' => 0,
 			'ipv6_count' => 0,
@@ -51,9 +52,11 @@ final class AsnDatabaseService
 		try
 		{
 			$result = $this->compile($downloadPath, $ipv4Temp, $ipv6Temp, $organizationsTemp);
+			$this->writeAutomationSignals($organizationsTemp, $automationSignalsTemp);
 			$this->activateFile($ipv4Temp, $directory . '/asn-ipv4.bin');
 			$this->activateFile($ipv6Temp, $directory . '/asn-ipv6.bin');
 			$this->activateFile($organizationsTemp, $directory . '/asn-organizations.json');
+			$this->activateFile($automationSignalsTemp, $directory . '/asn-automation-signals.json');
 
 			$metadata = [
 				'updated_at' => gmdate('c'),
@@ -63,6 +66,7 @@ final class AsnDatabaseService
 				'organization_count' => $result['organization_count'],
 				'source' => $sourceUrl,
 				'provider' => 'DB-IP ASN Lite',
+				'automation_signals' => true,
 			];
 			$this->writeAtomically(
 				$directory . '/asn-metadata.json',
@@ -75,6 +79,7 @@ final class AsnDatabaseService
 			@unlink($ipv4Temp);
 			@unlink($ipv6Temp);
 			@unlink($organizationsTemp);
+			@unlink($automationSignalsTemp);
 		}
 
 		return [
@@ -247,7 +252,7 @@ final class AsnDatabaseService
 			@unlink($destination);
 		}
 
-		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Punga Analytics/0.10.1'], 90);
+		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Punga Analytics/0.11.1'], 90);
 
 		if ($response->code < 200 || $response->code >= 300)
 		{
@@ -414,6 +419,104 @@ final class AsnDatabaseService
 		}
 
 		return $counts;
+	}
+
+
+	/**
+	 * Builds a compact ASN set used only as one automation-classification signal.
+	 *
+	 * Hosting/cloud membership is deliberately not a bot verdict. The runtime
+	 * classifier combines it with behavioral evidence before traffic is removed
+	 * from human statistics.
+	 *
+	 * @param string $organizationsPath ASN-to-organization JSON map.
+	 * @param string $destination       Signal-map output path.
+	 *
+	 * @return void
+	 */
+	private function writeAutomationSignals(string $organizationsPath, string $destination): void
+	{
+		$data = json_decode((string) file_get_contents($organizationsPath), true);
+		$signals = [];
+
+		if (is_array($data))
+		{
+			foreach ($data as $asn => $organization)
+			{
+				if (!ctype_digit((string) $asn) || !is_string($organization))
+				{
+					continue;
+				}
+
+				if ($this->isLikelyHostingOrganization($organization))
+				{
+					$signals[(string) $asn] = 1;
+				}
+			}
+		}
+
+		ksort($signals, SORT_NUMERIC);
+		$json = json_encode($signals, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+		if ($json === false || file_put_contents($destination, $json, LOCK_EX) === false)
+		{
+			throw new \RuntimeException('Could not write the ASN automation-signal database.');
+		}
+	}
+
+	/**
+	 * Returns whether an ASN organization name strongly suggests hosting/cloud use.
+	 *
+	 * The result is intentionally conservative and is only worth two points in
+	 * the separate behavioral classifier. CDN/privacy-relay providers are excluded
+	 * because their infrastructure can legitimately carry ordinary human traffic.
+	 *
+	 * @param string $organization DB-IP organization name.
+	 *
+	 * @return bool
+	 */
+	private function isLikelyHostingOrganization(string $organization): bool
+	{
+		$value = mb_strtolower(trim($organization), 'UTF-8');
+
+		if ($value === '' || preg_match('/cloudflare|akamai|fastly|private relay|apple relay/u', $value) === 1)
+		{
+			return false;
+		}
+
+		$providers = [
+			'amazon',
+			'aws',
+			'microsoft',
+			'google cloud',
+			'digitalocean',
+			'hetzner',
+			'ovh',
+			'linode',
+			'vultr',
+			'choopa',
+			'tencent',
+			'alibaba',
+			'oracle cloud',
+			'contabo',
+			'leaseweb',
+			'scaleway',
+			'upcloud',
+			'rackspace',
+			'hostinger',
+			'netcup',
+			'ionos',
+		];
+
+		foreach ($providers as $provider)
+		{
+			if (str_contains($value, $provider))
+			{
+				return true;
+			}
+		}
+
+		return preg_match('/\b(hosting|hoster|cloud|vps|compute|servers?|datacent(?:er|re)|data\s+cent(?:er|re)|colocation)\b/u', $value) === 1;
 	}
 
 	/**

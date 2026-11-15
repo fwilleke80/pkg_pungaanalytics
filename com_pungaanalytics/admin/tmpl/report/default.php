@@ -106,6 +106,23 @@ $sourceLabels = [
 	'ai' => Text::_('COM_PUNGAANALYTICS_SOURCE_AI'),
 	'referral' => Text::_('COM_PUNGAANALYTICS_SOURCE_REFERRAL'),
 ];
+$automationSignalLabel = static function (string $value): string
+{
+	$labels = [
+		'hosting_network' => Text::_('COM_PUNGAANALYTICS_SIGNAL_HOSTING_NETWORK'),
+		'rapid_enumeration' => Text::_('COM_PUNGAANALYTICS_SIGNAL_RAPID_ENUMERATION'),
+		'high_request_rate' => Text::_('COM_PUNGAANALYTICS_SIGNAL_HIGH_REQUEST_RATE'),
+		'high_volume' => Text::_('COM_PUNGAANALYTICS_SIGNAL_HIGH_VOLUME'),
+		'no_engagement' => Text::_('COM_PUNGAANALYTICS_SIGNAL_NO_ENGAGEMENT'),
+	];
+
+	$parts = array_filter(array_map('trim', explode(',', $value)));
+
+	return implode(', ', array_map(
+		static fn(string $part): string => $labels[$part] ?? $part,
+		$parts
+	));
+};
 $definitionFlag = $kind === 'trend' ? 'show_trend' : 'show_time';
 $eventDefinitions = \in_array($kind, ['trend', 'hour', 'weekday'], true)
 	? array_values(array_filter(
@@ -178,31 +195,51 @@ $dashboardViewByReport = [
 	'activity' => 'traffic',
 	'hours' => 'traffic',
 	'weekdays' => 'traffic',
-	'sessions' => 'sessions',
-	'sessionevents' => 'sessions',
+	'sessions' => 'traffic',
+	'sessionevents' => 'traffic',
+	'sources' => 'traffic',
+	'referrers' => 'traffic',
 	'pages' => 'content',
 	'notfound' => 'content',
-	'event' => 'engagement',
-	'sources' => 'acquisition',
-	'referrers' => 'acquisition',
+	'event' => 'content',
+	'events' => 'content',
 	'countries' => 'audience',
+	'networks' => 'audience',
 	'languages' => 'audience',
 	'devices' => 'audience',
 	'browsers' => 'audience',
-	'bots' => 'audience',
-	'events' => 'audience',
+	'bots' => 'quality',
+	'automationcountries' => 'quality',
+	'automationnetworks' => 'quality',
+	'automationpaths' => 'quality',
+	'automationreasons' => 'quality',
 ];
 $historyDashboardView = match ((string) ($history['dimension'] ?? ''))
 {
-	'page', 'notfound' => 'content',
-	'event_item' => 'engagement',
-	'source', 'referrer' => 'acquisition',
-	'country', 'network', 'language', 'device', 'browser', 'bot', 'event' => 'audience',
+	'page', 'notfound', 'event_item', 'event' => 'content',
+	'source', 'referrer' => 'traffic',
+	'country', 'network', 'language', 'device', 'browser' => 'audience',
+	'bot' => 'quality',
 	default => 'overview',
 };
 $dashboardView = $report === 'history'
 	? $historyDashboardView
 	: ($dashboardViewByReport[$report] ?? 'overview');
+$trafficView = match (true)
+{
+	$report === 'history' && \in_array((string) ($history['dimension'] ?? ''), ['source', 'referrer'], true) => 'acquisition',
+	\in_array($report, ['sessions', 'sessionevents'], true) => 'sessions',
+	\in_array($report, ['sources', 'referrers'], true) => 'acquisition',
+	default => 'activity',
+};
+$contentView = match (true)
+{
+	$report === 'history' && (string) ($history['dimension'] ?? '') === 'event_item' => 'engagement',
+	$report === 'history' && (string) ($history['dimension'] ?? '') === 'event' => 'events',
+	$report === 'event' => 'engagement',
+	$report === 'events' => 'events',
+	default => 'pages',
+};
 $audienceView = match ((string) ($history['dimension'] ?? ''))
 {
 	'country' => 'countries',
@@ -210,19 +247,21 @@ $audienceView = match ((string) ($history['dimension'] ?? ''))
 	'language' => 'languages',
 	'device' => 'devices',
 	'browser' => 'browsers',
-	'bot' => 'bots',
-	'event' => 'events',
-	default => \in_array($report, ['countries', 'networks', 'languages', 'devices', 'browsers', 'bots', 'events'], true)
+	default => \in_array($report, ['countries', 'networks', 'languages', 'devices', 'browsers'], true)
 		? $report
 		: '',
 };
+$qualityView = $report === 'bots' || ($report === 'history' && (string) ($history['dimension'] ?? '') === 'bot')
+	? 'bots'
+	: 'automated';
 $dashboardBackUrl = Route::_(
 	'index.php?option=com_pungaanalytics'
 	. '&days=' . rawurlencode($this->range)
 	. '&dashboardview=' . rawurlencode($dashboardView)
-	. ($dashboardView === 'audience' && $audienceView !== ''
-		? '&audienceview=' . rawurlencode($audienceView)
-		: '')
+	. ($dashboardView === 'traffic' ? '&trafficview=' . rawurlencode($trafficView) : '')
+	. ($dashboardView === 'content' ? '&contentview=' . rawurlencode($contentView) : '')
+	. ($dashboardView === 'audience' && $audienceView !== '' ? '&audienceview=' . rawurlencode($audienceView) : '')
+	. ($dashboardView === 'quality' ? '&qualityview=' . rawurlencode($qualityView) : '')
 );
 $historyDimensionByReport = [
 	'pages' => 'page',
@@ -367,6 +406,7 @@ $sortHeading = static function (
 							?>
 							<?php echo $sortHeading('visits', Text::_('COM_PUNGAANALYTICS_VISITS'), 'desc', 'text-end'); ?>
 							<?php echo $sortHeading('pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_PAGES'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('automated', Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED'), 'desc', 'text-end'); ?>
 							<?php foreach ($eventDefinitions as $definition) : ?>
 								<?php echo $sortHeading((string) $definition['key'], (string) $definition['title'], 'desc', 'text-end'); ?>
 							<?php endforeach; ?>
@@ -386,6 +426,7 @@ $sortHeading = static function (
 									<td class="text-nowrap"><?php echo $escape($label); ?></td>
 									<td class="text-end"><?php echo $number($row->visits); ?></td>
 									<td class="text-end"><?php echo $number($row->pageviews); ?></td>
+									<td class="text-end"><?php echo $number($row->automated ?? 0); ?></td>
 									<?php foreach ($eventDefinitions as $definition) : ?>
 										<td class="text-end"><?php echo $number(($row->events ?? [])[(string) $definition['event_type']] ?? 0); ?></td>
 									<?php endforeach; ?>
@@ -534,6 +575,8 @@ $sortHeading = static function (
 							<?php echo $sortHeading('organization', Text::_('COM_PUNGAANALYTICS_TABLE_NETWORK'), 'asc'); ?>
 							<?php echo $sortHeading('human_visits', Text::_('COM_PUNGAANALYTICS_TABLE_VISITORS'), 'desc', 'text-end'); ?>
 							<?php echo $sortHeading('human_pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_PAGEVIEWS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('automated_visits', Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED_VISITORS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('automated_pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED'), 'desc', 'text-end'); ?>
 							<?php echo $sortHeading('bot_pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_BOT_VIEWS'), 'desc', 'text-end'); ?>
 							<?php echo $sortHeading('total_pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_TOTAL_VIEWS'), 'desc', 'text-end'); ?>
 						</tr>
@@ -557,6 +600,8 @@ $sortHeading = static function (
 							<td class="text-break"><?php echo $row->organization !== '' ? $escape($row->organization) : Text::_('COM_PUNGAANALYTICS_UNKNOWN'); ?></td>
 							<td class="text-end"><?php echo $number($row->human_visits); ?></td>
 							<td class="text-end"><?php echo $number($row->human_pageviews); ?></td>
+							<td class="text-end"><?php echo $number($row->automated_visits ?? 0); ?></td>
+							<td class="text-end"><?php echo $number($row->automated_pageviews ?? 0); ?></td>
 							<td class="text-end"><?php echo $number($row->bot_pageviews); ?></td>
 							<td class="text-end pa-count"><?php echo $number($row->total_pageviews); ?></td>
 						</tr>
@@ -564,12 +609,59 @@ $sortHeading = static function (
 					</tbody>
 				</table>
 				<p class="small text-muted mt-3 mb-0"><?php echo Text::_('COM_PUNGAANALYTICS_DBIP_ASN_ATTRIBUTION'); ?></p>
+			<?php elseif ($kind === 'automationnetwork') : ?>
+				<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_AUTOMATION_NOTE'); ?></p>
+				<table class="table pa-table mb-0" id="pa-report-table">
+					<thead><tr>
+						<?php echo $sortHeading('asn', Text::_('COM_PUNGAANALYTICS_ASN'), 'asc'); ?>
+						<?php echo $sortHeading('organization', Text::_('COM_PUNGAANALYTICS_TABLE_NETWORK'), 'asc'); ?>
+						<?php echo $sortHeading('automated_visits', Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED_VISITORS'), 'desc', 'text-end'); ?>
+						<?php echo $sortHeading('automated_pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED'), 'desc', 'text-end'); ?>
+					</tr></thead>
+					<tbody>
+					<?php foreach ($this->data['rows'] as $row) : ?>
+						<tr>
+							<td class="text-nowrap">AS<?php echo (int) $row->asn_number; ?></td>
+							<td class="text-break"><?php echo $row->organization !== '' ? $escape($row->organization) : Text::_('COM_PUNGAANALYTICS_UNKNOWN'); ?></td>
+							<td class="text-end"><?php echo $number($row->automated_visits); ?></td>
+							<td class="text-end pa-count"><?php echo $number($row->automated_pageviews); ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+			<?php elseif ($kind === 'automation') : ?>
+				<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_AUTOMATION_NOTE'); ?></p>
+				<table class="table pa-table mb-0" id="pa-report-table">
+					<thead><tr>
+						<?php echo $sortHeading('label', Text::_('COM_PUNGAANALYTICS_CSV_LABEL'), 'asc'); ?>
+						<?php echo $sortHeading('visitors', Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED_VISITORS'), 'desc', 'text-end'); ?>
+						<?php echo $sortHeading('pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED'), 'desc', 'text-end'); ?>
+					</tr></thead>
+					<tbody>
+					<?php foreach ($this->data['rows'] as $row) : ?>
+						<tr>
+							<td class="text-break">
+							<?php if ($report === 'automationcountries') : ?>
+								<?php echo $escape($countryName((string) $row->label)); ?>
+							<?php elseif ($report === 'automationreasons') : ?>
+								<?php echo $escape($automationSignalLabel((string) $row->label)); ?>
+							<?php else : ?>
+								<?php echo $escape($row->label); ?>
+							<?php endif; ?>
+							</td>
+							<td class="text-end"><?php echo $number($row->visitors); ?></td>
+							<td class="text-end pa-count"><?php echo $number($row->pageviews); ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
 			<?php elseif ($kind === 'notfound') : ?>
 				<table class="table pa-table mb-0" id="pa-report-table">
 					<thead>
 						<tr>
 							<?php echo $sortHeading('path', Text::_('COM_PUNGAANALYTICS_CSV_PATH'), 'asc'); ?>
 							<?php echo $sortHeading('human', Text::_('COM_PUNGAANALYTICS_TABLE_HUMAN_REQUESTS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('automated', Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED_REQUESTS'), 'desc', 'text-end'); ?>
 							<?php echo $sortHeading('bots', Text::_('COM_PUNGAANALYTICS_TABLE_BOT_REQUESTS'), 'desc', 'text-end'); ?>
 							<?php echo $sortHeading('total', Text::_('COM_PUNGAANALYTICS_TABLE_TOTAL_REQUESTS'), 'desc', 'text-end'); ?>
 							<?php echo $sortHeading('referrer', Text::_('COM_PUNGAANALYTICS_TOP_REFERRER'), 'asc'); ?>
@@ -594,6 +686,7 @@ $sortHeading = static function (
 									</a>
 								</td>
 								<td class="text-end"><?php echo $number($row->human); ?></td>
+								<td class="text-end"><?php echo $number($row->automated ?? 0); ?></td>
 								<td class="text-end"><?php echo $number($row->bots); ?></td>
 								<td class="text-end pa-count"><?php echo $number($row->total); ?></td>
 								<td class="text-break"><?php echo $row->top_referrer !== '' ? $escape($row->top_referrer) : '—'; ?></td>

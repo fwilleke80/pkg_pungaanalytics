@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Punga\Plugin\System\PungaAnalytics\Extension;
 
 use Punga\Component\PungaAnalytics\Administrator\Service\StatisticsArchiveService;
+use Punga\Component\PungaAnalytics\Administrator\Service\AutomationClassificationService;
 use Punga\Component\PungaAnalytics\Administrator\Service\CustomEventDefinitionService;
 use Punga\Plugin\System\PungaAnalytics\Service\AsnDatabaseMatcher;
 use Punga\Plugin\System\PungaAnalytics\Service\CountryDatabaseMatcher;
@@ -359,6 +360,9 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 			'browser_family' => $this->classifyBrowser($userAgent),
 			'is_authenticated' => $app->getIdentity()->guest ? 0 : 1,
 			'is_bot' => $isBot ? 1 : 0,
+			'is_automated' => 0,
+			'automation_score' => 0,
+			'automation_reason' => '',
 			'bot_name' => mb_substr($botName, 0, 64),
 			'event_type' => mb_substr((string) $eventData['event_type'], 0, 64),
 			'item_type' => mb_substr((string) $eventData['item_type'], 0, 64),
@@ -368,6 +372,14 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 		];
 
 		$this->getDatabase()->insertObject('#__pungaanalytics_events', $row);
+
+		if (!$isBot)
+		{
+			(new AutomationClassificationService($this->getDatabase()))->refreshVisitor(
+				$row->visit_date,
+				$row->visitor_hash
+			);
+		}
 
 		if ($row->event_type === 'pageview')
 		{
@@ -576,9 +588,28 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 			}
 		}
 
-		if ($lower === '' || preg_match('/bot|crawler|spider|slurp|headless|python-requests|curl\/|wget\//i', $userAgent) === 1)
+		if ($lower === '')
 		{
-			return [true, 'Other bot'];
+			return [true, 'No User-Agent'];
+		}
+
+		$fallbackRules = [
+			'python-requests' => 'Python Requests',
+			'curl/' => 'cURL',
+			'wget/' => 'Wget',
+			'headless' => 'Headless browser',
+			'crawler' => 'Generic crawler',
+			'spider' => 'Generic spider',
+			'slurp' => 'Yahoo Slurp',
+			'bot' => 'Generic bot',
+		];
+
+		foreach ($fallbackRules as $needle => $name)
+		{
+			if (str_contains($lower, $needle))
+			{
+				return [true, $name];
+			}
 		}
 
 		return [false, ''];

@@ -16,6 +16,7 @@ Punga Analytics is a small, self-hosted statistics package for Joomla 6. It prov
 - [Logged-in users](#logged-in-users)
 - [Country detection](#country-detection)
 - [Network / ASN detection](#network--asn-detection)
+- [Traffic-quality classification](#traffic-quality-classification)
 - [Dashboard](#dashboard)
 - [Administrator dashboard module](#administrator-dashboard-module)
 - [Default configuration](#default-configuration)
@@ -56,7 +57,9 @@ For eligible frontend page views and custom events, Punga Analytics stores:
 - Primary browser language
 - Broad device category
 - Broad browser family
-- Human/bot classification and a broad bot name
+- Traffic-quality classification: human, suspected automated, or detected bot
+- Conservative automation score and positive reason codes for retained non-bot traffic
+- Broad bot name for detected bots
 - Logged-in status as a boolean value
 - Event type
 - Optional generic item type, item ID, and item title for custom events
@@ -84,15 +87,16 @@ event rows removed.
 
 The permanent reports preserve:
 
-- Daily visitor-day, page-view, authenticated-view, bot, and generic custom-event totals
+- Daily clean-human visitor-day/page-view, suspected-automation, detected-bot, authenticated-view, and generic custom-event totals
 - Site-local hour-of-day and weekday totals, including configured custom events
 - Countries, pages, referrers, traffic-source categories, browser languages,
   devices, browsers, and detected bots
-- Not-found paths with separate human and bot request totals, first and last
+- Not-found paths with separate human, suspected-automated, and detected-bot request totals, first and last
   occurrence, and the most common external referrer
 - Custom-event types and generic item-level event totals
 - Cookieless daily session totals and configured-event session participation for data archived by Punga Analytics 0.9.0 and later
-- Daily ASN/network visitor-day, human page-view, and known-bot page-view totals for data collected by Punga Analytics 0.10.0 and later
+- Daily ASN/network clean-human, suspected-automated, and detected-bot totals for data collected by Punga Analytics 0.11.0 and later
+- Permanent country, network, path, and detection-reason summaries for suspected automation classified by Punga Analytics 0.11.0 and later
 
 Dashboard queries combine retained raw events with the permanent reports.
 Cleanup therefore does not reduce all-time totals, rewrite older charts, or
@@ -406,19 +410,20 @@ Punga Analytics stores only the resulting numeric ASN in the event row; it does
 comes from the locally installed ASN database and is not duplicated into every
 event.
 
-The **Audience & technology → Networks / ASNs** report shows, per ASN:
+The **Audience → Networks / ASNs** report shows, per ASN:
 
-- human visitor-days
-- human page views
-- known-bot page views
+- clean-human visitor-days and page views
+- suspected-automated visitor-days and page views
+- detected-bot page views
 - total page views in the full report
 - the network/organization name from the installed DB-IP ASN database
-- row-level daily history for human visitor-days
+- row-level daily history for clean-human visitor-days
 
-This deliberately does **not** turn network type into a bot verdict. Traffic that
-Punga Analytics currently classifies as human stays in the human columns even
-when it comes from a cloud or hosting ASN. The report is therefore useful for
-spotting suspicious infrastructure traffic without silently reclassifying it.
+Network type is only one signal in the separate traffic-quality classifier. A
+hosting/cloud ASN by itself is deliberately insufficient to classify a visitor
+as automated. This keeps ordinary users of cloud relays, VPNs, corporate
+networks, or unusual infrastructure from being removed from human statistics
+without corroborating behaviour.
 
 ASN attribution is forward-only. Events collected before 0.10.0 have no stored
 source IP and therefore cannot be backfilled. Likewise, if ASN detection was
@@ -430,29 +435,68 @@ DB-IP ASN Lite is updated monthly and distributed under Creative Commons
 Attribution 4.0. The required attribution is displayed in the Networks / ASNs
 report.
 
+## Traffic-quality classification
+
+Punga Analytics 0.11.0 separates traffic into **Human**, **Suspected
+automated**, and **Detected bot** categories. Detected bots continue to be detected
+from explicit crawler/bot and automation-client User-Agent patterns. Suspected
+automation is a separate conservative visitor-day classification for traffic
+that looks human at the User-Agent level but exhibits multiple infrastructure
+and behavioural signals.
+
+The classifier currently considers signals such as:
+
+- a hosting/cloud/datacenter ASN resolved by the local ASN database
+- rapid traversal of many different public paths
+- unusually high request rates
+- unusually high page-view volume within one anonymous visitor-day
+- repeated page views without any configured custom-event engagement
+
+A hosting/cloud ASN contributes to the score but **never reaches the automation
+threshold on its own**. Configured custom-event engagement reduces suspicion.
+The classifier is intentionally biased toward leaving ambiguous traffic in the
+human category rather than aggressively discarding legitimate visitors.
+
+When a retained visitor-day crosses the threshold, its requests are marked as
+suspected automated and are excluded from the normal human visitor, page-view,
+page, country, acquisition, session, and configured-event totals. They are not
+deleted: the **Traffic Quality → Suspected automation** area retains diagnostic
+breakdowns by country, network, page, and detection reason. **Detected bots** remain
+a separate child tab.
+
+Classification can change while a visitor-day develops. Each new request
+re-evaluates the complete retained anonymous visitor-day, so earlier requests in
+that day move with the final classification. **System → Reclassify retained
+traffic** can re-run the current rules against all raw data, for example after
+updating the ASN database or changing configured engagement events.
+
+Only retained raw visitor-days can be reclassified. Aggregates archived before
+0.11.0 do not contain the request sequence required to distinguish suspected
+automation retrospectively and therefore retain their historical classification.
+
 ## Dashboard
 
 The administrator dashboard includes:
 
 - Installed Punga Analytics version
 - Range picker for Today, Yesterday, Last 24 hours, 7, 30, 90, 365-day, and all-time reports
-- Compact tabular overview of human visitor-days and page views
+- Compact overview of clean-human visitor-days/page views plus separate suspected-automation and detected-bot totals
 - Logged-in frontend page views
 - Configurable custom-event overview totals
-- Bot page views
+- Suspected-automated page views and detected-bot page views
 - Adaptive day, ISO-week, or month activity trend for the complete selected range
 - Site-local hour-of-day and weekday visitor bar charts with exact activity tables and compact fixed-bucket rendering
 - Dedicated cookieless Sessions tab with summary metrics, sessions-over-time data, and configured-event session participation
 - Sortable dashboard and paginated full-report tables with report-specific default ordering
 - Most viewed pages
-- Not-found (404) paths with human, bot, and combined request totals
+- Not-found (404) paths with human, suspected-automated, detected-bot, and combined request totals
 - Broad acquisition categories for direct, search, social, AI-assistant, and external referral traffic
 - Configurable generic item-ranking cards for events such as plays and downloads
 - Countries pie chart, localized country names, Unicode flags, and exact table
-- Networks / ASNs with organization names, human visitor-days, human page views, known-bot page views, full report, CSV, and daily row history
+- Networks / ASNs with clean-human, suspected-automated, and detected-bot columns plus organization names, full report, CSV, and daily row history
 - External referrers
 - Browser-language, device-category, and browser-family pie charts with exact tables
-- Detected bots
+- Dedicated Traffic Quality area for suspected automation and detected bots
 - Custom event types
 - Row-level daily history links for pages, 404 paths, countries, networks/ASNs, sources, referrers, languages, devices, browsers, bots, event types, and configured event items
 - Clearly labeled paginated full-report links on dashboard panels
@@ -460,7 +504,23 @@ The administrator dashboard includes:
 - One-click ZIP download containing every core CSV, session reports, and configured event-ranking CSVs
 - Configurable row count for dashboard activity and custom-event ranking tables
 - Retention plus country- and ASN-database status
-- System-tab actions for updating the country database, updating the ASN database, archiving expired raw data, and permanently resetting all collected statistics
+- System-tab actions for updating country/ASN databases, reclassifying retained traffic, archiving expired raw data, and permanently resetting all collected statistics
+
+The main dashboard navigation is organised by question rather than storage
+dimension: **Overview**, **Traffic**, **Content & Engagement**, **Audience**,
+**Traffic Quality**, and **System**. Traffic contains Activity, Sessions, and
+Acquisition; Content & Engagement contains Pages & 404s, configured engagement
+rankings, and Custom Events; Audience contains Countries, Networks / ASNs,
+Languages, Devices, and Browsers; Traffic Quality separates Suspected automation
+from Detected bots. Report back-links and range changes preserve the relevant child
+tab.
+
+Bot labels use the specific crawler name when recognised. Strong generic bot signatures
+are reported as categories such as Generic crawler, Headless browser, Python Requests,
+cURL, or No User-Agent instead of being collapsed into one `Other bot` bucket.
+
+The **Activity by hour** and **Activity by weekday** panels are stacked vertically so
+each chart and table gets the full dashboard width.
 
 ## Administrator dashboard module
 
@@ -469,13 +529,13 @@ figures without opening the full component dashboard. It displays:
 
 - Human visitor-days and page views
 - Per-module selections from all globally configured custom events
-- Bot page views
+- Suspected-automated page views and bot page views (each independently configurable)
 - A configurable number of most-viewed pages with frontend links
 - A direct link to the complete Punga Analytics dashboard
 
 The module defaults to the last seven days. Its reporting range includes Today,
 Yesterday, Last 24 hours, the normal multi-day ranges, and all time. Its custom-event
-checkbox selection, bot total, top-pages list, and top-pages limit can be
+checkbox selection, suspected-automation total, bot total, top-pages list, and top-pages limit can be
 changed independently for every module instance. Existing module instances
 initially retain the former selection of events enabled for the component
 Overview; saving an explicit checkbox selection replaces that compatibility
@@ -491,11 +551,14 @@ fallback. The package creates and publishes one instance in the administrator
 - Query strings not stored
 - Detailed raw-event retention: 180 complete local calendar days
 - Opportunistic archival probability: 2 percent per recorded event
-- Dashboard activity and custom-event ranking tables: 8 rows
+- Dashboard preview rows (Activity over time, Sessions over time, and configured custom-event rankings): 8
 - Default dashboard reporting range: 7 days
 - Location & Network: country detection uses the local DB-IP Country Lite database; ASN/network detection uses the local DB-IP ASN Lite database
+- Conservative suspected-automation detection enabled
 - Excluded components: `com_ajax`, `com_users`, `com_pungaanalytics`
 - Excluded paths: `/administrator`, `/api`
+
+All component options and custom-event-definition settings include Joomla inline-help text. Use **Toggle Inline Help** in the Options toolbar to show or hide these descriptions.
 
 ### Requests excluded from ordinary page-view collection
 
@@ -527,7 +590,8 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 3. Open **Components → Punga Analytics**
 4. Open the **System** tab and click **Update country database**
 5. Click **Update ASN database**
-6. Review the options
+6. For an update from an earlier version with retained raw data, click **Reclassify retained traffic**
+7. Review the options
 
 Install newer versions directly over the existing package.
 
@@ -549,6 +613,10 @@ Uninstalling the package removes:
 - `#__pungaanalytics_daily_time`
 - `#__pungaanalytics_daily_event_time`
 - `#__pungaanalytics_daily_404`
+- `#__pungaanalytics_daily_sessions`
+- `#__pungaanalytics_daily_session_events`
+- `#__pungaanalytics_daily_networks`
+- `#__pungaanalytics_daily_automation`
 - Compiled country files and metadata under `cache/com_pungaanalytics/`
 - The component, administrator module, and system plugin
 
@@ -564,7 +632,7 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Database: MySQL/MariaDB
 - PHP: a version supported by Joomla 6
 - License: GPL-2.0-or-later
-- Runtime JavaScript: none required
+- Frontend analytics collection requires no JavaScript; administrator UI JavaScript is used only for dashboard interaction
 - Calendar dates, Today/Yesterday boundaries, hour/weekday buckets, session day boundaries, archival cutoffs, and displayed timestamps use the configured Joomla site timezone; canonical event timestamps remain stored in UTC
 - Composer dependencies: none bundled
 - Raw-event table: `#__pungaanalytics_events`
@@ -572,17 +640,18 @@ Enabling query-string storage can collect search terms and other user input. It 
   `#__pungaanalytics_daily_dimensions`, `#__pungaanalytics_daily_items`,
   `#__pungaanalytics_daily_time`, `#__pungaanalytics_daily_event_time`,
   `#__pungaanalytics_daily_sessions`, `#__pungaanalytics_daily_session_events`,
-  `#__pungaanalytics_daily_networks`, and `#__pungaanalytics_daily_404`
+  `#__pungaanalytics_daily_networks`, `#__pungaanalytics_daily_automation`, and `#__pungaanalytics_daily_404`
 - Country source: DB-IP Country Lite CSV
 - ASN/network source: DB-IP ASN Lite CSV
 
 ## Known limitations
 
-- Bot detection is based on User-Agent patterns and is not authoritative.
+- Detected-bot detection is based on User-Agent patterns and is not authoritative. Suspected-automation detection is heuristic and deliberately conservative; it can produce false positives or false negatives.
 - Visitor-days are estimates, not unique people.
 - Existing Unknown country rows cannot be reclassified after a country-database update because raw IP addresses are not stored.
 - Existing events cannot be assigned an ASN retrospectively after installing or updating the ASN database because raw IP addresses are not stored.
 - ASN organization names and IP-to-ASN assignments are approximate Internet-routing metadata and can change over time; the report is diagnostic context, not proof that a request originated from a particular person or company.
+- Traffic already archived before version 0.11.0 cannot be retrospectively separated into human and suspected-automated categories because visitor-level request sequences are not preserved in older aggregates.
 - Country and ASN data must currently be updated manually.
 - Requests served before the collector runs, for example by an earlier full-page cache plugin, may not be recorded.
 - Punga Analytics cannot infer a media play from a page view; the media extension must emit a [custom event](#custom-event-bridge).

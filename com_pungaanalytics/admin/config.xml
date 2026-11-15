@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <config>
 	<fieldset name="collection" label="COM_PUNGAANALYTICS_CONFIG_COLLECTION">
-		<field name="enabled" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_PUNGAANALYTICS_CONFIG_ENABLED">
+		<field name="enabled" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_PUNGAANALYTICS_CONFIG_ENABLED" description="COM_PUNGAANALYTICS_CONFIG_ENABLED_DESC">
 			<option value="0">JNO</option>
 			<option value="1">JYES</option>
 		</field>
@@ -16,6 +16,10 @@
 		<field name="excluded_user_ids" type="text" default="" label="COM_PUNGAANALYTICS_CONFIG_EXCLUDED_USER_IDS" description="COM_PUNGAANALYTICS_CONFIG_EXCLUDED_USER_IDS_DESC" />
 		<field name="exclude_components" type="text" default="com_ajax,com_users,com_pungaanalytics" label="COM_PUNGAANALYTICS_CONFIG_EXCLUDE_COMPONENTS" description="COM_PUNGAANALYTICS_CONFIG_EXCLUDE_COMPONENTS_DESC" />
 		<field name="exclude_paths" type="textarea" rows="6" default="/administrator&#10;/api" label="COM_PUNGAANALYTICS_CONFIG_EXCLUDE_PATHS" description="COM_PUNGAANALYTICS_CONFIG_EXCLUDE_PATHS_DESC" />
+		<field name="automation_detection" type="radio" layout="joomla.form.field.radio.switcher" default="1" label="COM_PUNGAANALYTICS_CONFIG_AUTOMATION_DETECTION" description="COM_PUNGAANALYTICS_CONFIG_AUTOMATION_DETECTION_DESC">
+			<option value="0">JNO</option>
+			<option value="1">JYES</option>
+		</field>
 		<field name="store_query" type="radio" layout="joomla.form.field.radio.switcher" default="0" label="COM_PUNGAANALYTICS_CONFIG_STORE_QUERY" description="COM_PUNGAANALYTICS_CONFIG_STORE_QUERY_DESC">
 			<option value="0">JNO</option>
 			<option value="1">JYES</option>
@@ -58,6 +62,6 @@
 		</field>
 	</fieldset>
 	<fieldset name="permissions" label="JCONFIG_PERMISSIONS_LABEL" description="JCONFIG_PERMISSIONS_DESC">
-		<field name="rules" type="rules" label="JCONFIG_PERMISSIONS_LABEL" filter="rules" validate="rules" component="com_pungaanalytics" section="component" />
+		<field name="rules" type="rules" label="JCONFIG_PERMISSIONS_LABEL" description="JCONFIG_PERMISSIONS_DESC" filter="rules" validate="rules" component="com_pungaanalytics" section="component" />
 	</fieldset>
 </config>

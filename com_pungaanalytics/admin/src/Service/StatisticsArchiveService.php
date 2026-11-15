@@ -70,6 +70,7 @@ final class StatisticsArchiveService
 				$this->archivePageViews($cutoffDate);
 				$this->archiveDimensions($cutoffDate);
 				$this->archiveNetworks($cutoffDate);
+				$this->archiveAutomationDimensions($cutoffDate);
 				$this->archiveTimeBuckets($cutoffDate);
 				$this->archiveCustomEventTimeBuckets($cutoffDate);
 				$this->archiveEventItems($cutoffDate);
@@ -115,6 +116,7 @@ final class StatisticsArchiveService
 			'#__pungaanalytics_daily_pages',
 			'#__pungaanalytics_daily_dimensions',
 			'#__pungaanalytics_daily_networks',
+			'#__pungaanalytics_daily_automation',
 			'#__pungaanalytics_daily_time',
 			'#__pungaanalytics_daily_event_time',
 			'#__pungaanalytics_daily_items',
@@ -202,15 +204,17 @@ final class StatisticsArchiveService
 		$dailyTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_daily'));
 		$sql = 'INSERT INTO ' . $dailyTable . ' ('
 			. '`visit_date`, `human_visits`, `human_pageviews`, `authenticated_pageviews`, '
-			. '`german_visits`, `bot_pageviews`, `custom_events`'
+			. '`german_visits`, `automated_visits`, `automated_pageviews`, `bot_pageviews`, `custom_events`'
 			. ') SELECT '
 			. '`visit_date`, '
-			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' THEN `visitor_hash` END), "
-			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' THEN 1 ELSE 0 END), "
-			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' AND `is_authenticated` = 1 THEN 1 ELSE 0 END), "
-			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' AND `country_code` = 'DE' THEN `visitor_hash` END), "
+			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview' THEN `visitor_hash` END), "
+			. "SUM(CASE WHEN `is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview' THEN 1 ELSE 0 END), "
+			. "SUM(CASE WHEN `is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview' AND `is_authenticated` = 1 THEN 1 ELSE 0 END), "
+			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview' AND `country_code` = 'DE' THEN `visitor_hash` END), "
+			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `is_automated` = 1 AND `event_type` = 'pageview' THEN `visitor_hash` END), "
+			. "SUM(CASE WHEN `is_bot` = 0 AND `is_automated` = 1 AND `event_type` = 'pageview' THEN 1 ELSE 0 END), "
 			. "SUM(CASE WHEN `is_bot` = 1 AND `event_type` = 'pageview' THEN 1 ELSE 0 END), "
-			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` <> 'pageview' THEN 1 ELSE 0 END) "
+			. "SUM(CASE WHEN `is_bot` = 0 AND `is_automated` = 0 AND `event_type` <> 'pageview' THEN 1 ELSE 0 END) "
 			. 'FROM ' . $eventsTable
 			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
 			. ' GROUP BY `visit_date` '
@@ -219,6 +223,8 @@ final class StatisticsArchiveService
 			. '`human_pageviews` = `human_pageviews` + VALUES(`human_pageviews`), '
 			. '`authenticated_pageviews` = `authenticated_pageviews` + VALUES(`authenticated_pageviews`), '
 			. '`german_visits` = `german_visits` + VALUES(`german_visits`), '
+			. '`automated_visits` = `automated_visits` + VALUES(`automated_visits`), '
+			. '`automated_pageviews` = `automated_pageviews` + VALUES(`automated_pageviews`), '
 			. '`bot_pageviews` = `bot_pageviews` + VALUES(`bot_pageviews`), '
 			. '`custom_events` = `custom_events` + VALUES(`custom_events`)';
 
@@ -243,7 +249,7 @@ final class StatisticsArchiveService
 			. '`visit_date`, SHA2(`path`, 256), `path`, COUNT(*) '
 			. 'FROM ' . $eventsTable
 			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
-			. " AND `is_bot` = 0 AND `event_type` = 'pageview'"
+			. " AND `is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview'"
 			. ' AND `http_status` >= 200 AND `http_status` < 400'
 			. ' GROUP BY `visit_date`, `path` '
 			. 'ON DUPLICATE KEY UPDATE '
@@ -266,32 +272,32 @@ final class StatisticsArchiveService
 			$cutoffDate,
 			'referrer',
 			'referrer_host',
-			"`is_bot` = 0 AND `event_type` = 'pageview' AND `referrer_host` <> ''"
+			"`is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview' AND `referrer_host` <> ''"
 		);
 		$this->archiveDimension(
 			$cutoffDate,
 			'country',
 			'country_code',
-			"`is_bot` = 0 AND `event_type` = 'pageview'",
+			"`is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview'",
 			'COUNT(DISTINCT `visitor_hash`)'
 		);
 		$this->archiveDimension(
 			$cutoffDate,
 			'language',
 			'language_code',
-			"`is_bot` = 0 AND `event_type` = 'pageview' AND `language_code` <> ''"
+			"`is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview' AND `language_code` <> ''"
 		);
 		$this->archiveDimension(
 			$cutoffDate,
 			'device',
 			'device_type',
-			"`is_bot` = 0 AND `event_type` = 'pageview' AND `device_type` <> ''"
+			"`is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview' AND `device_type` <> ''"
 		);
 		$this->archiveDimension(
 			$cutoffDate,
 			'browser',
 			'browser_family',
-			"`is_bot` = 0 AND `event_type` = 'pageview' AND `browser_family` <> ''"
+			"`is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview' AND `browser_family` <> ''"
 		);
 		$this->archiveDimension(
 			$cutoffDate,
@@ -303,13 +309,13 @@ final class StatisticsArchiveService
 			$cutoffDate,
 			'event_type',
 			'event_type',
-			"`is_bot` = 0 AND `event_type` <> 'pageview'"
+			"`is_bot` = 0 AND `is_automated` = 0 AND `event_type` <> 'pageview'"
 		);
 		$this->archiveDimension(
 			$cutoffDate,
 			'traffic_source',
 			'traffic_source',
-			"`is_bot` = 0 AND `event_type` = 'pageview' AND `http_status` >= 200 AND `http_status` < 400 "
+			"`is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview' AND `http_status` >= 200 AND `http_status` < 400 "
 				. "AND `traffic_source` IN ('direct', 'search', 'social', 'ai', 'referral')"
 		);
 	}
@@ -386,11 +392,13 @@ final class StatisticsArchiveService
 		$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
 		$networkTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_daily_networks'));
 		$sql = 'INSERT INTO ' . $networkTable . ' ('
-			. '`visit_date`, `asn_number`, `human_visits`, `human_pageviews`, `bot_pageviews`'
+			. '`visit_date`, `asn_number`, `human_visits`, `human_pageviews`, `automated_visits`, `automated_pageviews`, `bot_pageviews`'
 			. ') SELECT '
 			. '`visit_date`, `asn_number`, '
-			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 THEN `visitor_hash` END), "
-			. "SUM(CASE WHEN `is_bot` = 0 THEN 1 ELSE 0 END), "
+			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `is_automated` = 0 THEN `visitor_hash` END), "
+			. "SUM(CASE WHEN `is_bot` = 0 AND `is_automated` = 0 THEN 1 ELSE 0 END), "
+			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `is_automated` = 1 THEN `visitor_hash` END), "
+			. "SUM(CASE WHEN `is_bot` = 0 AND `is_automated` = 1 THEN 1 ELSE 0 END), "
 			. "SUM(CASE WHEN `is_bot` = 1 THEN 1 ELSE 0 END) "
 			. 'FROM ' . $eventsTable
 			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
@@ -399,7 +407,61 @@ final class StatisticsArchiveService
 			. 'ON DUPLICATE KEY UPDATE '
 			. '`human_visits` = `human_visits` + VALUES(`human_visits`), '
 			. '`human_pageviews` = `human_pageviews` + VALUES(`human_pageviews`), '
+			. '`automated_visits` = `automated_visits` + VALUES(`automated_visits`), '
+			. '`automated_pageviews` = `automated_pageviews` + VALUES(`automated_pageviews`), '
 			. '`bot_pageviews` = `bot_pageviews` + VALUES(`bot_pageviews`)';
+
+		$db->setQuery($sql)->execute();
+	}
+
+
+	/**
+	 * Archives explainable suspected-automation breakdowns.
+	 *
+	 * @param string $cutoffDate First retained raw-event date.
+	 *
+	 * @return void
+	 */
+	private function archiveAutomationDimensions(string $cutoffDate): void
+	{
+		$this->archiveAutomationDimension($cutoffDate, 'country', 'country_code');
+		$this->archiveAutomationDimension($cutoffDate, 'path', 'path');
+		$this->archiveAutomationDimension($cutoffDate, 'reason', 'automation_reason');
+	}
+
+	/**
+	 * Archives one suspected-automation dimension with visitor-day and page-view totals.
+	 *
+	 * @param string $cutoffDate   First retained raw-event date.
+	 * @param string $dimensionKey Aggregate dimension identifier.
+	 * @param string $labelColumn  Raw event label column.
+	 *
+	 * @return void
+	 */
+	private function archiveAutomationDimension(string $cutoffDate, string $dimensionKey, string $labelColumn): void
+	{
+		if (!\in_array($labelColumn, ['country_code', 'path', 'automation_reason'], true))
+		{
+			throw new \InvalidArgumentException('Unsupported automation archive dimension.');
+		}
+
+		$db = $this->database;
+		$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
+		$automationTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_daily_automation'));
+		$label = $db->quoteName($labelColumn);
+		$sql = 'INSERT INTO ' . $automationTable . ' ('
+			. '`visit_date`, `dimension_key`, `label_hash`, `label`, `visitor_count`, `pageview_count`'
+			. ') SELECT `visit_date`, ' . $db->quote($dimensionKey) . ', SHA2(' . $label . ', 256), '
+			. $label . ', COUNT(DISTINCT `visitor_hash`), COUNT(*) '
+			. 'FROM ' . $eventsTable
+			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
+			. " AND `is_bot` = 0 AND `is_automated` = 1 AND `event_type` = 'pageview'"
+			. ' AND ' . $label . " <> ''"
+			. ' GROUP BY `visit_date`, ' . $label . ' '
+			. 'ON DUPLICATE KEY UPDATE '
+			. '`label` = VALUES(`label`), '
+			. '`visitor_count` = `visitor_count` + VALUES(`visitor_count`), '
+			. '`pageview_count` = `pageview_count` + VALUES(`pageview_count`)';
 
 		$db->setQuery($sql)->execute();
 	}
@@ -448,13 +510,15 @@ final class StatisticsArchiveService
 		$bucket = '`' . $column . '`';
 		$sql = 'INSERT INTO ' . $timeTable . ' ('
 			. '`visit_date`, `bucket_kind`, `bucket_value`, `human_visits`, '
-			. '`human_pageviews`, `bot_pageviews`'
+			. '`human_pageviews`, `automated_visits`, `automated_pageviews`, `bot_pageviews`'
 			. ') SELECT '
 			. '`visit_date`, '
 			. $db->quote($kind) . ', '
 			. $bucket . ', '
-			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' THEN `visitor_hash` END), "
-			. "SUM(CASE WHEN `is_bot` = 0 AND `event_type` = 'pageview' THEN 1 ELSE 0 END), "
+			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview' THEN `visitor_hash` END), "
+			. "SUM(CASE WHEN `is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview' THEN 1 ELSE 0 END), "
+			. "COUNT(DISTINCT CASE WHEN `is_bot` = 0 AND `is_automated` = 1 AND `event_type` = 'pageview' THEN `visitor_hash` END), "
+			. "SUM(CASE WHEN `is_bot` = 0 AND `is_automated` = 1 AND `event_type` = 'pageview' THEN 1 ELSE 0 END), "
 			. "SUM(CASE WHEN `is_bot` = 1 AND `event_type` = 'pageview' THEN 1 ELSE 0 END) "
 			. 'FROM ' . $eventsTable
 			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
@@ -464,6 +528,8 @@ final class StatisticsArchiveService
 			. 'ON DUPLICATE KEY UPDATE '
 			. '`human_visits` = `human_visits` + VALUES(`human_visits`), '
 			. '`human_pageviews` = `human_pageviews` + VALUES(`human_pageviews`), '
+			. '`automated_visits` = `automated_visits` + VALUES(`automated_visits`), '
+			. '`automated_pageviews` = `automated_pageviews` + VALUES(`automated_pageviews`), '
 			. '`bot_pageviews` = `bot_pageviews` + VALUES(`bot_pageviews`)';
 
 		$db->setQuery($sql)->execute();
@@ -517,7 +583,7 @@ final class StatisticsArchiveService
 			. '`visit_date`, `event_type`, ' . $db->quote($kind) . ', ' . $bucket . ', COUNT(*) '
 			. 'FROM ' . $eventsTable
 			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
-			. " AND `is_bot` = 0 AND `event_type` <> 'pageview'"
+			. " AND `is_bot` = 0 AND `is_automated` = 0 AND `event_type` <> 'pageview'"
 			. ' AND ' . $bucket . ' >= ' . $minimum
 			. ' AND ' . $bucket . ' <= ' . $maximum
 			. ' GROUP BY `visit_date`, `event_type`, ' . $bucket . ' '
@@ -547,7 +613,7 @@ final class StatisticsArchiveService
 			. '`event_type`, `item_type`, `item_id`, `item_title`, `path`, COUNT(*) '
 			. 'FROM ' . $eventsTable
 			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
-			. " AND `is_bot` = 0 AND `event_type` <> 'pageview'"
+			. " AND `is_bot` = 0 AND `is_automated` = 0 AND `event_type` <> 'pageview'"
 			. ' GROUP BY `visit_date`, `event_type`, `item_type`, `item_id`, `item_title`, `path` '
 			. 'ON DUPLICATE KEY UPDATE '
 			. '`event_count` = `event_count` + VALUES(`event_count`)';
@@ -663,7 +729,7 @@ final class StatisticsArchiveService
 			. 'PARTITION BY e.`visit_date`, e.`visitor_hash` ORDER BY e.`visited_at`, e.`id`'
 			. ') AS `previous_at` '
 			. 'FROM ' . $eventsTable . ' AS e '
-			. 'WHERE e.`is_bot` = 0 AND e.`visit_date` < ' . $db->quote($cutoffDate)
+			. 'WHERE e.`is_bot` = 0 AND `is_automated` = 0 AND e.`visit_date` < ' . $db->quote($cutoffDate)
 			. ') AS ordered_events'
 			. ') AS marked_events';
 	}
@@ -681,16 +747,16 @@ final class StatisticsArchiveService
 		$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
 		$notFoundTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_daily_404'));
 		$sql = 'INSERT INTO ' . $notFoundTable . ' ('
-			. '`visit_date`, `row_hash`, `path`, `referrer_host`, `is_bot`, '
+			. '`visit_date`, `row_hash`, `path`, `referrer_host`, `is_bot`, `is_automated`, '
 			. '`request_count`, `first_seen`, `last_seen`'
 			. ') SELECT '
 			. '`visit_date`, '
-			. 'SHA2(CONCAT_WS(CHAR(31), `path`, `referrer_host`, `is_bot`), 256), '
-			. '`path`, `referrer_host`, `is_bot`, COUNT(*), MIN(`visited_at`), MAX(`visited_at`) '
+			. 'SHA2(CONCAT_WS(CHAR(31), `path`, `referrer_host`, `is_bot`, `is_automated`), 256), '
+			. '`path`, `referrer_host`, `is_bot`, `is_automated`, COUNT(*), MIN(`visited_at`), MAX(`visited_at`) '
 			. 'FROM ' . $eventsTable
 			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
 			. " AND `event_type` = 'pageview' AND `http_status` = 404"
-			. ' GROUP BY `visit_date`, `path`, `referrer_host`, `is_bot` '
+			. ' GROUP BY `visit_date`, `path`, `referrer_host`, `is_bot`, `is_automated` '
 			. 'ON DUPLICATE KEY UPDATE '
 			. '`request_count` = `request_count` + VALUES(`request_count`), '
 			. '`first_seen` = LEAST(`first_seen`, VALUES(`first_seen`)), '

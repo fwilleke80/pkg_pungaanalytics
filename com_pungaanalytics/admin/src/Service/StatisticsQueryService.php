@@ -39,6 +39,10 @@ final class StatisticsQueryService
 		'browsers' => ['title' => 'COM_PUNGAANALYTICS_BROWSERS', 'kind' => 'dimension'],
 		'bots' => ['title' => 'COM_PUNGAANALYTICS_BOT_NAMES', 'kind' => 'dimension'],
 		'events' => ['title' => 'COM_PUNGAANALYTICS_CUSTOM_EVENTS', 'kind' => 'dimension'],
+		'automationcountries' => ['title' => 'COM_PUNGAANALYTICS_AUTOMATION_COUNTRIES', 'kind' => 'automation'],
+		'automationnetworks' => ['title' => 'COM_PUNGAANALYTICS_AUTOMATION_NETWORKS', 'kind' => 'automationnetwork'],
+		'automationpaths' => ['title' => 'COM_PUNGAANALYTICS_AUTOMATION_PATHS', 'kind' => 'automation'],
+		'automationreasons' => ['title' => 'COM_PUNGAANALYTICS_AUTOMATION_SIGNALS', 'kind' => 'automation'],
 	];
 
 	/** Inactivity gap that starts a new cookieless session. */
@@ -137,6 +141,10 @@ final class StatisticsQueryService
 			'devices' => $this->getDimensionRows('device_type', $from, $to, 12, false, 'pageview', true),
 			'browsers' => $this->getDimensionRows('browser_family', $from, $to, 12, false, 'pageview', true),
 			'bots' => $this->getDimensionRows('bot_name', $from, $to, 12, true, 'pageview', true),
+			'automationCountries' => $this->getAutomationDimensionRows('country', $from, $to, 12),
+			'automationNetworks' => $this->getAutomatedNetworkRows($from, $to, 12),
+			'automationPaths' => $this->getAutomationDimensionRows('path', $from, $to, 12),
+			'automationReasons' => $this->getAutomationDimensionRows('reason', $from, $to, 12),
 		];
 	}
 
@@ -234,6 +242,10 @@ final class StatisticsQueryService
 			'browsers' => $this->getDimensionRows('browser_family', $from, $to, 0, false, 'pageview', true),
 			'bots' => $this->getDimensionRows('bot_name', $from, $to, 0, true, 'pageview', true),
 			'events' => $this->getEventTypes($from, $to, 0),
+			'automationcountries' => $this->getAutomationDimensionRows('country', $from, $to, 0),
+			'automationnetworks' => $this->getAutomatedNetworkRows($from, $to, 0),
+			'automationpaths' => $this->getAutomationDimensionRows('path', $from, $to, 0),
+			'automationreasons' => $this->getAutomationDimensionRows('reason', $from, $to, 0),
 			'history' => $this->getHistoryRows($historyDefinition, $from, $to),
 		};
 
@@ -354,13 +366,15 @@ final class StatisticsQueryService
 		$db = $this->database;
 		$dailyVisitor = 'CONCAT(' . $db->quoteName('visit_date') . ', ' . $db->quote(':') . ', ' . $db->quoteName('visitor_hash') . ')';
 		$pageView = $db->quoteName('event_type') . ' = ' . $db->quote('pageview');
-		$human = $db->quoteName('is_bot') . ' = 0';
+		$human = $db->quoteName('is_bot') . ' = 0 AND ' . $db->quoteName('is_automated') . ' = 0';
 		$query = $db->getQuery(true)
 			->select([
 				'COUNT(DISTINCT CASE WHEN ' . $human . ' AND ' . $pageView . ' THEN ' . $dailyVisitor . ' END) AS ' . $db->quoteName('human_visits'),
 				'SUM(CASE WHEN ' . $human . ' AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('human_pageviews'),
 				'SUM(CASE WHEN ' . $human . ' AND ' . $pageView . ' AND ' . $db->quoteName('is_authenticated') . ' = 1 THEN 1 ELSE 0 END) AS ' . $db->quoteName('authenticated_pageviews'),
 				'COUNT(DISTINCT CASE WHEN ' . $human . ' AND ' . $pageView . ' AND ' . $db->quoteName('country_code') . ' = ' . $db->quote('DE') . ' THEN ' . $dailyVisitor . ' END) AS ' . $db->quoteName('german_visits'),
+				'COUNT(DISTINCT CASE WHEN ' . $db->quoteName('is_bot') . ' = 0 AND ' . $db->quoteName('is_automated') . ' = 1 AND ' . $pageView . ' THEN ' . $dailyVisitor . ' END) AS ' . $db->quoteName('automated_visits'),
+				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 0 AND ' . $db->quoteName('is_automated') . ' = 1 AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('automated_pageviews'),
 				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 1 AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('bot_pageviews'),
 				'SUM(CASE WHEN ' . $human . ' AND ' . $db->quoteName('event_type') . ' <> ' . $db->quote('pageview') . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('custom_events'),
 			])
@@ -375,6 +389,8 @@ final class StatisticsQueryService
 				'SUM(' . $db->quoteName('human_pageviews') . ') AS ' . $db->quoteName('human_pageviews'),
 				'SUM(' . $db->quoteName('authenticated_pageviews') . ') AS ' . $db->quoteName('authenticated_pageviews'),
 				'SUM(' . $db->quoteName('german_visits') . ') AS ' . $db->quoteName('german_visits'),
+				'SUM(' . $db->quoteName('automated_visits') . ') AS ' . $db->quoteName('automated_visits'),
+				'SUM(' . $db->quoteName('automated_pageviews') . ') AS ' . $db->quoteName('automated_pageviews'),
 				'SUM(' . $db->quoteName('bot_pageviews') . ') AS ' . $db->quoteName('bot_pageviews'),
 				'SUM(' . $db->quoteName('custom_events') . ') AS ' . $db->quoteName('custom_events'),
 			])
@@ -390,6 +406,8 @@ final class StatisticsQueryService
 			'human_pageviews',
 			'authenticated_pageviews',
 			'german_visits',
+			'automated_visits',
+			'automated_pageviews',
 			'bot_pageviews',
 			'custom_events',
 		] as $field)
@@ -421,7 +439,7 @@ final class StatisticsQueryService
 		}
 
 		$buckets = [];
-		$fields = ['visits', 'pageviews', 'bots'];
+		$fields = ['visits', 'pageviews', 'automated', 'bots'];
 		$eventTypes = array_column($this->getDefinitionsFor('show_trend'), 'event_type');
 		$cursor = match ($granularity)
 		{
@@ -511,12 +529,13 @@ final class StatisticsQueryService
 		$db = $this->database;
 		$dailyVisitor = 'CONCAT(' . $db->quoteName('visit_date') . ', ' . $db->quote(':') . ', ' . $db->quoteName('visitor_hash') . ')';
 		$pageView = $db->quoteName('event_type') . ' = ' . $db->quote('pageview');
-		$human = $db->quoteName('is_bot') . ' = 0';
+		$human = $db->quoteName('is_bot') . ' = 0 AND ' . $db->quoteName('is_automated') . ' = 0';
 		$query = $db->getQuery(true)
 			->select([
 				$db->quoteName('visit_date'),
 				'COUNT(DISTINCT CASE WHEN ' . $human . ' AND ' . $pageView . ' THEN ' . $dailyVisitor . ' END) AS ' . $db->quoteName('visits'),
 				'SUM(CASE WHEN ' . $human . ' AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('pageviews'),
+				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 0 AND ' . $db->quoteName('is_automated') . ' = 1 AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('automated'),
 				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 1 AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('bots'),
 			])
 			->from($db->quoteName('#__pungaanalytics_events'))
@@ -530,6 +549,7 @@ final class StatisticsQueryService
 				$db->quoteName('visit_date'),
 				$db->quoteName('human_visits') . ' AS ' . $db->quoteName('visits'),
 				$db->quoteName('human_pageviews') . ' AS ' . $db->quoteName('pageviews'),
+				$db->quoteName('automated_pageviews') . ' AS ' . $db->quoteName('automated'),
 				$db->quoteName('bot_pageviews') . ' AS ' . $db->quoteName('bots'),
 			])
 			->from($db->quoteName('#__pungaanalytics_daily'));
@@ -562,12 +582,13 @@ final class StatisticsQueryService
 		$maximum = $kind === 'hour' ? 23 : 7;
 		$dailyVisitor = 'CONCAT(' . $db->quoteName('visit_date') . ', ' . $db->quote(':') . ', ' . $db->quoteName('visitor_hash') . ')';
 		$pageView = $db->quoteName('event_type') . ' = ' . $db->quote('pageview');
-		$human = $db->quoteName('is_bot') . ' = 0';
+		$human = $db->quoteName('is_bot') . ' = 0 AND ' . $db->quoteName('is_automated') . ' = 0';
 		$query = $db->getQuery(true)
 			->select([
 				$db->quoteName($field) . ' AS ' . $db->quoteName('bucket'),
 				'COUNT(DISTINCT CASE WHEN ' . $human . ' AND ' . $pageView . ' THEN ' . $dailyVisitor . ' END) AS ' . $db->quoteName('visits'),
 				'SUM(CASE WHEN ' . $human . ' AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('pageviews'),
+				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 0 AND ' . $db->quoteName('is_automated') . ' = 1 AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('automated'),
 				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 1 AND ' . $pageView . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('bots'),
 			])
 			->from($db->quoteName('#__pungaanalytics_events'))
@@ -583,6 +604,7 @@ final class StatisticsQueryService
 				$db->quoteName('bucket_value') . ' AS ' . $db->quoteName('bucket'),
 				'SUM(' . $db->quoteName('human_visits') . ') AS ' . $db->quoteName('visits'),
 				'SUM(' . $db->quoteName('human_pageviews') . ') AS ' . $db->quoteName('pageviews'),
+				'SUM(' . $db->quoteName('automated_pageviews') . ') AS ' . $db->quoteName('automated'),
 				'SUM(' . $db->quoteName('bot_pageviews') . ') AS ' . $db->quoteName('bots'),
 			])
 			->from($db->quoteName('#__pungaanalytics_daily_time'))
@@ -707,6 +729,7 @@ final class StatisticsQueryService
 			])
 			->from($db->quoteName('#__pungaanalytics_events'))
 			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('is_automated') . ' = 0')
 			->where($db->quoteName('event_type') . ' IN (' . $eventList . ')')
 			->group([$db->quoteName('visit_date'), $db->quoteName('event_type')]);
 		$this->applyDateRange($query, $from, $to);
@@ -782,6 +805,7 @@ final class StatisticsQueryService
 			])
 			->from($db->quoteName('#__pungaanalytics_events'))
 			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('is_automated') . ' = 0')
 			->where($db->quoteName('event_type') . ' IN (' . $eventList . ')')
 			->group([$db->quoteName($field), $db->quoteName('event_type')]);
 		$this->applyDateRange($query, $from, $to);
@@ -844,6 +868,7 @@ final class StatisticsQueryService
 			])
 			->from($db->quoteName('#__pungaanalytics_events'))
 			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('is_automated') . ' = 0')
 			->where($db->quoteName('event_type') . ' = ' . $db->quote('pageview'))
 			->where($db->quoteName('http_status') . ' >= 200')
 			->where($db->quoteName('http_status') . ' < 400')
@@ -877,6 +902,7 @@ final class StatisticsQueryService
 				$db->quoteName('path'),
 				$db->quoteName('referrer_host'),
 				$db->quoteName('is_bot'),
+				$db->quoteName('is_automated'),
 				'COUNT(*) AS ' . $db->quoteName('count'),
 				'MIN(' . $db->quoteName('visited_at') . ') AS ' . $db->quoteName('first_seen'),
 				'MAX(' . $db->quoteName('visited_at') . ') AS ' . $db->quoteName('last_seen'),
@@ -888,6 +914,7 @@ final class StatisticsQueryService
 				$db->quoteName('path'),
 				$db->quoteName('referrer_host'),
 				$db->quoteName('is_bot'),
+				$db->quoteName('is_automated'),
 			]);
 
 		$this->applyDateRange($query, $from, $to);
@@ -898,6 +925,7 @@ final class StatisticsQueryService
 				$db->quoteName('path'),
 				$db->quoteName('referrer_host'),
 				$db->quoteName('is_bot'),
+				$db->quoteName('is_automated'),
 				'SUM(' . $db->quoteName('request_count') . ') AS ' . $db->quoteName('count'),
 				'MIN(' . $db->quoteName('first_seen') . ') AS ' . $db->quoteName('first_seen'),
 				'MAX(' . $db->quoteName('last_seen') . ') AS ' . $db->quoteName('last_seen'),
@@ -907,6 +935,7 @@ final class StatisticsQueryService
 				$db->quoteName('path'),
 				$db->quoteName('referrer_host'),
 				$db->quoteName('is_bot'),
+				$db->quoteName('is_automated'),
 			]);
 
 		$this->applyDateRange($archiveQuery, $from, $to, false);
@@ -945,6 +974,7 @@ final class StatisticsQueryService
 				$rows[$key] = (object) [
 					'path' => $path,
 					'human' => 0,
+					'automated' => 0,
 					'bots' => 0,
 					'total' => 0,
 					'top_referrer' => '',
@@ -955,7 +985,9 @@ final class StatisticsQueryService
 			}
 
 			$count = (int) ($source->count ?? 0);
-			$field = (int) ($source->is_bot ?? 0) === 1 ? 'bots' : 'human';
+			$field = (int) ($source->is_bot ?? 0) === 1
+				? 'bots'
+				: ((int) ($source->is_automated ?? 0) === 1 ? 'automated' : 'human');
 			$rows[$key]->{$field} += $count;
 			$rows[$key]->total += $count;
 			$firstSeen = (string) ($source->first_seen ?? '');
@@ -1180,6 +1212,11 @@ final class StatisticsQueryService
 			->group($db->quoteName('visit_date'))
 			->bind(':historyValue', $definition['value']);
 
+		if (!$isBot)
+		{
+			$query->where($db->quoteName('is_automated') . ' = 0');
+		}
+
 		if ($isEvent)
 		{
 			$query->where($db->quoteName('event_type') . ' <> ' . $db->quote('pageview'));
@@ -1241,6 +1278,7 @@ final class StatisticsQueryService
 			->from($db->quoteName('#__pungaanalytics_events'))
 			->where($db->quoteName('event_type') . ' = ' . $db->quote('pageview'))
 			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('is_automated') . ' = 0')
 			->where($db->quoteName('asn_number') . ' = :historyAsn')
 			->group($db->quoteName('visit_date'))
 			->bind(':historyAsn', $asn, \Joomla\Database\ParameterType::INTEGER);
@@ -1288,6 +1326,7 @@ final class StatisticsQueryService
 			])
 			->from($db->quoteName('#__pungaanalytics_events'))
 			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('is_automated') . ' = 0')
 			->group($db->quoteName('visit_date'));
 		$archiveQuery = $db->getQuery(true)
 			->select([
@@ -1467,6 +1506,7 @@ final class StatisticsQueryService
 			])
 			->from($db->quoteName('#__pungaanalytics_events'))
 			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('is_automated') . ' = 0')
 			->where($db->quoteName('event_type') . ' = ' . $db->quote('pageview'))
 			->group($db->quoteName('country_code'));
 
@@ -1484,7 +1524,7 @@ final class StatisticsQueryService
 	 * Returns page-view traffic grouped by Autonomous System number.
 	 *
 	 * Human visitors are counted as visitor-days, matching the Countries report.
-	 * Known bots remain visible in a separate page-view column so network-level
+	 * Detected bots remain visible in a separate page-view column so network-level
 	 * infrastructure traffic can be compared without changing bot classification.
 	 *
 	 * @param string $from  Inclusive date.
@@ -1500,8 +1540,10 @@ final class StatisticsQueryService
 		$query = $db->getQuery(true)
 			->select([
 				$db->quoteName('asn_number'),
-				'COUNT(DISTINCT CASE WHEN ' . $db->quoteName('is_bot') . ' = 0 THEN ' . $dailyVisitor . ' END) AS ' . $db->quoteName('human_visits'),
-				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 0 THEN 1 ELSE 0 END) AS ' . $db->quoteName('human_pageviews'),
+				'COUNT(DISTINCT CASE WHEN ' . $db->quoteName('is_bot') . ' = 0 AND ' . $db->quoteName('is_automated') . ' = 0 THEN ' . $dailyVisitor . ' END) AS ' . $db->quoteName('human_visits'),
+				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 0 AND ' . $db->quoteName('is_automated') . ' = 0 THEN 1 ELSE 0 END) AS ' . $db->quoteName('human_pageviews'),
+				'COUNT(DISTINCT CASE WHEN ' . $db->quoteName('is_bot') . ' = 0 AND ' . $db->quoteName('is_automated') . ' = 1 THEN ' . $dailyVisitor . ' END) AS ' . $db->quoteName('automated_visits'),
+				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 0 AND ' . $db->quoteName('is_automated') . ' = 1 THEN 1 ELSE 0 END) AS ' . $db->quoteName('automated_pageviews'),
 				'SUM(CASE WHEN ' . $db->quoteName('is_bot') . ' = 1 THEN 1 ELSE 0 END) AS ' . $db->quoteName('bot_pageviews'),
 			])
 			->from($db->quoteName('#__pungaanalytics_events'))
@@ -1517,6 +1559,8 @@ final class StatisticsQueryService
 				$db->quoteName('asn_number'),
 				'SUM(' . $db->quoteName('human_visits') . ') AS ' . $db->quoteName('human_visits'),
 				'SUM(' . $db->quoteName('human_pageviews') . ') AS ' . $db->quoteName('human_pageviews'),
+				'SUM(' . $db->quoteName('automated_visits') . ') AS ' . $db->quoteName('automated_visits'),
+				'SUM(' . $db->quoteName('automated_pageviews') . ') AS ' . $db->quoteName('automated_pageviews'),
 				'SUM(' . $db->quoteName('bot_pageviews') . ') AS ' . $db->quoteName('bot_pageviews'),
 			])
 			->from($db->quoteName('#__pungaanalytics_daily_networks'))
@@ -1543,15 +1587,21 @@ final class StatisticsQueryService
 					'organization' => (string) ($organizations[(string) $asn] ?? ''),
 					'human_visits' => 0,
 					'human_pageviews' => 0,
+					'automated_visits' => 0,
+					'automated_pageviews' => 0,
 					'bot_pageviews' => 0,
 					'total_pageviews' => 0,
 				];
 			}
 
-			$rows[$asn]->human_visits += (int) ($source->human_visits ?? 0);
-			$rows[$asn]->human_pageviews += (int) ($source->human_pageviews ?? 0);
-			$rows[$asn]->bot_pageviews += (int) ($source->bot_pageviews ?? 0);
-			$rows[$asn]->total_pageviews = $rows[$asn]->human_pageviews + $rows[$asn]->bot_pageviews;
+			foreach (['human_visits', 'human_pageviews', 'automated_visits', 'automated_pageviews', 'bot_pageviews'] as $field)
+			{
+				$rows[$asn]->{$field} += (int) ($source->{$field} ?? 0);
+			}
+
+			$rows[$asn]->total_pageviews = $rows[$asn]->human_pageviews
+				+ $rows[$asn]->automated_pageviews
+				+ $rows[$asn]->bot_pageviews;
 		}
 
 		$rows = array_values($rows);
@@ -1560,7 +1610,127 @@ final class StatisticsQueryService
 			static fn(object $left, object $right): int =>
 				((int) $right->human_visits <=> (int) $left->human_visits)
 				?: ((int) $right->human_pageviews <=> (int) $left->human_pageviews)
+				?: ((int) $right->automated_pageviews <=> (int) $left->automated_pageviews)
 				?: ((int) $left->asn_number <=> (int) $right->asn_number)
+		);
+
+		return $limit > 0 ? array_slice($rows, 0, $limit) : $rows;
+	}
+
+	/**
+	 * Returns networks with suspected automated page views, sorted by automation volume.
+	 *
+	 * @param string $from  Inclusive date.
+	 * @param string $to    Inclusive date.
+	 * @param int    $limit Maximum rows, or zero for all.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getAutomatedNetworkRows(string $from, string $to, int $limit): array
+	{
+		$rows = array_values(array_filter(
+			$this->getNetworkRows($from, $to, 0),
+			static fn(object $row): bool => (int) ($row->automated_pageviews ?? 0) > 0
+		));
+
+		usort(
+			$rows,
+			static fn(object $left, object $right): int =>
+				((int) $right->automated_visits <=> (int) $left->automated_visits)
+				?: ((int) $right->automated_pageviews <=> (int) $left->automated_pageviews)
+				?: ((int) $left->asn_number <=> (int) $right->asn_number)
+		);
+
+		return $limit > 0 ? array_slice($rows, 0, $limit) : $rows;
+	}
+
+	/**
+	 * Returns suspected automation grouped by one archived diagnostic dimension.
+	 *
+	 * @param string $dimension country, path, or reason.
+	 * @param string $from      Inclusive date.
+	 * @param string $to        Inclusive date.
+	 * @param int    $limit     Maximum rows, or zero for all.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getAutomationDimensionRows(string $dimension, string $from, string $to, int $limit): array
+	{
+		$columns = [
+			'country' => 'country_code',
+			'path' => 'path',
+			'reason' => 'automation_reason',
+		];
+
+		if (!isset($columns[$dimension]))
+		{
+			throw new \InvalidArgumentException('Unsupported automation dimension.');
+		}
+
+		$db = $this->database;
+		$column = $columns[$dimension];
+		$dailyVisitor = 'CONCAT(' . $db->quoteName('visit_date') . ', ' . $db->quote(':') . ', ' . $db->quoteName('visitor_hash') . ')';
+		$query = $db->getQuery(true)
+			->select([
+				$db->quoteName($column) . ' AS ' . $db->quoteName('label'),
+				'COUNT(DISTINCT ' . $dailyVisitor . ') AS ' . $db->quoteName('visitors'),
+				'COUNT(*) AS ' . $db->quoteName('pageviews'),
+			])
+			->from($db->quoteName('#__pungaanalytics_events'))
+			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('is_automated') . ' = 1')
+			->where($db->quoteName('event_type') . ' = ' . $db->quote('pageview'))
+			->where($db->quoteName($column) . ' <> ' . $db->quote(''))
+			->group($db->quoteName($column));
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
+		$rawRows = $db->loadObjectList();
+
+		$archiveQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('label'),
+				'SUM(' . $db->quoteName('visitor_count') . ') AS ' . $db->quoteName('visitors'),
+				'SUM(' . $db->quoteName('pageview_count') . ') AS ' . $db->quoteName('pageviews'),
+			])
+			->from($db->quoteName('#__pungaanalytics_daily_automation'))
+			->where($db->quoteName('dimension_key') . ' = :dimension')
+			->group($db->quoteName('label'))
+			->bind(':dimension', $dimension);
+		$this->applyDateRange($archiveQuery, $from, $to, false);
+		$db->setQuery($archiveQuery);
+		$rows = [];
+
+		foreach (array_merge($rawRows, $db->loadObjectList()) as $source)
+		{
+			$label = (string) ($source->label ?? '');
+
+			if ($label === '')
+			{
+				continue;
+			}
+
+			$key = mb_strtolower($label, 'UTF-8');
+
+			if (!isset($rows[$key]))
+			{
+				$rows[$key] = (object) [
+					'label' => $label,
+					'visitors' => 0,
+					'pageviews' => 0,
+				];
+			}
+
+			$rows[$key]->visitors += (int) ($source->visitors ?? 0);
+			$rows[$key]->pageviews += (int) ($source->pageviews ?? 0);
+		}
+
+		$rows = array_values($rows);
+		usort(
+			$rows,
+			static fn(object $left, object $right): int =>
+				((int) $right->visitors <=> (int) $left->visitors)
+				?: ((int) $right->pageviews <=> (int) $left->pageviews)
+				?: strnatcasecmp((string) $left->label, (string) $right->label)
 		);
 
 		return $limit > 0 ? array_slice($rows, 0, $limit) : $rows;
@@ -1598,6 +1768,7 @@ final class StatisticsQueryService
 					. ' = CAST(' . $db->quoteName($eventsAlias . '.path') . ' AS BINARY)'
 			)
 			->where($db->quoteName($eventsAlias . '.is_bot') . ' = 0')
+			->where($db->quoteName($eventsAlias . '.is_automated') . ' = 0')
 			->where($db->quoteName($eventsAlias . '.event_type') . ' = ' . $db->quote('pageview'))
 			->where($db->quoteName($eventsAlias . '.http_status') . ' >= 200')
 			->where($db->quoteName($eventsAlias . '.http_status') . ' < 400')
@@ -1680,6 +1851,11 @@ final class StatisticsQueryService
 			->group($db->quoteName($field))
 			->bind(':eventType', $eventType);
 
+		if (!$bots)
+		{
+			$query->where($db->quoteName('is_automated') . ' = 0');
+		}
+
 		if ($excludeEmpty)
 		{
 			$query->where($db->quoteName($field) . ' <> ' . $db->quote(''));
@@ -1726,6 +1902,7 @@ final class StatisticsQueryService
 			])
 			->from($db->quoteName('#__pungaanalytics_events'))
 			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('is_automated') . ' = 0')
 			->where($db->quoteName('event_type') . ' = :eventType')
 			->group([
 				$db->quoteName('item_title'),
@@ -1781,6 +1958,7 @@ final class StatisticsQueryService
 			])
 			->from($db->quoteName('#__pungaanalytics_events'))
 			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('is_automated') . ' = 0')
 			->where($db->quoteName('event_type') . ' <> ' . $db->quote('pageview'))
 			->group($db->quoteName('event_type'));
 
@@ -1857,7 +2035,7 @@ final class StatisticsQueryService
 	private function mergeDailyRows(array $raw, array $archived): array
 	{
 		$rows = [];
-		$fields = ['visits', 'pageviews', 'bots'];
+		$fields = ['visits', 'pageviews', 'automated', 'bots'];
 
 		foreach (array_merge($raw, $archived) as $source)
 		{
@@ -1902,7 +2080,7 @@ final class StatisticsQueryService
 	private function mergeTimeRows(array $raw, array $archived, int $minimum, int $maximum): array
 	{
 		$rows = [];
-		$fields = ['visits', 'pageviews', 'bots'];
+		$fields = ['visits', 'pageviews', 'automated', 'bots'];
 
 		for ($bucket = $minimum; $bucket <= $maximum; $bucket++)
 		{
@@ -2101,7 +2279,7 @@ final class StatisticsQueryService
 			. 'PARTITION BY e.`visit_date`, e.`visitor_hash` ORDER BY e.`visited_at`, e.`id`'
 			. ') AS `previous_at`'
 			. ' FROM ' . $eventsTable . ' AS e'
-			. ' WHERE e.`is_bot` = 0 AND ' . $rangeSql
+			. ' WHERE e.`is_bot` = 0 AND e.`is_automated` = 0 AND ' . $rangeSql
 			. '), marked_events AS ('
 			. ' SELECT ordered_events.*,'
 			. ' CASE WHEN `previous_at` IS NULL'
@@ -2212,7 +2390,7 @@ final class StatisticsQueryService
 			. 'PARTITION BY e.`visit_date`, e.`visitor_hash` ORDER BY e.`visited_at`, e.`id`'
 			. ') AS `previous_at`'
 			. ' FROM ' . $eventsTable . ' AS e'
-			. ' WHERE e.`is_bot` = 0 AND ' . $rangeSql
+			. ' WHERE e.`is_bot` = 0 AND e.`is_automated` = 0 AND ' . $rangeSql
 			. '), marked_events AS ('
 			. ' SELECT ordered_events.*,'
 			. ' CASE WHEN `previous_at` IS NULL'
