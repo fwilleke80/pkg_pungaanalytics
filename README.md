@@ -12,6 +12,7 @@ Punga Analytics is a small, self-hosted statistics package for Joomla 6. It prov
 - [Page views](#page-views)
 - [Custom event bridge](#custom-event-bridge)
   - [Configuring generic event definitions](#configuring-generic-event-definitions)
+- [Cookieless sessions](#cookieless-sessions)
 - [Logged-in users](#logged-in-users)
 - [Country detection](#country-detection)
 - [Dashboard](#dashboard)
@@ -88,6 +89,7 @@ The permanent reports preserve:
 - Not-found paths with separate human and bot request totals, first and last
   occurrence, and the most common external referrer
 - Custom-event types and generic item-level event totals
+- Cookieless daily session totals and configured-event session participation for data archived by Punga Analytics 0.9.0 and later
 
 Dashboard queries combine retained raw events with the permanent reports.
 Cleanup therefore does not reduce all-time totals, rewrite older charts, or
@@ -295,6 +297,49 @@ keeps existing integrations working through the rebrand. New and updated
 integrations should dispatch `onPungaAnalyticsRecord` and read
 `pungaanalytics_recorded`.
 
+## Cookieless sessions
+
+Punga Analytics 0.9.0 adds session analytics without setting a tracking cookie or
+creating a persistent cross-day visitor identifier. Sessions are inferred from
+recorded **human** events that share the existing daily visitor hash.
+
+A new session begins when:
+
+- the visitor has had no recorded event for more than 30 minutes, or
+- site-local midnight is crossed and the daily visitor hash rotates.
+
+The second rule is deliberate: sessions never link an anonymous browser across
+calendar days. As with visitor-days, sessions remain privacy-conscious estimates;
+the daily hash is derived from network/browser characteristics rather than a
+persistent browser ID.
+
+The Sessions dashboard reports:
+
+- total sessions
+- average session duration
+- page views per session
+- custom events per session
+- single-page sessions and their rate among sessions containing page views
+- sessions over time
+- participation by every configured custom event
+
+Configured custom events are handled generically. For each definition Punga
+Analytics can report the total event count, sessions containing that event,
+share of all sessions, sessions containing two or more occurrences, and events
+per matching session. Identifiers such as `audio.play` have no special behavior.
+
+Session data is derived directly from retained raw events. Before those raw rows
+are removed, Punga Analytics 0.9.0 and later archives additive daily session
+summaries into `#__pungaanalytics_daily_sessions` and
+`#__pungaanalytics_daily_session_events`, so future cleanup does not erase the
+session reports.
+
+Event ordering cannot be reconstructed from the older aggregate tables. Therefore
+complete days whose raw events had already been purged **before upgrading to
+0.9.0** are unavailable for historical session analysis. Retained raw days become
+available immediately after the update and will be preserved when they are later
+archived.
+
 ## Logged-in users
 
 Authenticated users on the public website are counted by default. Administrator backend requests are never collected.
@@ -344,7 +389,8 @@ The administrator dashboard includes:
 - Configurable custom-event overview totals
 - Bot page views
 - Adaptive day, ISO-week, or month activity trend for the complete selected range
-- Site-local hour-of-day and weekday visitor bar charts with exact activity tables
+- Site-local hour-of-day and weekday visitor bar charts with exact activity tables and compact fixed-bucket rendering
+- Dedicated cookieless Sessions tab with summary metrics, sessions-over-time data, and configured-event session participation
 - Sortable dashboard and paginated full-report tables with report-specific default ordering
 - Most viewed pages
 - Not-found (404) paths with human, bot, and combined request totals
@@ -358,7 +404,7 @@ The administrator dashboard includes:
 - Row-level daily history links for pages, 404 paths, countries, sources, referrers, languages, devices, browsers, bots, event types, and configured event items
 - Clearly labeled paginated full-report links on dashboard panels
 - CSV export of every full report and the complete selected range
-- One-click ZIP download containing every core CSV plus configured event-ranking CSVs
+- One-click ZIP download containing every core CSV, session reports, and configured event-ranking CSVs
 - Configurable row count for dashboard activity and custom-event ranking tables
 - Retention and country-database status
 - System-tab actions for updating the country database, archiving expired raw data, and permanently resetting all collected statistics
@@ -469,7 +515,8 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Raw-event table: `#__pungaanalytics_events`
 - Permanent report tables: `#__pungaanalytics_daily`,
   `#__pungaanalytics_daily_dimensions`, `#__pungaanalytics_daily_items`,
-  `#__pungaanalytics_daily_time`, `#__pungaanalytics_daily_event_time`, and
+  `#__pungaanalytics_daily_time`, `#__pungaanalytics_daily_event_time`,
+  `#__pungaanalytics_daily_sessions`, `#__pungaanalytics_daily_session_events`, and
   `#__pungaanalytics_daily_404`
 - Country source: DB-IP Lite CSV
 
@@ -482,3 +529,4 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Requests served before the collector runs, for example by an earlier full-page cache plugin, may not be recorded.
 - Punga Analytics cannot infer a media play from a page view; the media extension must emit a [custom event](#custom-event-bridge).
 - Traffic-source categorisation is heuristic and depends on the referrer header supplied by the visitor's browser.
+- Cookieless sessions cannot be reconstructed for days whose raw events were already archived before version 0.9.0, because the older aggregates do not preserve event ordering.

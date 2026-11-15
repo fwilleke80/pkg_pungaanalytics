@@ -92,6 +92,8 @@ final class ReportController extends BaseController
 		$model = $this->getModel('Report');
 		$requests = [
 			['activity', ''],
+			['sessions', ''],
+			['sessionevents', ''],
 			['hours', ''],
 			['weekdays', ''],
 			['pages', ''],
@@ -340,6 +342,67 @@ final class ReportController extends BaseController
 
 				$values[] = (int) $row->bots;
 				fputcsv($stream, $values);
+			}
+
+			return;
+		}
+
+
+		if ($kind === 'sessions')
+		{
+			fputcsv($stream, [
+				Text::_('COM_PUNGAANALYTICS_PERIOD'),
+				Text::_('COM_PUNGAANALYTICS_SESSIONS'),
+				Text::_('COM_PUNGAANALYTICS_PAGEVIEWS'),
+				Text::_('COM_PUNGAANALYTICS_CUSTOM_EVENT_OCCURRENCES'),
+				Text::_('COM_PUNGAANALYTICS_TOTAL_SESSION_DURATION_SECONDS'),
+				Text::_('COM_PUNGAANALYTICS_PAGEVIEWS_PER_SESSION'),
+				Text::_('COM_PUNGAANALYTICS_CUSTOM_EVENTS_PER_SESSION'),
+				Text::_('COM_PUNGAANALYTICS_AVG_SESSION_DURATION_SECONDS'),
+				Text::_('COM_PUNGAANALYTICS_SINGLE_PAGE_SESSIONS'),
+				Text::_('COM_PUNGAANALYTICS_SINGLE_PAGE_RATE'),
+			]);
+
+			foreach ($data['rows'] as $row)
+			{
+				fputcsv($stream, [
+					(string) $row->period_label,
+					(int) $row->sessions,
+					(int) $row->pageviews,
+					(int) $row->custom_events,
+					(int) $row->duration_seconds,
+					number_format((float) $row->pageviews_per_session, 4, '.', ''),
+					number_format((float) $row->custom_events_per_session, 4, '.', ''),
+					(int) $row->average_duration_seconds,
+					(int) $row->single_page_sessions,
+					number_format((float) $row->single_page_rate, 2, '.', ''),
+				]);
+			}
+
+			return;
+		}
+
+		if ($kind === 'sessionevents')
+		{
+			fputcsv($stream, [
+				Text::_('COM_PUNGAANALYTICS_EVENT'),
+				Text::_('COM_PUNGAANALYTICS_EVENTS'),
+				Text::_('COM_PUNGAANALYTICS_SESSIONS_WITH_EVENT'),
+				Text::_('COM_PUNGAANALYTICS_SESSION_SHARE'),
+				Text::_('COM_PUNGAANALYTICS_SESSIONS_WITH_MULTIPLE'),
+				Text::_('COM_PUNGAANALYTICS_EVENTS_PER_MATCHING_SESSION'),
+			]);
+
+			foreach ($data['rows'] as $row)
+			{
+				fputcsv($stream, [
+					(string) $row->title,
+					(int) $row->event_count,
+					(int) $row->session_count,
+					number_format((float) $row->session_share, 2, '.', ''),
+					(int) $row->multi_event_sessions,
+					number_format((float) $row->events_per_matching_session, 4, '.', ''),
+				]);
 			}
 
 			return;

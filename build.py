@@ -1,105 +1,53 @@
 #!/usr/bin/env python3
-
-"""Build the Punga Analytics Joomla package and source archive."""
+"""Build the Punga Analytics Joomla package from the expanded source tree."""
 
 from __future__ import annotations
 
-import hashlib
 import shutil
+import tempfile
 import zipfile
 from pathlib import Path
 
-VERSION = "0.8.12"
+VERSION = "0.9.0"
 ROOT = Path(__file__).resolve().parent
-OUTPUT = ROOT.parent
-BUILD = ROOT / ".build"
-EXCLUDED_PARTS = {".build", ".git", "__MACOSX", "__pycache__"}
+OUTPUT = ROOT / f"pkg_pungaanalytics-v{VERSION}.zip"
+
+EXTENSIONS: dict[str, str] = {
+    "com_pungaanalytics": "com_pungaanalytics.zip",
+    "mod_pungaanalytics": "mod_pungaanalytics.zip",
+    "plg_system_pungaanalytics": "plg_system_pungaanalytics.zip",
+}
 
 
 def add_tree(archive: zipfile.ZipFile, source: Path) -> None:
-    """Add a directory tree with paths relative to that directory."""
-
+    """Add every file below source to archive using source-relative paths."""
     for path in sorted(source.rglob("*")):
-        relative = path.relative_to(source)
-
-        if (
-            path.is_file()
-            and not any(part in EXCLUDED_PARTS for part in relative.parts)
-            and path.name != ".DS_Store"
-            and path.suffix != ".pyc"
-        ):
-            archive.write(path, relative.as_posix())
+        if path.is_file():
+            archive.write(path, path.relative_to(source).as_posix())
 
 
-def create_zip(source: Path, destination: Path) -> None:
-    """Create a deterministic-enough ZIP from a source directory."""
-
-    with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+def make_zip(source: Path, destination: Path) -> None:
+    """Create a compressed ZIP containing the contents of source."""
+    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
         add_tree(archive, source)
 
 
-def sha256(path: Path) -> str:
-    """Return the SHA-256 digest for a file."""
+def build() -> Path:
+    """Build and return the Joomla package installer path."""
+    package_source = ROOT / "pkg_pungaanalytics"
 
-    digest = hashlib.sha256()
+    with tempfile.TemporaryDirectory(prefix="pungaanalytics-build-") as temp_name:
+        temp = Path(temp_name)
+        package_stage = temp / "package"
+        shutil.copytree(package_source, package_stage)
 
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
+        for source_name, archive_name in EXTENSIONS.items():
+            make_zip(ROOT / source_name, package_stage / archive_name)
 
-    return digest.hexdigest()
+        make_zip(package_stage, OUTPUT)
 
-
-def main() -> None:
-    """Build nested extension archives, installable package, source archive, and checksums."""
-
-    if BUILD.exists():
-        shutil.rmtree(BUILD)
-
-    BUILD.mkdir()
-    component_zip = BUILD / "com_pungaanalytics.zip"
-    module_zip = BUILD / "mod_pungaanalytics.zip"
-    plugin_zip = BUILD / "plg_system_pungaanalytics.zip"
-    create_zip(ROOT / "com_pungaanalytics", component_zip)
-    create_zip(ROOT / "mod_pungaanalytics", module_zip)
-    create_zip(ROOT / "plg_system_pungaanalytics", plugin_zip)
-
-    package_stage = BUILD / "package"
-    shutil.copytree(ROOT / "package", package_stage)
-    shutil.copy2(component_zip, package_stage / component_zip.name)
-    shutil.copy2(module_zip, package_stage / module_zip.name)
-    shutil.copy2(plugin_zip, package_stage / plugin_zip.name)
-
-    package_output = OUTPUT / f"pkg_pungaanalytics-{VERSION}.zip"
-    source_output = OUTPUT / f"pkg_pungaanalytics-{VERSION}-source.zip"
-    create_zip(package_stage, package_output)
-
-    with zipfile.ZipFile(source_output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-        source_root = Path(f"pkg_pungaanalytics-{VERSION}")
-        archive.write(package_output, (source_root / package_output.name).as_posix())
-
-        for path in sorted(ROOT.rglob("*")):
-            if (
-                not path.is_file()
-                or any(part in EXCLUDED_PARTS for part in path.parts)
-                or path.name == ".DS_Store"
-                or path.suffix == ".pyc"
-            ):
-                continue
-
-            archive.write(path, (source_root / path.relative_to(ROOT)).as_posix())
-
-    checksum_output = OUTPUT / f"pkg_pungaanalytics-{VERSION}.sha256.txt"
-    checksum_output.write_text(
-        f"{sha256(package_output)}  {package_output.name}\n"
-        f"{sha256(source_output)}  {source_output.name}\n",
-        encoding="utf-8",
-    )
-
-    print(package_output)
-    print(source_output)
-    print(checksum_output)
+    return OUTPUT
 
 
 if __name__ == "__main__":
-    main()
+    print(build())

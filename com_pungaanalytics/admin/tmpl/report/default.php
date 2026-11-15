@@ -14,6 +14,18 @@ use Joomla\CMS\Uri\Uri;
 
 $escape = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 $number = static fn(mixed $value): string => number_format((int) $value);
+$decimal = static fn(mixed $value): string => number_format((float) $value, 2);
+$duration = static function (mixed $seconds): string
+{
+	$seconds = max(0, (int) $seconds);
+	$hours = intdiv($seconds, 3600);
+	$minutes = intdiv($seconds % 3600, 60);
+	$remaining = $seconds % 60;
+
+	return $hours > 0
+		? sprintf('%d:%02d:%02d', $hours, $minutes, $remaining)
+		: sprintf('%d:%02d', $minutes, $remaining);
+};
 $siteRoot = rtrim(Uri::root(), '/');
 $rangeOptions = [
 	'today' => Text::_('COM_PUNGAANALYTICS_RANGE_TODAY'),
@@ -138,6 +150,8 @@ $dashboardViewByReport = [
 	'activity' => 'traffic',
 	'hours' => 'traffic',
 	'weekdays' => 'traffic',
+	'sessions' => 'sessions',
+	'sessionevents' => 'sessions',
 	'pages' => 'content',
 	'notfound' => 'content',
 	'event' => 'engagement',
@@ -349,6 +363,71 @@ $sortHeading = static function (
 									<td class="text-end"><?php echo $number($row->bots); ?></td>
 							</tr>
 						<?php endforeach; ?>
+					</tbody>
+				</table>
+
+			<?php elseif ($kind === 'sessions') : ?>
+				<table class="table pa-table mb-0" id="pa-report-table">
+					<thead>
+						<tr>
+							<?php echo $sortHeading('period', Text::_('COM_PUNGAANALYTICS_PERIOD'), 'desc'); ?>
+							<?php echo $sortHeading('sessions', Text::_('COM_PUNGAANALYTICS_SESSIONS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('pageviews', Text::_('COM_PUNGAANALYTICS_PAGEVIEWS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('custom_events', Text::_('COM_PUNGAANALYTICS_CUSTOM_EVENT_OCCURRENCES'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('duration', Text::_('COM_PUNGAANALYTICS_TOTAL_SESSION_DURATION'), 'desc', 'text-end'); ?>
+							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_PAGEVIEWS_PER_SESSION'); ?></th>
+							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_CUSTOM_EVENTS_PER_SESSION'); ?></th>
+							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_AVG_SESSION_DURATION'); ?></th>
+							<?php echo $sortHeading('single_page', Text::_('COM_PUNGAANALYTICS_SINGLE_PAGE_SESSIONS'), 'desc', 'text-end'); ?>
+							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SINGLE_PAGE_RATE'); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach ($this->data['rows'] as $row) : ?>
+						<tr>
+							<td class="text-nowrap"><?php echo $escape($row->period_label); ?></td>
+							<td class="text-end"><?php echo $number($row->sessions); ?></td>
+							<td class="text-end"><?php echo $number($row->pageviews); ?></td>
+							<td class="text-end"><?php echo $number($row->custom_events); ?></td>
+							<td class="text-end"><?php echo $escape($duration($row->duration_seconds)); ?></td>
+							<td class="text-end"><?php echo $decimal($row->pageviews_per_session); ?></td>
+							<td class="text-end"><?php echo $decimal($row->custom_events_per_session); ?></td>
+							<td class="text-end"><?php echo $escape($duration($row->average_duration_seconds)); ?></td>
+							<td class="text-end"><?php echo $number($row->single_page_sessions); ?></td>
+							<td class="text-end"><?php echo number_format((float) $row->single_page_rate, 1); ?>%</td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+			<?php elseif ($kind === 'sessionevents') : ?>
+				<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_SESSION_EVENTS_NOTE'); ?></p>
+				<table class="table pa-table mb-0" id="pa-report-table">
+					<thead>
+						<tr>
+							<?php echo $sortHeading('title', Text::_('COM_PUNGAANALYTICS_EVENT'), 'asc'); ?>
+							<?php echo $sortHeading('events', Text::_('COM_PUNGAANALYTICS_EVENTS'), 'desc', 'text-end'); ?>
+							<?php echo $sortHeading('sessions', Text::_('COM_PUNGAANALYTICS_SESSIONS_WITH_EVENT'), 'desc', 'text-end'); ?>
+							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SESSION_SHARE'); ?></th>
+							<?php echo $sortHeading('multiple', Text::_('COM_PUNGAANALYTICS_SESSIONS_WITH_MULTIPLE'), 'desc', 'text-end'); ?>
+							<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_EVENTS_PER_MATCHING_SESSION'); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach ($this->data['rows'] as $row) : ?>
+						<tr>
+							<td>
+								<svg class="pa-legend-dot" width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" focusable="false">
+									<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($row->color); ?>"></circle>
+								</svg>
+								<?php echo $escape($row->title); ?>
+							</td>
+							<td class="text-end"><?php echo $number($row->event_count); ?></td>
+							<td class="text-end"><?php echo $number($row->session_count); ?></td>
+							<td class="text-end"><?php echo number_format((float) $row->session_share, 1); ?>%</td>
+							<td class="text-end"><?php echo $number($row->multi_event_sessions); ?></td>
+							<td class="text-end"><?php echo $decimal($row->events_per_matching_session); ?></td>
+						</tr>
+					<?php endforeach; ?>
 					</tbody>
 				</table>
 			<?php elseif ($kind === 'history') :

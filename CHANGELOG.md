@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.9.0 — 2026-11-15
+
+- Added privacy-preserving, cookieless session analytics derived from the existing
+  daily visitor hash and recorded human events.
+- A new session begins after 30 minutes of inactivity; the daily visitor-hash
+  rotation also prevents sessions from crossing site-local midnight.
+- Added a dedicated Sessions dashboard tab with total sessions, average duration,
+  page views per session, custom events per session, and single-page-session rate.
+- Added adaptive sessions-over-time data plus full paginated report and CSV export.
+- Added generic configured-event session participation showing total events,
+  sessions containing each event, session share, sessions with multiple
+  occurrences, and events per matching session. No event identifier is hard-coded.
+- Added permanent daily session and per-event session aggregate tables so session
+  statistics survive future raw-event archival.
+- Documented that days already purged before 0.9.0 cannot be retrospectively
+  sessionised because their event ordering is no longer available.
+- Added the session reports to the all-reports CSV ZIP export.
+- Added a composite raw-event index for efficient session window queries.
+- Made the fixed 24-hour and seven-weekday charts fit normal dashboard panels
+  without horizontal scrolling, using substantially wider bars and minimal gaps.
+- Updated manifests, release metadata, administrator assets, and documentation.
+
 ## 0.8.12 — 2026-07-29
 
 - Fixed configured custom-event item histories returning zero for every date

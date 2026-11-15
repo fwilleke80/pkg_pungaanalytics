@@ -24,6 +24,18 @@ $rangeOptions = [
 	'all' => Text::_('COM_PUNGAANALYTICS_RANGE_ALL'),
 ];
 $number = static fn(mixed $value): string => number_format((int) $value);
+$decimal = static fn(mixed $value): string => number_format((float) $value, 2);
+$duration = static function (mixed $seconds): string
+{
+	$seconds = max(0, (int) $seconds);
+	$hours = intdiv($seconds, 3600);
+	$minutes = intdiv($seconds % 3600, 60);
+	$remaining = $seconds % 60;
+
+	return $hours > 0
+		? sprintf('%d:%02d:%02d', $hours, $minutes, $remaining)
+		: sprintf('%d:%02d', $minutes, $remaining);
+};
 $escape = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 $siteRoot = rtrim(Uri::root(), '/');
 $displayLocale = str_replace('-', '_', Factory::getApplication()->getLanguage()->getTag());
@@ -128,6 +140,14 @@ $rankingDefinitions = array_values(array_filter(
 	$eventDefinitions,
 	static fn(array $definition): bool => (bool) $definition['show_ranking']
 ));
+$sessionData = $this->data['sessions'] ?? [];
+$sessionSummary = $sessionData['summary'] ?? (object) [];
+$sessionTrendRows = $sessionData['trend'] ?? [];
+$sessionEventRows = $sessionData['events'] ?? [];
+$sessionDashboardRows = $this->activityTableRows > 0
+	? array_slice($sessionTrendRows, -$this->activityTableRows)
+	: $sessionTrendRows;
+$sessionDashboardRows = array_reverse($sessionDashboardRows);
 $rankingTableKeys = array_column($rankingDefinitions, 'table_key');
 $dashboardSortDefinitions = [
 	'activity' => [
@@ -538,6 +558,7 @@ $systemNeedsAttention = $this->countryStatus === []
 $dashboardViewIds = [
 	'overview' => 'pa-dashboard-overview',
 	'traffic' => 'pa-dashboard-traffic',
+	'sessions' => 'pa-dashboard-sessions',
 	'content' => 'pa-dashboard-content',
 	'engagement' => 'pa-dashboard-engagement',
 	'acquisition' => 'pa-dashboard-acquisition',
@@ -835,6 +856,7 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 								'labels' => $hourLabels,
 								'tickLabels' => $hourTickLabels,
 								'ariaLabel' => Text::_('COM_PUNGAANALYTICS_HOURLY_VISITORS_CHART_LABEL'),
+								'compact' => true,
 							],
 							JPATH_COMPONENT_ADMINISTRATOR . '/layouts'
 						); ?>
@@ -882,6 +904,7 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 								'labels' => $weekdayLabels,
 								'tickLabels' => $weekdayTickLabels,
 								'ariaLabel' => Text::_('COM_PUNGAANALYTICS_WEEKDAY_VISITORS_CHART_LABEL'),
+								'compact' => true,
 							],
 							JPATH_COMPONENT_ADMINISTRATOR . '/layouts'
 						); ?>
@@ -918,6 +941,113 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 				</section>
 						</div>
 					</section>
+				</div>
+				<?php echo HTMLHelper::_('uitab.endTab'); ?>
+
+
+				<?php echo HTMLHelper::_('uitab.addTab', 'pungaAnalyticsDashboardTabs', $dashboardViewIds['sessions'], Text::_('COM_PUNGAANALYTICS_SESSIONS')); ?>
+				<div class="pa-dashboard-tab">
+					<p class="pa-session-note"><?php echo Text::_('COM_PUNGAANALYTICS_SESSIONS_NOTE'); ?></p>
+					<section class="pa-summary-metrics" aria-label="<?php echo Text::_('COM_PUNGAANALYTICS_SESSION_SUMMARY'); ?>">
+						<article class="pa-summary-metric">
+							<span class="pa-summary-metric__label"><span class="icon-users" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_SESSIONS'); ?></span>
+							<strong><?php echo $number($sessionSummary->sessions ?? 0); ?></strong>
+						</article>
+						<article class="pa-summary-metric">
+							<span class="pa-summary-metric__label"><span class="icon-clock" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_AVG_SESSION_DURATION'); ?></span>
+							<strong><?php echo $escape($duration($sessionSummary->average_duration_seconds ?? 0)); ?></strong>
+						</article>
+						<article class="pa-summary-metric">
+							<span class="pa-summary-metric__label"><span class="icon-eye" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_PAGEVIEWS_PER_SESSION'); ?></span>
+							<strong><?php echo $decimal($sessionSummary->pageviews_per_session ?? 0); ?></strong>
+						</article>
+						<article class="pa-summary-metric">
+							<span class="pa-summary-metric__label"><span class="icon-chart" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_CUSTOM_EVENTS_PER_SESSION'); ?></span>
+							<strong><?php echo $decimal($sessionSummary->custom_events_per_session ?? 0); ?></strong>
+						</article>
+						<article class="pa-summary-metric">
+							<span class="pa-summary-metric__label"><span class="icon-file" aria-hidden="true"></span><?php echo Text::_('COM_PUNGAANALYTICS_SINGLE_PAGE_RATE'); ?></span>
+							<strong><?php echo number_format((float) ($sessionSummary->single_page_rate ?? 0), 1); ?>%</strong>
+						</article>
+					</section>
+
+					<div class="pa-grid pa-grid--content">
+						<section class="pa-panel">
+							<header class="pa-panel__header">
+								<h3><?php echo Text::_('COM_PUNGAANALYTICS_SESSIONS_OVER_TIME'); ?></h3>
+								<a class="pa-view-all" href="<?php echo $reportUrl('sessions'); ?>"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_ALL'); ?></a>
+							</header>
+							<div class="table-responsive">
+							<?php if ($sessionDashboardRows === []) : ?>
+								<div class="pa-empty"><?php echo Text::_('COM_PUNGAANALYTICS_NO_DATA'); ?></div>
+							<?php else : ?>
+								<table class="table pa-table mb-0">
+									<thead>
+										<tr>
+											<th scope="col"><?php echo Text::_('COM_PUNGAANALYTICS_PERIOD'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SESSIONS'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_PAGEVIEWS_PER_SESSION'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_AVG_SESSION_DURATION'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SINGLE_PAGE_RATE'); ?></th>
+										</tr>
+									</thead>
+									<tbody>
+									<?php foreach ($sessionDashboardRows as $row) : ?>
+										<tr>
+											<td class="text-nowrap"><?php echo $escape($row->period_label); ?></td>
+											<td class="text-end"><?php echo $number($row->sessions); ?></td>
+											<td class="text-end"><?php echo $decimal($row->pageviews_per_session); ?></td>
+											<td class="text-end"><?php echo $escape($duration($row->average_duration_seconds)); ?></td>
+											<td class="text-end"><?php echo number_format((float) $row->single_page_rate, 1); ?>%</td>
+										</tr>
+									<?php endforeach; ?>
+									</tbody>
+								</table>
+							<?php endif; ?>
+							</div>
+						</section>
+
+						<section class="pa-panel">
+							<header class="pa-panel__header">
+								<h3><?php echo Text::_('COM_PUNGAANALYTICS_SESSION_EVENTS'); ?></h3>
+								<a class="pa-view-all" href="<?php echo $reportUrl('sessionevents'); ?>"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_ALL'); ?></a>
+							</header>
+							<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_SESSION_EVENTS_NOTE'); ?></p>
+							<div class="table-responsive">
+							<?php if ($sessionEventRows === []) : ?>
+								<div class="pa-empty"><?php echo Text::_('COM_PUNGAANALYTICS_NO_CONFIGURED_EVENTS'); ?></div>
+							<?php else : ?>
+								<table class="table pa-table mb-0">
+									<thead>
+										<tr>
+											<th scope="col"><?php echo Text::_('COM_PUNGAANALYTICS_EVENT'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_EVENTS'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SESSIONS_WITH_EVENT'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SESSION_SHARE'); ?></th>
+											<th scope="col" class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_SESSIONS_WITH_MULTIPLE'); ?></th>
+										</tr>
+									</thead>
+									<tbody>
+									<?php foreach ($sessionEventRows as $row) : ?>
+										<tr>
+											<td>
+												<svg class="pa-legend-dot" width="11" height="11" viewBox="0 0 11 11" aria-hidden="true" focusable="false">
+													<circle cx="5.5" cy="5.5" r="5" fill="<?php echo $escape($row->color); ?>"></circle>
+												</svg>
+												<?php echo $escape($row->title); ?>
+											</td>
+											<td class="text-end"><?php echo $number($row->event_count); ?></td>
+											<td class="text-end"><?php echo $number($row->session_count); ?></td>
+											<td class="text-end"><?php echo number_format((float) $row->session_share, 1); ?>%</td>
+											<td class="text-end"><?php echo $number($row->multi_event_sessions); ?></td>
+										</tr>
+									<?php endforeach; ?>
+									</tbody>
+								</table>
+							<?php endif; ?>
+							</div>
+						</section>
+					</div>
 				</div>
 				<?php echo HTMLHelper::_('uitab.endTab'); ?>
 

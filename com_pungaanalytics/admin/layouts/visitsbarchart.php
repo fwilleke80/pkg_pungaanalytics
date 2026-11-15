@@ -13,6 +13,7 @@ $ariaLabel = (string) ($displayData['ariaLabel'] ?? '');
 $valueProperty = (string) ($displayData['valueProperty'] ?? 'visits');
 $seriesLabel = (string) ($displayData['seriesLabel'] ?? Text::_('COM_PUNGAANALYTICS_VISITS'));
 $seriesColor = (string) ($displayData['seriesColor'] ?? '#6f42c1');
+$compact = (bool) ($displayData['compact'] ?? false);
 $escape = static fn(mixed $value): string => htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 $number = static fn(mixed $value): string => number_format((int) $value);
 $chartWidth = 1200;
@@ -22,7 +23,9 @@ $plotRight = 62.0;
 $plotTop = 12.0;
 $plotHeight = 190.0;
 $groupWidth = ($chartWidth - $plotLeft - $plotRight) / max(1, \count($rows));
-$barWidth = max(0.5, min(7.0, $groupWidth - 2.0));
+$barWidth = $compact
+	? max(2.0, $groupWidth - 6.0)
+	: max(0.5, min(7.0, $groupWidth - 2.0));
 $maxVisits = 1;
 
 foreach ($rows as $row)
@@ -30,7 +33,7 @@ foreach ($rows as $row)
 	$maxVisits = max($maxVisits, (int) ($row->{$valueProperty} ?? 0));
 }
 ?>
-<div class="pa-daily-chart">
+<div class="pa-daily-chart<?php echo $compact ? ' pa-daily-chart--compact' : ''; ?>">
 	<div class="pa-chart-legend" aria-hidden="true">
 		<span class="pa-series-visits">
 			<svg class="pa-chart-legend__swatch" width="11" height="11" viewBox="0 0 11 11" focusable="false">

@@ -25,6 +25,28 @@ final class ReportModel extends BaseDatabaseModel
 	 * }>
 	 */
 	private const REPORT_SORTS = [
+		'sessions' => [
+			'default' => 'period',
+			'direction' => 'desc',
+			'fields' => [
+				'period' => 'period_start',
+				'sessions' => 'sessions',
+				'pageviews' => 'pageviews',
+				'custom_events' => 'custom_events',
+				'duration' => 'duration_seconds',
+				'single_page' => 'single_page_sessions',
+			],
+		],
+		'sessionevents' => [
+			'default' => 'sessions',
+			'direction' => 'desc',
+			'fields' => [
+				'title' => 'title',
+				'events' => 'event_count',
+				'sessions' => 'session_count',
+				'multiple' => 'multi_event_sessions',
+			],
+		],
 		'activity' => [
 			'default' => 'period',
 			'direction' => 'desc',
@@ -102,6 +124,13 @@ final class ReportModel extends BaseDatabaseModel
 		'pageviews',
 		'bots',
 		'count',
+		'sessions',
+		'duration_seconds',
+		'custom_events',
+		'single_page_sessions',
+		'event_count',
+		'session_count',
+		'multi_event_sessions',
 		'human',
 		'total',
 	];

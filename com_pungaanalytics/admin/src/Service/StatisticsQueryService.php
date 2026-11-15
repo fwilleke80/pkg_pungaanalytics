@@ -24,6 +24,8 @@ final class StatisticsQueryService
 	 */
 	private const REPORTS = [
 		'activity' => ['title' => 'COM_PUNGAANALYTICS_ACTIVITY_TREND', 'kind' => 'trend'],
+		'sessions' => ['title' => 'COM_PUNGAANALYTICS_SESSIONS_OVER_TIME', 'kind' => 'sessions'],
+		'sessionevents' => ['title' => 'COM_PUNGAANALYTICS_SESSION_EVENTS', 'kind' => 'sessionevents'],
 		'hours' => ['title' => 'COM_PUNGAANALYTICS_BY_HOUR', 'kind' => 'hour'],
 		'weekdays' => ['title' => 'COM_PUNGAANALYTICS_BY_WEEKDAY', 'kind' => 'weekday'],
 		'pages' => ['title' => 'COM_PUNGAANALYTICS_TOP_PAGES', 'kind' => 'dimension'],
@@ -37,6 +39,9 @@ final class StatisticsQueryService
 		'bots' => ['title' => 'COM_PUNGAANALYTICS_BOT_NAMES', 'kind' => 'dimension'],
 		'events' => ['title' => 'COM_PUNGAANALYTICS_CUSTOM_EVENTS', 'kind' => 'dimension'],
 	];
+
+	/** Inactivity gap that starts a new cookieless session. */
+	private const SESSION_TIMEOUT_SECONDS = 1800;
 
 	/** @var array<int, array<string, mixed>> */
 	private array $customEventDefinitions;
@@ -100,6 +105,8 @@ final class StatisticsQueryService
 			];
 		}
 
+		$sessionData = $this->getSessionData($from, $to);
+
 		return [
 			'from' => $from,
 			'to' => $to,
@@ -108,6 +115,7 @@ final class StatisticsQueryService
 			'range' => $this->activeRange,
 			'customEventDefinitions' => $this->customEventDefinitions,
 			'customEventRankings' => $rankings,
+			'sessions' => $sessionData,
 			'trendGranularity' => $granularity,
 			'summary' => $this->getSummary($from, $to),
 			'trend' => $this->getTrend($from, $to, $granularity),
@@ -204,6 +212,8 @@ final class StatisticsQueryService
 		$rows = match ($report)
 		{
 			'activity' => $this->getTrend($from, $to, $this->getTrendGranularity($from, $to)),
+			'sessions' => $this->getSessionDailyRows($from, $to),
+			'sessionevents' => $this->getSessionEventRows($from, $to),
 			'hours' => $this->getTimeRows('hour', $from, $to),
 			'weekdays' => $this->getTimeRows('weekday', $from, $to),
 			'pages' => $this->getDimensionRows('path', $from, $to, 0, false, 'pageview'),
@@ -1844,6 +1854,397 @@ final class StatisticsQueryService
 		);
 
 		return $limit > 0 ? array_slice($rows, 0, $limit) : $rows;
+	}
+
+
+	/**
+	 * Returns cookieless session analytics for the selected range.
+	 *
+	 * Sessions are split at local midnight because the visitor hash rotates daily,
+	 * and after thirty minutes without another recorded human event.
+	 *
+	 * @param string $from Inclusive local date.
+	 * @param string $to   Inclusive local date.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function getSessionData(string $from, string $to): array
+	{
+		$daily = $this->getSessionDailyRows($from, $to);
+		$summary = (object) [
+			'sessions' => 0,
+			'duration_seconds' => 0,
+			'pageviews' => 0,
+			'custom_events' => 0,
+			'page_sessions' => 0,
+			'single_page_sessions' => 0,
+		];
+
+		foreach ($daily as $row)
+		{
+			$summary->sessions += (int) ($row->sessions ?? 0);
+			$summary->duration_seconds += (int) ($row->duration_seconds ?? 0);
+			$summary->pageviews += (int) ($row->pageviews ?? 0);
+			$summary->custom_events += (int) ($row->custom_events ?? 0);
+			$summary->page_sessions += (int) ($row->page_sessions ?? 0);
+			$summary->single_page_sessions += (int) ($row->single_page_sessions ?? 0);
+		}
+
+		$summary->average_duration_seconds = $summary->sessions > 0
+			? (int) round($summary->duration_seconds / $summary->sessions)
+			: 0;
+		$summary->pageviews_per_session = $summary->sessions > 0
+			? $summary->pageviews / $summary->sessions
+			: 0.0;
+		$summary->custom_events_per_session = $summary->sessions > 0
+			? $summary->custom_events / $summary->sessions
+			: 0.0;
+		$summary->single_page_rate = $summary->page_sessions > 0
+			? ($summary->single_page_sessions / $summary->page_sessions) * 100.0
+			: 0.0;
+
+		return [
+			'summary' => $summary,
+			'daily' => $daily,
+			'trend' => $this->bucketSessionRows($daily, $from, $to),
+			'events' => $this->getSessionEventRows($from, $to, $summary->sessions),
+			'timeoutSeconds' => self::SESSION_TIMEOUT_SECONDS,
+		];
+	}
+
+	/**
+	 * Returns raw plus permanently archived daily session aggregates.
+	 *
+	 * @param string $from Inclusive local date.
+	 * @param string $to   Inclusive local date.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getSessionDailyRows(string $from, string $to): array
+	{
+		$db = $this->database;
+		$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
+		$rangeSql = $this->getRawSessionRangeSql($from, $to, 'e');
+		$timeout = self::SESSION_TIMEOUT_SECONDS;
+		$sql = 'WITH ordered_events AS ('
+			. ' SELECT e.`id`, e.`visit_date`, e.`visitor_hash`, e.`visited_at`, e.`event_type`,'
+			. ' LAG(e.`visited_at`) OVER ('
+			. 'PARTITION BY e.`visit_date`, e.`visitor_hash` ORDER BY e.`visited_at`, e.`id`'
+			. ') AS `previous_at`'
+			. ' FROM ' . $eventsTable . ' AS e'
+			. ' WHERE e.`is_bot` = 0 AND ' . $rangeSql
+			. '), marked_events AS ('
+			. ' SELECT ordered_events.*,'
+			. ' CASE WHEN `previous_at` IS NULL'
+			. ' OR TIMESTAMPDIFF(SECOND, `previous_at`, `visited_at`) > ' . $timeout
+			. ' THEN 1 ELSE 0 END AS `new_session`'
+			. ' FROM ordered_events'
+			. '), sessionised_events AS ('
+			. ' SELECT marked_events.*,'
+			. ' SUM(`new_session`) OVER ('
+			. 'PARTITION BY `visit_date`, `visitor_hash` ORDER BY `visited_at`, `id`'
+			. ' ROWS UNBOUNDED PRECEDING) AS `session_number`'
+			. ' FROM marked_events'
+			. '), sessions AS ('
+			. ' SELECT `visit_date`, `visitor_hash`, `session_number`,'
+			. ' MIN(`visited_at`) AS `started_at`, MAX(`visited_at`) AS `ended_at`,'
+			. " SUM(CASE WHEN `event_type` = 'pageview' THEN 1 ELSE 0 END) AS `pageviews`,"
+			. " SUM(CASE WHEN `event_type` <> 'pageview' THEN 1 ELSE 0 END) AS `custom_events`"
+			. ' FROM sessionised_events'
+			. ' GROUP BY `visit_date`, `visitor_hash`, `session_number`'
+			. ') SELECT `visit_date`,'
+			. ' COUNT(*) AS `sessions`,'
+			. ' COALESCE(SUM(TIMESTAMPDIFF(SECOND, `started_at`, `ended_at`)), 0) AS `duration_seconds`,'
+			. ' COALESCE(SUM(`pageviews`), 0) AS `pageviews`,'
+			. ' COALESCE(SUM(`custom_events`), 0) AS `custom_events`,'
+			. ' SUM(CASE WHEN `pageviews` > 0 THEN 1 ELSE 0 END) AS `page_sessions`,'
+			. ' SUM(CASE WHEN `pageviews` = 1 THEN 1 ELSE 0 END) AS `single_page_sessions`'
+			. ' FROM sessions GROUP BY `visit_date`';
+		$db->setQuery($sql);
+		$raw = $db->loadObjectList();
+		$archiveQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				$db->quoteName('session_count') . ' AS ' . $db->quoteName('sessions'),
+				$db->quoteName('duration_seconds'),
+				$db->quoteName('pageview_count') . ' AS ' . $db->quoteName('pageviews'),
+				$db->quoteName('custom_event_count') . ' AS ' . $db->quoteName('custom_events'),
+				$db->quoteName('page_session_count') . ' AS ' . $db->quoteName('page_sessions'),
+				$db->quoteName('single_page_sessions'),
+			])
+			->from($db->quoteName('#__pungaanalytics_daily_sessions'));
+		$this->applyDateRange($archiveQuery, $from, $to, false);
+		$db->setQuery($archiveQuery);
+		$rows = [];
+
+		foreach (array_merge($raw, $db->loadObjectList()) as $source)
+		{
+			$date = (string) $source->visit_date;
+
+			if (!isset($rows[$date]))
+			{
+				$rows[$date] = (object) [
+					'visit_date' => $date,
+					'period_start' => $date,
+					'period_label' => $date,
+					'sessions' => 0,
+					'duration_seconds' => 0,
+					'pageviews' => 0,
+					'custom_events' => 0,
+					'page_sessions' => 0,
+					'single_page_sessions' => 0,
+				];
+			}
+
+			foreach (['sessions', 'duration_seconds', 'pageviews', 'custom_events', 'page_sessions', 'single_page_sessions'] as $field)
+			{
+				$rows[$date]->{$field} += (int) ($source->{$field} ?? 0);
+			}
+		}
+
+		ksort($rows, SORT_STRING);
+
+		foreach ($rows as $row)
+		{
+			$this->addSessionDerivedMetrics($row);
+		}
+
+		return array_values($rows);
+	}
+
+	/**
+	 * Returns session participation for every configured custom event.
+	 *
+	 * @param string   $from          Inclusive local date.
+	 * @param string   $to            Inclusive local date.
+	 * @param int|null $totalSessions Optional already-calculated session total.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getSessionEventRows(string $from, string $to, ?int $totalSessions = null): array
+	{
+		if ($this->customEventDefinitions === [])
+		{
+			return [];
+		}
+
+		$db = $this->database;
+		$eventTypes = array_column($this->customEventDefinitions, 'event_type');
+		$eventList = implode(', ', array_map(
+			static fn(string $eventType): string => $db->quote($eventType),
+			$eventTypes
+		));
+		$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
+		$rangeSql = $this->getRawSessionRangeSql($from, $to, 'e');
+		$timeout = self::SESSION_TIMEOUT_SECONDS;
+		$sql = 'WITH ordered_events AS ('
+			. ' SELECT e.`id`, e.`visit_date`, e.`visitor_hash`, e.`visited_at`, e.`event_type`,'
+			. ' LAG(e.`visited_at`) OVER ('
+			. 'PARTITION BY e.`visit_date`, e.`visitor_hash` ORDER BY e.`visited_at`, e.`id`'
+			. ') AS `previous_at`'
+			. ' FROM ' . $eventsTable . ' AS e'
+			. ' WHERE e.`is_bot` = 0 AND ' . $rangeSql
+			. '), marked_events AS ('
+			. ' SELECT ordered_events.*,'
+			. ' CASE WHEN `previous_at` IS NULL'
+			. ' OR TIMESTAMPDIFF(SECOND, `previous_at`, `visited_at`) > ' . $timeout
+			. ' THEN 1 ELSE 0 END AS `new_session`'
+			. ' FROM ordered_events'
+			. '), sessionised_events AS ('
+			. ' SELECT marked_events.*,'
+			. ' SUM(`new_session`) OVER ('
+			. 'PARTITION BY `visit_date`, `visitor_hash` ORDER BY `visited_at`, `id`'
+			. ' ROWS UNBOUNDED PRECEDING) AS `session_number`'
+			. ' FROM marked_events'
+			. '), event_sessions AS ('
+			. ' SELECT `visit_date`, `event_type`, `visitor_hash`, `session_number`, COUNT(*) AS `event_count`'
+			. ' FROM sessionised_events'
+			. " WHERE `event_type` <> 'pageview' AND `event_type` IN (" . $eventList . ')'
+			. ' GROUP BY `visit_date`, `event_type`, `visitor_hash`, `session_number`'
+			. ') SELECT `event_type`, SUM(`event_count`) AS `event_count`,'
+			. ' COUNT(*) AS `session_count`,'
+			. ' SUM(CASE WHEN `event_count` >= 2 THEN 1 ELSE 0 END) AS `multi_event_sessions`'
+			. ' FROM event_sessions GROUP BY `event_type`';
+		$db->setQuery($sql);
+		$raw = $db->loadObjectList();
+		$archiveQuery = $db->getQuery(true)
+			->select([
+				$db->quoteName('event_type'),
+				'SUM(' . $db->quoteName('event_count') . ') AS ' . $db->quoteName('event_count'),
+				'SUM(' . $db->quoteName('session_count') . ') AS ' . $db->quoteName('session_count'),
+				'SUM(' . $db->quoteName('multi_event_sessions') . ') AS ' . $db->quoteName('multi_event_sessions'),
+			])
+			->from($db->quoteName('#__pungaanalytics_daily_session_events'))
+			->where($db->quoteName('event_type') . ' IN (' . $eventList . ')')
+			->group($db->quoteName('event_type'));
+		$this->applyDateRange($archiveQuery, $from, $to, false);
+		$db->setQuery($archiveQuery);
+		$definitions = [];
+
+		foreach ($this->customEventDefinitions as $definition)
+		{
+			$eventType = (string) $definition['event_type'];
+			$definitions[$eventType] = (object) [
+				'event_type' => $eventType,
+				'title' => (string) $definition['title'],
+				'color' => (string) $definition['color'],
+				'icon' => (string) $definition['icon'],
+				'event_count' => 0,
+				'session_count' => 0,
+				'multi_event_sessions' => 0,
+			];
+		}
+
+		foreach (array_merge($raw, $db->loadObjectList()) as $source)
+		{
+			$eventType = (string) $source->event_type;
+
+			if (!isset($definitions[$eventType]))
+			{
+				continue;
+			}
+
+			$definitions[$eventType]->event_count += (int) ($source->event_count ?? 0);
+			$definitions[$eventType]->session_count += (int) ($source->session_count ?? 0);
+			$definitions[$eventType]->multi_event_sessions += (int) ($source->multi_event_sessions ?? 0);
+		}
+
+		if ($totalSessions === null)
+		{
+			$totalSessions = array_sum(array_map(
+				static fn(object $row): int => (int) ($row->sessions ?? 0),
+				$this->getSessionDailyRows($from, $to)
+			));
+		}
+
+		foreach ($definitions as $row)
+		{
+			$row->events_per_matching_session = $row->session_count > 0
+				? $row->event_count / $row->session_count
+				: 0.0;
+			$row->session_share = $totalSessions > 0
+				? ($row->session_count / $totalSessions) * 100.0
+				: 0.0;
+		}
+
+		$rows = array_values($definitions);
+		usort(
+			$rows,
+			static fn(object $left, object $right): int =>
+				((int) $right->session_count <=> (int) $left->session_count)
+				?: ((int) $right->event_count <=> (int) $left->event_count)
+				?: strnatcasecmp((string) $left->title, (string) $right->title)
+		);
+
+		return $rows;
+	}
+
+	/**
+	 * Groups daily session rows using the dashboard's adaptive trend granularity.
+	 *
+	 * @param array<int, object> $daily Daily session rows.
+	 * @param string             $from  Inclusive local date.
+	 * @param string             $to    Inclusive local date.
+	 *
+	 * @return array<int, object>
+	 */
+	private function bucketSessionRows(array $daily, string $from, string $to): array
+	{
+		$granularity = $this->getTrendGranularity($from, $to);
+		$buckets = [];
+
+		foreach ($daily as $row)
+		{
+			$date = (string) $row->visit_date;
+			$periodStart = match ($granularity)
+			{
+				'month' => substr($date, 0, 7) . '-01',
+				'week' => (new DateTimeImmutable($date))->modify('monday this week')->format('Y-m-d'),
+				default => $date,
+			};
+
+			if (!isset($buckets[$periodStart]))
+			{
+				$periodDate = new DateTimeImmutable($periodStart);
+				$buckets[$periodStart] = (object) [
+					'period_start' => $periodStart,
+					'period_label' => match ($granularity)
+					{
+						'month' => $periodDate->format('Y-m'),
+						'week' => $periodDate->format('o-\\WW'),
+						default => $periodStart,
+					},
+					'sessions' => 0,
+					'duration_seconds' => 0,
+					'pageviews' => 0,
+					'custom_events' => 0,
+					'page_sessions' => 0,
+					'single_page_sessions' => 0,
+				];
+			}
+
+			foreach (['sessions', 'duration_seconds', 'pageviews', 'custom_events', 'page_sessions', 'single_page_sessions'] as $field)
+			{
+				$buckets[$periodStart]->{$field} += (int) ($row->{$field} ?? 0);
+			}
+		}
+
+		ksort($buckets, SORT_STRING);
+
+		foreach ($buckets as $row)
+		{
+			$this->addSessionDerivedMetrics($row);
+		}
+
+		return array_values($buckets);
+	}
+
+	/**
+	 * Adds ratios that can be derived from additive session counters.
+	 *
+	 * @param object $row Session aggregate row.
+	 *
+	 * @return void
+	 */
+	private function addSessionDerivedMetrics(object $row): void
+	{
+		$sessions = (int) ($row->sessions ?? 0);
+		$pageSessions = (int) ($row->page_sessions ?? 0);
+		$row->average_duration_seconds = $sessions > 0
+			? (int) round((int) ($row->duration_seconds ?? 0) / $sessions)
+			: 0;
+		$row->pageviews_per_session = $sessions > 0
+			? (int) ($row->pageviews ?? 0) / $sessions
+			: 0.0;
+		$row->custom_events_per_session = $sessions > 0
+			? (int) ($row->custom_events ?? 0) / $sessions
+			: 0.0;
+		$row->single_page_rate = $pageSessions > 0
+			? ((int) ($row->single_page_sessions ?? 0) / $pageSessions) * 100.0
+			: 0.0;
+	}
+
+	/**
+	 * Returns the trusted SQL predicate for the active raw reporting range.
+	 *
+	 * @param string $from  Inclusive local date.
+	 * @param string $to    Inclusive local date.
+	 * @param string $alias Raw event table alias.
+	 *
+	 * @return string
+	 */
+	private function getRawSessionRangeSql(string $from, string $to, string $alias): string
+	{
+		$prefix = $alias !== '' ? $alias . '.' : '';
+
+		if ($this->activeRange === 'last24')
+		{
+			return $prefix . '`visited_at` >= ' . $this->database->quote($this->rawFromUtc)
+				. ' AND ' . $prefix . '`visited_at` <= ' . $this->database->quote($this->rawToUtc);
+		}
+
+		return $prefix . '`visit_date` >= ' . $this->database->quote($from)
+			. ' AND ' . $prefix . '`visit_date` <= ' . $this->database->quote($to);
 	}
 
 	/**

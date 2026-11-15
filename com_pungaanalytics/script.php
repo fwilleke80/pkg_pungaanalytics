@@ -41,6 +41,8 @@ return new class implements InstallerScriptInterface
 		foreach ([
 			'#__pungaanalytics_page_status',
 			'#__pungaanalytics_daily_pages',
+			'#__pungaanalytics_daily_session_events',
+			'#__pungaanalytics_daily_sessions',
 			'#__pungaanalytics_daily_404',
 			'#__pungaanalytics_daily_items',
 			'#__pungaanalytics_daily_event_time',
@@ -118,6 +120,7 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	KEY `idx_pungaanalytics_hour_date` (`visit_hour`, `visit_date`),
 	KEY `idx_pungaanalytics_weekday_date` (`visit_weekday`, `visit_date`),
 	KEY `idx_pungaanalytics_visitor_hash` (`visitor_hash`),
+	KEY `idx_pungaanalytics_session_scan` (`is_bot`, `visit_date`, `visitor_hash`, `visited_at`, `id`),
 	KEY `idx_pungaanalytics_bot_date` (`is_bot`, `visit_date`),
 	KEY `idx_pungaanalytics_auth_date` (`is_authenticated`, `visit_date`),
 	KEY `idx_pungaanalytics_country_date` (`country_code`, `visit_date`),
@@ -151,6 +154,7 @@ SQL;
 		$this->ensureIndex($db, $table, 'idx_pungaanalytics_hour_date', '(`visit_hour`, `visit_date`)');
 		$this->ensureIndex($db, $table, 'idx_pungaanalytics_weekday_date', '(`visit_weekday`, `visit_date`)');
 		$this->ensureIndex($db, $table, 'idx_pungaanalytics_event_date', '(`event_type`, `visit_date`)');
+		$this->ensureIndex($db, $table, 'idx_pungaanalytics_session_scan', '(`is_bot`, `visit_date`, `visitor_hash`, `visited_at`, `id`)');
 		$this->ensureIndex($db, $table, 'idx_pungaanalytics_item', '(`item_type`, `item_id`(64))');
 		$db->setQuery(
 			'UPDATE ' . $db->quoteName($table)
@@ -254,6 +258,29 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_items` (
 	PRIMARY KEY (`visit_date`, `row_hash`),
 	KEY `idx_pungaanalytics_daily_item_event` (`event_type`, `visit_date`),
 	KEY `idx_pungaanalytics_daily_item` (`item_type`, `item_id`(64))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
+SQL,
+			<<<'SQL'
+CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_sessions` (
+	`visit_date` DATE NOT NULL,
+	`session_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`duration_seconds` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`pageview_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`custom_event_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`page_session_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`single_page_sessions` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	PRIMARY KEY (`visit_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
+SQL,
+			<<<'SQL'
+CREATE TABLE IF NOT EXISTS `#__pungaanalytics_daily_session_events` (
+	`visit_date` DATE NOT NULL,
+	`event_type` VARCHAR(64) NOT NULL,
+	`event_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`session_count` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	`multi_event_sessions` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+	PRIMARY KEY (`visit_date`, `event_type`),
+	KEY `idx_pungaanalytics_session_event_type` (`event_type`, `visit_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci
 SQL,
 			<<<'SQL'

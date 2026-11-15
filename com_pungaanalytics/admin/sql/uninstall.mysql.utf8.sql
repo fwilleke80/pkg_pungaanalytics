@@ -1,5 +1,7 @@
 DROP TABLE IF EXISTS `#__pungaanalytics_page_status`;
 DROP TABLE IF EXISTS `#__pungaanalytics_daily_pages`;
+DROP TABLE IF EXISTS `#__pungaanalytics_daily_session_events`;
+DROP TABLE IF EXISTS `#__pungaanalytics_daily_sessions`;
 DROP TABLE IF EXISTS `#__pungaanalytics_daily_404`;
 DROP TABLE IF EXISTS `#__pungaanalytics_daily_items`;
 DROP TABLE IF EXISTS `#__pungaanalytics_daily_event_time`;

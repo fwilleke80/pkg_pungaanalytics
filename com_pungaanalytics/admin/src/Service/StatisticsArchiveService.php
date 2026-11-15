@@ -14,6 +14,9 @@ use Joomla\Database\DatabaseInterface;
  */
 final class StatisticsArchiveService
 {
+	/** Inactivity gap that starts a new cookieless session. */
+	private const SESSION_TIMEOUT_SECONDS = 1800;
+
 	/**
 	 * Creates the archive service.
 	 *
@@ -70,6 +73,8 @@ final class StatisticsArchiveService
 				$this->archiveCustomEventTimeBuckets($cutoffDate);
 				$this->archiveEventItems($cutoffDate);
 				$this->archiveNotFoundRequests($cutoffDate);
+				$this->archiveSessions($cutoffDate);
+				$this->archiveSessionEvents($cutoffDate);
 
 				$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
 				$db->setQuery(
@@ -112,6 +117,8 @@ final class StatisticsArchiveService
 			'#__pungaanalytics_daily_event_time',
 			'#__pungaanalytics_daily_items',
 			'#__pungaanalytics_daily_404',
+			'#__pungaanalytics_daily_session_events',
+			'#__pungaanalytics_daily_sessions',
 		];
 		$removed = 0;
 		$lockName = $this->acquireLock();
@@ -513,6 +520,119 @@ final class StatisticsArchiveService
 			. '`event_count` = `event_count` + VALUES(`event_count`)';
 
 		$db->setQuery($sql)->execute();
+	}
+
+
+	/**
+	 * Archives cookieless daily session aggregates before raw events are removed.
+	 *
+	 * @param string $cutoffDate First retained raw-event date.
+	 *
+	 * @return void
+	 */
+	private function archiveSessions(string $cutoffDate): void
+	{
+		$db = $this->database;
+		$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
+		$sessionsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_daily_sessions'));
+		$timeout = self::SESSION_TIMEOUT_SECONDS;
+		$sessionised = $this->getSessionisedEventsSql($eventsTable, $cutoffDate, $timeout);
+		$sql = 'INSERT INTO ' . $sessionsTable . ' ('
+			. '`visit_date`, `session_count`, `duration_seconds`, `pageview_count`, '
+			. '`custom_event_count`, `page_session_count`, `single_page_sessions`'
+			. ') SELECT sessions.`visit_date`, COUNT(*), '
+			. 'COALESCE(SUM(TIMESTAMPDIFF(SECOND, sessions.`started_at`, sessions.`ended_at`)), 0), '
+			. 'COALESCE(SUM(sessions.`pageviews`), 0), '
+			. 'COALESCE(SUM(sessions.`custom_events`), 0), '
+			. 'SUM(CASE WHEN sessions.`pageviews` > 0 THEN 1 ELSE 0 END), '
+			. 'SUM(CASE WHEN sessions.`pageviews` = 1 THEN 1 ELSE 0 END) '
+			. 'FROM ('
+			. ' SELECT sessionised.`visit_date`, sessionised.`visitor_hash`, sessionised.`session_number`, '
+			. 'MIN(sessionised.`visited_at`) AS `started_at`, MAX(sessionised.`visited_at`) AS `ended_at`, '
+			. "SUM(CASE WHEN sessionised.`event_type` = 'pageview' THEN 1 ELSE 0 END) AS `pageviews`, "
+			. "SUM(CASE WHEN sessionised.`event_type` <> 'pageview' THEN 1 ELSE 0 END) AS `custom_events` "
+			. 'FROM (' . $sessionised . ') AS sessionised '
+			. 'GROUP BY sessionised.`visit_date`, sessionised.`visitor_hash`, sessionised.`session_number`'
+			. ') AS sessions GROUP BY sessions.`visit_date` '
+			. 'ON DUPLICATE KEY UPDATE '
+			. '`session_count` = `session_count` + VALUES(`session_count`), '
+			. '`duration_seconds` = `duration_seconds` + VALUES(`duration_seconds`), '
+			. '`pageview_count` = `pageview_count` + VALUES(`pageview_count`), '
+			. '`custom_event_count` = `custom_event_count` + VALUES(`custom_event_count`), '
+			. '`page_session_count` = `page_session_count` + VALUES(`page_session_count`), '
+			. '`single_page_sessions` = `single_page_sessions` + VALUES(`single_page_sessions`)';
+
+		$db->setQuery($sql)->execute();
+	}
+
+	/**
+	 * Archives session participation for every recorded custom event identifier.
+	 *
+	 * @param string $cutoffDate First retained raw-event date.
+	 *
+	 * @return void
+	 */
+	private function archiveSessionEvents(string $cutoffDate): void
+	{
+		$db = $this->database;
+		$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
+		$sessionEventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_daily_session_events'));
+		$timeout = self::SESSION_TIMEOUT_SECONDS;
+		$sessionised = $this->getSessionisedEventsSql($eventsTable, $cutoffDate, $timeout);
+		$sql = 'INSERT INTO ' . $sessionEventsTable . ' ('
+			. '`visit_date`, `event_type`, `event_count`, `session_count`, `multi_event_sessions`'
+			. ') SELECT event_sessions.`visit_date`, event_sessions.`event_type`, '
+			. 'SUM(event_sessions.`event_count`), COUNT(*), '
+			. 'SUM(CASE WHEN event_sessions.`event_count` >= 2 THEN 1 ELSE 0 END) '
+			. 'FROM ('
+			. ' SELECT sessionised.`visit_date`, sessionised.`event_type`, '
+			. 'sessionised.`visitor_hash`, sessionised.`session_number`, COUNT(*) AS `event_count` '
+			. 'FROM (' . $sessionised . ') AS sessionised '
+			. "WHERE sessionised.`event_type` <> 'pageview' "
+			. 'GROUP BY sessionised.`visit_date`, sessionised.`event_type`, '
+			. 'sessionised.`visitor_hash`, sessionised.`session_number`'
+			. ') AS event_sessions '
+			. 'GROUP BY event_sessions.`visit_date`, event_sessions.`event_type` '
+			. 'ON DUPLICATE KEY UPDATE '
+			. '`event_count` = `event_count` + VALUES(`event_count`), '
+			. '`session_count` = `session_count` + VALUES(`session_count`), '
+			. '`multi_event_sessions` = `multi_event_sessions` + VALUES(`multi_event_sessions`)';
+
+		$db->setQuery($sql)->execute();
+	}
+
+	/**
+	 * Builds a derived-table query assigning a session number to every human event.
+	 *
+	 * @param string $eventsTable Quoted raw event table name.
+	 * @param string $cutoffDate  First retained raw-event date.
+	 * @param int    $timeout     Session inactivity timeout in seconds.
+	 *
+	 * @return string SQL SELECT statement suitable for use as a derived table.
+	 */
+	private function getSessionisedEventsSql(string $eventsTable, string $cutoffDate, int $timeout): string
+	{
+		$db = $this->database;
+
+		return 'SELECT marked_events.*, '
+			. 'SUM(marked_events.`new_session`) OVER ('
+			. 'PARTITION BY marked_events.`visit_date`, marked_events.`visitor_hash` '
+			. 'ORDER BY marked_events.`visited_at`, marked_events.`id` ROWS UNBOUNDED PRECEDING'
+			. ') AS `session_number` '
+			. 'FROM ('
+			. ' SELECT ordered_events.*, '
+			. 'CASE WHEN ordered_events.`previous_at` IS NULL '
+			. 'OR TIMESTAMPDIFF(SECOND, ordered_events.`previous_at`, ordered_events.`visited_at`) > ' . $timeout
+			. ' THEN 1 ELSE 0 END AS `new_session` '
+			. 'FROM ('
+			. ' SELECT e.`id`, e.`visit_date`, e.`visitor_hash`, e.`visited_at`, e.`event_type`, '
+			. 'LAG(e.`visited_at`) OVER ('
+			. 'PARTITION BY e.`visit_date`, e.`visitor_hash` ORDER BY e.`visited_at`, e.`id`'
+			. ') AS `previous_at` '
+			. 'FROM ' . $eventsTable . ' AS e '
+			. 'WHERE e.`is_bot` = 0 AND e.`visit_date` < ' . $db->quote($cutoffDate)
+			. ') AS ordered_events'
+			. ') AS marked_events';
 	}
 
 	/**

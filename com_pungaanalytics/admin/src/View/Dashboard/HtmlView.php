@@ -105,14 +105,14 @@ final class HtmlView extends BaseHtmlView
 		$document = $app->getDocument();
 		$webAssetManager = $document->getWebAssetManager();
 		$webAssetManager->registerAndUseStyle(
-			'com_pungaanalytics.admin.0.8.12',
-			'com_pungaanalytics/admin-0.8.12.css',
-			['version' => '0.8.12']
+			'com_pungaanalytics.admin.0.9.0',
+			'com_pungaanalytics/admin-0.9.0.css',
+			['version' => '0.9.0']
 		);
 		$webAssetManager->registerAndUseScript(
-			'com_pungaanalytics.dashboard.0.8.12',
-			'com_pungaanalytics/admin-0.8.12.js',
-			['version' => '0.8.12'],
+			'com_pungaanalytics.dashboard.0.9.0',
+			'com_pungaanalytics/admin-0.9.0.js',
+			['version' => '0.9.0'],
 			['defer' => true]
 		);
 
