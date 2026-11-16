@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension type="component" method="upgrade">
 	<name>COM_PUNGAANALYTICS</name>
-	<version>0.11.1</version>
+	<version>0.11.2</version>
 	<targetplatform name="joomla" version="6.*" />
-	<creationDate>2026-11-15</creationDate>
+	<creationDate>2026-11-16</creationDate>
 	<author>Frank Willeke</author>
 	<copyright>Copyright (C) 2026 Frank Willeke</copyright>
 	<license>GNU General Public License version 2 or later</license>
@@ -12,6 +12,14 @@
 	<scriptfile>script.php</scriptfile>
 	<administration>
 		<menu img="class:chart">COM_PUNGAANALYTICS</menu>
+		<submenu>
+			<menu link="option=com_pungaanalytics&amp;dashboardview=overview">COM_PUNGAANALYTICS_MENU_OVERVIEW</menu>
+			<menu link="option=com_pungaanalytics&amp;dashboardview=traffic">COM_PUNGAANALYTICS_MENU_TRAFFIC</menu>
+			<menu link="option=com_pungaanalytics&amp;dashboardview=content">COM_PUNGAANALYTICS_MENU_CONTENT_ENGAGEMENT</menu>
+			<menu link="option=com_pungaanalytics&amp;dashboardview=audience">COM_PUNGAANALYTICS_MENU_AUDIENCE</menu>
+			<menu link="option=com_pungaanalytics&amp;dashboardview=quality">COM_PUNGAANALYTICS_MENU_TRAFFIC_QUALITY</menu>
+			<menu link="option=com_pungaanalytics&amp;dashboardview=system">COM_PUNGAANALYTICS_MENU_SYSTEM</menu>
+		</submenu>
 		<files folder="admin">
 			<folder>services</folder>
 			<folder>forms</folder>

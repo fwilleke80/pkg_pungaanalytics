@@ -1,4 +1,4 @@
--- Punga Analytics 0.11.1 data-label cleanup; schema itself is unchanged.
+-- Punga Analytics 0.11.2 data-label cleanup; schema itself is unchanged.
 UPDATE `#__pungaanalytics_events`
 SET `bot_name` = 'Unclassified bot (legacy)'
 WHERE `bot_name` = 'Other bot';

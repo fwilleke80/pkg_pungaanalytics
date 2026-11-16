@@ -69,9 +69,10 @@ final class AutomationClassificationService
 			}
 		}
 
+		$hasEngagementDefinitions = $engagementTypes !== [];
 		$engagementExpression = '0';
 
-		if ($engagementTypes !== [])
+		if ($hasEngagementDefinitions)
 		{
 			$quotedTypes = implode(', ', array_map(
 				static fn(string $eventType): string => $db->quote($eventType),
@@ -119,31 +120,43 @@ final class AutomationClassificationService
 		$score = 0;
 		$reasons = [];
 
-		if ($this->isHostingAsn((int) ($row->asn_number ?? 0)))
+		$hostingNetwork = $this->isHostingAsn((int) ($row->asn_number ?? 0));
+
+		if ($hostingNetwork)
 		{
 			$score += 2;
 			$reasons[] = 'hosting_network';
 		}
 
-		if ($pageviews >= 8 && $uniquePaths >= 6 && $elapsedSeconds <= 120)
+		// On sites with configured semantic engagement events, a hosting/cloud
+		// visitor-day that never engages is a useful second signal. This is
+		// intentionally reversible: a later engagement event immediately causes
+		// the visitor-day to be evaluated again and removes this penalty.
+		if ($hostingNetwork && $hasEngagementDefinitions && $pageviews >= 1 && $engagementEvents === 0)
+		{
+			$score += 2;
+			$reasons[] = 'hosting_no_engagement';
+		}
+
+		if ($pageviews >= 6 && $uniquePaths >= 5 && $elapsedSeconds <= 120)
 		{
 			$score += 3;
 			$reasons[] = 'rapid_enumeration';
 		}
 
-		if ($pageviews >= 12 && $elapsedSeconds <= 300)
+		if ($pageviews >= 10 && $elapsedSeconds <= 300)
 		{
 			$score += 2;
 			$reasons[] = 'high_request_rate';
 		}
 
-		if ($pageviews >= 40)
+		if ($pageviews >= 30)
 		{
 			$score += 2;
 			$reasons[] = 'high_volume';
 		}
 
-		if ($pageviews >= 8 && $engagementEvents === 0)
+		if (!$hostingNetwork && $hasEngagementDefinitions && $pageviews >= 6 && $engagementEvents === 0)
 		{
 			$score += 1;
 			$reasons[] = 'no_engagement';

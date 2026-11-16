@@ -110,6 +110,7 @@ $automationSignalLabel = static function (string $value): string
 {
 	$labels = [
 		'hosting_network' => Text::_('COM_PUNGAANALYTICS_SIGNAL_HOSTING_NETWORK'),
+	'hosting_no_engagement' => Text::_('COM_PUNGAANALYTICS_SIGNAL_HOSTING_NO_ENGAGEMENT'),
 		'rapid_enumeration' => Text::_('COM_PUNGAANALYTICS_SIGNAL_RAPID_ENUMERATION'),
 		'high_request_rate' => Text::_('COM_PUNGAANALYTICS_SIGNAL_HIGH_REQUEST_RATE'),
 		'high_volume' => Text::_('COM_PUNGAANALYTICS_SIGNAL_HIGH_VOLUME'),

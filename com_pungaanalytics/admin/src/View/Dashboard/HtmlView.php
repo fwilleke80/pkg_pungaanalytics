@@ -61,9 +61,16 @@ final class HtmlView extends BaseHtmlView
 	{
 		$app = Factory::getApplication();
 		$allowedRanges = ['today', 'yesterday', 'last24', '7', '30', '90', '365', 'all', '0'];
-		$requestedRange = strtolower($app->input->getCmd('days', '7'));
+		$requestedRange = strtolower($app->input->getCmd('days', ''));
+
+		if ($requestedRange === '')
+		{
+			$requestedRange = strtolower((string) $app->getUserState('com_pungaanalytics.dashboard.days', '7'));
+		}
+
 		$this->range = \in_array($requestedRange, $allowedRanges, true) ? $requestedRange : '7';
 		$this->range = $this->range === '0' ? 'all' : $this->range;
+		$app->setUserState('com_pungaanalytics.dashboard.days', $this->range);
 		$params = ComponentHelper::getParams('com_pungaanalytics');
 		$this->retentionDays = (int) $params->get('retention_days', 180);
 		$this->activityTableRows = min(100, max(0, (int) $params->get('dashboard_activity_rows', 8)));
@@ -115,14 +122,14 @@ final class HtmlView extends BaseHtmlView
 		$document = $app->getDocument();
 		$webAssetManager = $document->getWebAssetManager();
 		$webAssetManager->registerAndUseStyle(
-			'com_pungaanalytics.admin.0.11.1',
-			'com_pungaanalytics/admin-0.11.1.css',
-			['version' => '0.11.1']
+			'com_pungaanalytics.admin.0.11.2',
+			'com_pungaanalytics/admin-0.11.2.css',
+			['version' => '0.11.2']
 		);
 		$webAssetManager->registerAndUseScript(
-			'com_pungaanalytics.dashboard.0.11.1',
-			'com_pungaanalytics/admin-0.11.1.js',
-			['version' => '0.11.1'],
+			'com_pungaanalytics.dashboard.0.11.2',
+			'com_pungaanalytics/admin-0.11.2.js',
+			['version' => '0.11.2'],
 			['defer' => true]
 		);
 

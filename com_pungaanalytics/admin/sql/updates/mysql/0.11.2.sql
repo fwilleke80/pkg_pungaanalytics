@@ -1,0 +1,1 @@
+-- Punga Analytics 0.11.2 navigation and automation-classifier update; schema itself is unchanged.

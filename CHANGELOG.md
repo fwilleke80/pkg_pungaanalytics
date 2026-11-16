@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.2 — 2026-11-16
+
+- Promoted Overview, Traffic, Content & Engagement, Audience, Traffic Quality, and System from top-level dashboard tabs to Joomla administrator sidebar submenu entries.
+- Kept the existing child-tab navigation inside Traffic, Content & Engagement, Audience, and Traffic Quality.
+- Rendered only the selected top-level dashboard section and changed the dashboard hero title to the active sidebar page.
+- Persisted the selected reporting range across sidebar navigation.
+- Tuned suspected-automation scoring so hosting/cloud traffic with no configured engagement can be classified provisionally when semantic engagement events are available; a later engagement event automatically re-evaluates and can restore the visitor-day to human traffic.
+- Lowered the rapid-enumeration, high-request-rate, high-volume, and generic no-engagement thresholds slightly to catch obvious automated browsing earlier while keeping hosting infrastructure alone insufficient.
+- Added an explainable “Hosting/cloud network without configured engagement” classification signal.
+- Updated manifests, administrator assets, language files, and documentation.
+
 ## 0.11.1 — 2026-11-15
 
 - Renamed the Traffic Quality child tab from **Known bots** to **Detected bots**, reflecting that bot detection includes both named crawlers and strong generic User-Agent signatures.

@@ -476,6 +476,8 @@ automation retrospectively and therefore retain their historical classification.
 
 ## Dashboard
 
+The administrator component uses Joomla sidebar entries for **Overview**, **Traffic**, **Content & Engagement**, **Audience**, **Traffic Quality**, and **System**. Related secondary reports remain grouped as child tabs within those pages. The selected reporting range is remembered when moving between these sidebar pages.
+
 The administrator dashboard includes:
 
 - Installed Punga Analytics version
@@ -506,9 +508,10 @@ The administrator dashboard includes:
 - Retention plus country- and ASN-database status
 - System-tab actions for updating country/ASN databases, reclassifying retained traffic, archiving expired raw data, and permanently resetting all collected statistics
 
-The main dashboard navigation is organised by question rather than storage
-dimension: **Overview**, **Traffic**, **Content & Engagement**, **Audience**,
-**Traffic Quality**, and **System**. Traffic contains Activity, Sessions, and
+The main administrator navigation is organised by question rather than storage
+dimension. **Overview**, **Traffic**, **Content & Engagement**, **Audience**,
+**Traffic Quality**, and **System** are Joomla sidebar entries rather than one
+large page of top-level tabs. Traffic contains Activity, Sessions, and
 Acquisition; Content & Engagement contains Pages & 404s, configured engagement
 rankings, and Custom Events; Audience contains Countries, Networks / ASNs,
 Languages, Devices, and Browsers; Traffic Quality separates Suspected automation
@@ -657,3 +660,8 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Punga Analytics cannot infer a media play from a page view; the media extension must emit a [custom event](#custom-event-bridge).
 - Traffic-source categorisation is heuristic and depends on the referrer header supplied by the visitor's browser.
 - Cookieless sessions cannot be reconstructed for days whose raw events were already archived before version 0.9.0, because the older aggregates do not preserve event ordering.
+
+
+### Suspected automation tuning
+
+Hosting/cloud infrastructure alone is not an automation verdict. When configured semantic engagement events exist, hosting/cloud traffic without any such engagement supplies a second signal and can be classified provisionally. Later engagement automatically re-evaluates the complete visitor-day.
