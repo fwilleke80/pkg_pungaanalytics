@@ -8,7 +8,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-VERSION = "0.11.2"
+VERSION = "0.11.3"
 ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / f"pkg_pungaanalytics-v{VERSION}.zip"
 

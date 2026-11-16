@@ -115,9 +115,9 @@ final class HtmlView extends BaseHtmlView
 		$this->pagination->setAdditionalUrlParam('direction', $this->direction);
 
 		$app->getDocument()->getWebAssetManager()->registerAndUseStyle(
-			'com_pungaanalytics.admin.0.11.2',
-			'com_pungaanalytics/admin-0.11.2.css',
-			['version' => '0.11.2']
+			'com_pungaanalytics.admin.0.11.3',
+			'com_pungaanalytics/admin-0.11.3.css',
+			['version' => '0.11.3']
 		);
 
 		$reportTitle = $report === 'history'

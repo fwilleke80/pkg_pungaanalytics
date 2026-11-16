@@ -7,11 +7,6 @@ const initialisePungaAnalyticsDashboardTabs = () =>
 {
 	const dashboardTabs = document.getElementById('pungaAnalyticsDashboardTabs');
 
-	if (!dashboardTabs)
-	{
-		return;
-	}
-
 	const dashboardViews = {
 		'pa-dashboard-overview': 'overview',
 		'pa-dashboard-traffic': 'traffic',
@@ -109,25 +104,28 @@ const initialisePungaAnalyticsDashboardTabs = () =>
 		window.history.replaceState({}, '', url);
 	};
 
-	dashboardTabs.addEventListener('click', (event) =>
+	if (dashboardTabs)
 	{
-		const button = event.target.closest('button[aria-controls]');
-
-		if (!button || button.closest('joomla-tab') !== dashboardTabs)
+		dashboardTabs.addEventListener('click', (event) =>
 		{
-			return;
-		}
+			const button = event.target.closest('button[aria-controls]');
 
-		const selectedView = dashboardViews[button.getAttribute('aria-controls')];
+			if (!button || button.closest('joomla-tab') !== dashboardTabs)
+			{
+				return;
+			}
 
-		if (!selectedView)
-		{
-			return;
-		}
+			const selectedView = dashboardViews[button.getAttribute('aria-controls')];
 
-		dashboardView = selectedView;
-		updateCurrentUrl();
-	});
+			if (!selectedView)
+			{
+				return;
+			}
+
+			dashboardView = selectedView;
+			updateCurrentUrl();
+		});
+	}
 
 	Object.entries(childTabs).forEach(([parentView, definition]) =>
 	{

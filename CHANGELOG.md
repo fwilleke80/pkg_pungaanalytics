@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.3 — 2026-11-16
+
+- Fixed administrator maintenance buttons after the 0.11.2 sidebar navigation refactor.
+- Removed the obsolete JavaScript early exit that required the former top-level dashboard tab element.
+- Restored Reclassify retained traffic, country/ASN database updates, raw-data archival, and statistics reset actions.
+- Restored child-tab URL state and reporting-range state handling on the new separate dashboard pages.
+- Updated release metadata and versioned administrator assets.
+
 ## 0.11.2 — 2026-11-16
 
 - Promoted Overview, Traffic, Content & Engagement, Audience, Traffic Quality, and System from top-level dashboard tabs to Joomla administrator sidebar submenu entries.

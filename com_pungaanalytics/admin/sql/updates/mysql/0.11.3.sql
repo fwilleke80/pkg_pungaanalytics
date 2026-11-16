@@ -1,0 +1,1 @@
+-- Punga Analytics 0.11.3 administrator action JavaScript fix; schema itself is unchanged.
