@@ -19,6 +19,49 @@ use Punga\Component\PungaAnalytics\Administrator\Service\CountryDatabaseService;
  */
 final class DashboardController extends BaseController
 {
+
+	/**
+	 * Stores the selected reporting range and returns to the canonical dashboard URL.
+	 *
+	 * Keeping transient dashboard state out of the final URL lets Joomla recognise
+	 * the active administrator submenu item and keep the component sidebar expanded.
+	 *
+	 * @return void
+	 */
+	public function setRange(): void
+	{
+		Session::checkToken('request') or jexit(Text::_('JINVALID_TOKEN'));
+		$this->assertManagePermission();
+
+		$allowedRanges = ['today', 'yesterday', 'last24', '7', '30', '90', '365', 'all', '0'];
+		$range = strtolower($this->input->getCmd('days', '7'));
+		$range = \in_array($range, $allowedRanges, true) ? $range : '7';
+		$range = $range === '0' ? 'all' : $range;
+
+		$allowedViews = ['overview', 'traffic', 'content', 'audience', 'quality', 'system'];
+		$view = strtolower($this->input->getCmd('dashboardview', 'overview'));
+		$view = \in_array($view, $allowedViews, true) ? $view : 'overview';
+
+		$childView = strtolower($this->input->getCmd('childview', ''));
+		$allowedChildViews = [
+			'traffic' => ['activity', 'sessions', 'acquisition'],
+			'content' => ['pages', 'engagement', 'events'],
+			'audience' => ['countries', 'networks', 'languages', 'devices', 'browsers'],
+			'quality' => ['automated', 'bots'],
+		];
+
+		$this->app->setUserState('com_pungaanalytics.dashboard.days', $range);
+
+		if (isset($allowedChildViews[$view]) && \in_array($childView, $allowedChildViews[$view], true))
+		{
+			$this->app->setUserState('com_pungaanalytics.dashboard.' . $view . 'view', $childView);
+		}
+
+		$this->setRedirect(
+			Route::_('index.php?option=com_pungaanalytics&dashboardview=' . rawurlencode($view), false)
+		);
+	}
+
 	/**
 	 * Downloads and compiles the current DB-IP Lite country database.
 	 *
@@ -144,11 +187,9 @@ final class DashboardController extends BaseController
 		$range = strtolower($this->input->getCmd('days', '7'));
 		$range = \in_array($range, $allowedRanges, true) ? $range : '7';
 		$range = $range === '0' ? 'all' : $range;
+		$this->app->setUserState('com_pungaanalytics.dashboard.days', $range);
 
-		return Route::_(
-			'index.php?option=com_pungaanalytics&dashboardview=system&days=' . rawurlencode($range),
-			false
-		);
+		return Route::_('index.php?option=com_pungaanalytics&dashboardview=system', false);
 	}
 
 	/**

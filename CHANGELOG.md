@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.11.3 — 2026-11-16
+## 0.11.4 — 2026-11-17
+
+- Fixed the Joomla administrator sidebar collapsing after changing the reporting range.
+- Changed dashboard range selection to store the selected range in Joomla user state and redirect back to the canonical sidebar URL without transient query parameters.
+- Preserved the active child tab when changing the reporting range, including child tabs selected client-side immediately before the range change.
+- Changed System maintenance redirects to use the same canonical sidebar URL while preserving the selected reporting range in user state.
+- Added the 0.11.4 database schema marker and refreshed versioned administrator assets.
+
+## 0.11.4 — 2026-11-16
 
 - Fixed administrator maintenance buttons after the 0.11.2 sidebar navigation refactor.
 - Removed the obsolete JavaScript early exit that required the former top-level dashboard tab element.

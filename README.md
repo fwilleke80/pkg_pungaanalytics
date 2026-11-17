@@ -476,7 +476,7 @@ automation retrospectively and therefore retain their historical classification.
 
 ## Dashboard
 
-Administrator maintenance actions and child-tab/range state are wired independently of the former top-level tab widget as of 0.11.3.
+Administrator maintenance actions and child-tab/range state are wired independently of the former top-level tab widget as of 0.11.4.
 
 
 The administrator component uses Joomla sidebar entries for **Overview**, **Traffic**, **Content & Engagement**, **Audience**, **Traffic Quality**, and **System**. Related secondary reports remain grouped as child tabs within those pages. The selected reporting range is remembered when moving between these sidebar pages.
@@ -527,6 +527,11 @@ cURL, or No User-Agent instead of being collapsed into one `Other bot` bucket.
 
 The **Activity by hour** and **Activity by weekday** panels are stacked vertically so
 each chart and table gets the full dashboard width.
+
+The six major dashboard areas are exposed as Joomla administrator sidebar items.
+The selected reporting range and child-tab state are kept in Joomla administrator
+user state, so changing range does not add transient parameters to the canonical
+sidebar URL or collapse the component menu.
 
 ## Administrator dashboard module
 

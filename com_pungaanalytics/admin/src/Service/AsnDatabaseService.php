@@ -252,7 +252,7 @@ final class AsnDatabaseService
 			@unlink($destination);
 		}
 
-		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Punga Analytics/0.11.3'], 90);
+		$response = HttpFactory::getHttp()->get($url, ['User-Agent' => 'Joomla Punga Analytics/0.11.4'], 90);
 
 		if ($response->code < 200 || $response->code >= 300)
 		{

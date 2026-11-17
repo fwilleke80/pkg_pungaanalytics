@@ -706,7 +706,12 @@ $activeDashboardView = isset($dashboardViewIds[$requestedDashboardView])
 	? $requestedDashboardView
 	: ($sortTableViews[$this->sortTable] ?? 'overview');
 
-$requestedTrafficView = strtolower(Factory::getApplication()->input->getCmd('trafficview', ''));
+$app = Factory::getApplication();
+$requestedTrafficView = strtolower($app->input->getCmd('trafficview', ''));
+if ($requestedTrafficView === '')
+{
+	$requestedTrafficView = strtolower((string) $app->getUserState('com_pungaanalytics.dashboard.trafficview', 'activity'));
+}
 $activeTrafficView = match (true)
 {
 	\in_array($this->sortTable, ['activity', 'hours', 'weekdays'], true) => 'activity',
@@ -714,7 +719,11 @@ $activeTrafficView = match (true)
 	\in_array($requestedTrafficView, ['activity', 'sessions', 'acquisition'], true) => $requestedTrafficView,
 	default => 'activity',
 };
-$requestedContentView = strtolower(Factory::getApplication()->input->getCmd('contentview', ''));
+$requestedContentView = strtolower($app->input->getCmd('contentview', ''));
+if ($requestedContentView === '')
+{
+	$requestedContentView = strtolower((string) $app->getUserState('com_pungaanalytics.dashboard.contentview', 'pages'));
+}
 $activeContentView = match (true)
 {
 	\in_array($this->sortTable, ['pages', 'notfound'], true) => 'pages',
@@ -725,16 +734,29 @@ $activeContentView = match (true)
 	default => 'pages',
 };
 $audienceViews = ['countries', 'networks', 'languages', 'devices', 'browsers'];
-$requestedAudienceView = strtolower(Factory::getApplication()->input->getCmd('audienceview', ''));
+$requestedAudienceView = strtolower($app->input->getCmd('audienceview', ''));
+if ($requestedAudienceView === '')
+{
+	$requestedAudienceView = strtolower((string) $app->getUserState('com_pungaanalytics.dashboard.audienceview', 'countries'));
+}
 $activeAudienceView = \in_array($this->sortTable, $audienceViews, true)
 	? $this->sortTable
 	: (\in_array($requestedAudienceView, $audienceViews, true) ? $requestedAudienceView : 'countries');
-$requestedQualityView = strtolower(Factory::getApplication()->input->getCmd('qualityview', ''));
+$requestedQualityView = strtolower($app->input->getCmd('qualityview', ''));
+if ($requestedQualityView === '')
+{
+	$requestedQualityView = strtolower((string) $app->getUserState('com_pungaanalytics.dashboard.qualityview', 'automated'));
+}
 $activeQualityView = $this->sortTable === 'bots'
 	? 'bots'
 	: (str_starts_with($this->sortTable, 'automation')
 		? 'automated'
 		: (\in_array($requestedQualityView, ['automated', 'bots'], true) ? $requestedQualityView : 'automated'));
+
+$app->setUserState('com_pungaanalytics.dashboard.trafficview', $activeTrafficView);
+$app->setUserState('com_pungaanalytics.dashboard.contentview', $activeContentView);
+$app->setUserState('com_pungaanalytics.dashboard.audienceview', $activeAudienceView);
+$app->setUserState('com_pungaanalytics.dashboard.qualityview', $activeQualityView);
 $dashboardBaseUrl = static function (string $view, string $childView = '') use ($selectedRange): string
 {
 	$query = [
@@ -799,23 +821,29 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 						<span class="pa-range-picker__chevron" aria-hidden="true"></span>
 					</summary>
 					<div class="pa-range-picker__menu">
-						<?php foreach ($rangeOptions as $value => $label) : ?>
-							<a class="<?php echo $selectedRange === $value ? 'is-active' : ''; ?>"
-								<?php echo $selectedRange === $value ? 'aria-current="page"' : ''; ?>
-								href="<?php echo Route::_(
-								'index.php?option=com_pungaanalytics&days=' . rawurlencode((string) $value)
-								. '&dashboardview=' . rawurlencode($activeDashboardView)
-								. ($activeDashboardView === 'traffic' ? '&trafficview=' . rawurlencode($activeTrafficView) : '')
-								. ($activeDashboardView === 'content' ? '&contentview=' . rawurlencode($activeContentView) : '')
-								. ($activeDashboardView === 'audience' ? '&audienceview=' . rawurlencode($activeAudienceView) : '')
-								. ($activeDashboardView === 'quality' ? '&qualityview=' . rawurlencode($activeQualityView) : '')
-							); ?>">
-								<span><?php echo $escape($label); ?></span>
-								<?php if ($selectedRange === $value) : ?>
-									<span class="icon-check" aria-hidden="true"></span>
-								<?php endif; ?>
-							</a>
-						<?php endforeach; ?>
+						<form action="<?php echo Route::_('index.php?option=com_pungaanalytics'); ?>" method="post">
+							<input type="hidden" name="task" value="dashboard.setRange">
+							<input type="hidden" name="dashboardview" value="<?php echo $escape($activeDashboardView); ?>">
+							<input type="hidden" name="childview" value="<?php echo $escape(match ($activeDashboardView)
+								{
+									'traffic' => $activeTrafficView,
+									'content' => $activeContentView,
+									'audience' => $activeAudienceView,
+									'quality' => $activeQualityView,
+									default => '',
+								}); ?>">
+							<?php foreach ($rangeOptions as $value => $label) : ?>
+								<button type="submit" name="days" value="<?php echo $escape($value); ?>"
+									class="<?php echo $selectedRange === $value ? 'is-active' : ''; ?>"
+									<?php echo $selectedRange === $value ? 'aria-current="page"' : ''; ?>>
+									<span><?php echo $escape($label); ?></span>
+									<?php if ($selectedRange === $value) : ?>
+										<span class="icon-check" aria-hidden="true"></span>
+									<?php endif; ?>
+								</button>
+							<?php endforeach; ?>
+							<?php echo HTMLHelper::_('form.token'); ?>
+						</form>
 					</div>
 				</details>
 				<a class="btn btn-primary pa-export-all" href="<?php echo $exportAllUrl; ?>">

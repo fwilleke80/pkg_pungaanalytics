@@ -152,6 +152,14 @@ const initialisePungaAnalyticsDashboardTabs = () =>
 
 			dashboardView = parentView;
 			selectedChildViews[parentView] = selectedView;
+
+			const rangeChildView = document.querySelector('.pa-range-picker__menu input[name="childview"]');
+
+			if (rangeChildView)
+			{
+				rangeChildView.value = selectedView;
+			}
+
 			updateCurrentUrl();
 		});
 	});
