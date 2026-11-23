@@ -114,6 +114,8 @@ $automationSignalLabel = static function (string $value): string
 		'rapid_enumeration' => Text::_('COM_PUNGAANALYTICS_SIGNAL_RAPID_ENUMERATION'),
 		'high_request_rate' => Text::_('COM_PUNGAANALYTICS_SIGNAL_HIGH_REQUEST_RATE'),
 		'high_volume' => Text::_('COM_PUNGAANALYTICS_SIGNAL_HIGH_VOLUME'),
+		'very_high_volume' => Text::_('COM_PUNGAANALYTICS_SIGNAL_VERY_HIGH_VOLUME'),
+		'extreme_volume' => Text::_('COM_PUNGAANALYTICS_SIGNAL_EXTREME_VOLUME'),
 		'no_engagement' => Text::_('COM_PUNGAANALYTICS_SIGNAL_NO_ENGAGEMENT'),
 	];
 
@@ -200,6 +202,7 @@ $dashboardViewByReport = [
 	'sessionevents' => 'traffic',
 	'sources' => 'traffic',
 	'referrers' => 'traffic',
+	'referrerdetails' => 'traffic',
 	'pages' => 'content',
 	'notfound' => 'content',
 	'event' => 'content',
@@ -214,6 +217,7 @@ $dashboardViewByReport = [
 	'automationnetworks' => 'quality',
 	'automationpaths' => 'quality',
 	'automationreasons' => 'quality',
+	'humanoutliers' => 'quality',
 ];
 $historyDashboardView = match ((string) ($history['dimension'] ?? ''))
 {
@@ -230,7 +234,7 @@ $trafficView = match (true)
 {
 	$report === 'history' && \in_array((string) ($history['dimension'] ?? ''), ['source', 'referrer'], true) => 'acquisition',
 	\in_array($report, ['sessions', 'sessionevents'], true) => 'sessions',
-	\in_array($report, ['sources', 'referrers'], true) => 'acquisition',
+	\in_array($report, ['sources', 'referrers', 'referrerdetails'], true) => 'acquisition',
 	default => 'activity',
 };
 $contentView = match (true)
@@ -610,6 +614,18 @@ $sortHeading = static function (
 					</tbody>
 				</table>
 				<p class="small text-muted mt-3 mb-0"><?php echo Text::_('COM_PUNGAANALYTICS_DBIP_ASN_ATTRIBUTION'); ?></p>
+			<?php elseif ($kind === 'referrerdetail') : ?>
+				<table class="table pa-table mb-0">
+					<thead><tr><?php echo $sortHeading('label', Text::_('COM_PUNGAANALYTICS_REFERRER_PAGE'), 'asc'); ?><?php echo $sortHeading('count', Text::_('COM_PUNGAANALYTICS_CSV_COUNT'), 'desc', 'text-end'); ?></tr></thead>
+					<tbody><?php foreach ($this->data['rows'] as $row) : ?><tr><td class="text-break"><a href="<?php echo $escape('https://' . ltrim((string) $row->label, '/')); ?>" target="_blank" rel="noopener noreferrer"><?php echo $escape($row->label); ?></a></td><td class="text-end pa-count"><?php echo $number($row->count); ?></td></tr><?php endforeach; ?></tbody>
+				</table>
+				<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_REFERRER_PAGES_NOTE'); ?></p>
+			<?php elseif ($kind === 'humanoutliers') : ?>
+				<table class="table pa-table mb-0">
+					<thead><tr><?php echo $sortHeading('date', Text::_('COM_PUNGAANALYTICS_DATE'), 'desc'); ?><?php echo $sortHeading('pageviews', Text::_('COM_PUNGAANALYTICS_PAGEVIEWS'), 'desc', 'text-end'); ?><?php echo $sortHeading('paths', Text::_('COM_PUNGAANALYTICS_UNIQUE_PATHS'), 'desc', 'text-end'); ?><?php echo $sortHeading('engagement', Text::_('COM_PUNGAANALYTICS_ENGAGEMENT_EVENTS'), 'desc', 'text-end'); ?><?php echo $sortHeading('asn', Text::_('COM_PUNGAANALYTICS_ASN'), 'asc'); ?><th><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_NETWORK'); ?></th><?php echo $sortHeading('score', Text::_('COM_PUNGAANALYTICS_AUTOMATION_SCORE'), 'desc', 'text-end'); ?><th><?php echo Text::_('COM_PUNGAANALYTICS_AUTOMATION_SIGNALS'); ?></th><?php echo $sortHeading('duration', Text::_('COM_PUNGAANALYTICS_DURATION'), 'desc', 'text-end'); ?></tr></thead>
+					<tbody><?php foreach ($this->data['rows'] as $row) : ?><tr><td><?php echo $escape($row->visit_date); ?></td><td class="text-end"><?php echo $number($row->pageviews); ?></td><td class="text-end"><?php echo $number($row->unique_paths); ?></td><td class="text-end"><?php echo $number($row->engagement_events); ?></td><td><?php echo (int) $row->asn_number > 0 ? 'AS' . (int) $row->asn_number : '—'; ?></td><td class="text-break"><?php echo $row->organization !== '' ? $escape($row->organization) : '—'; ?></td><td class="text-end"><?php echo (int) $row->automation_score; ?></td><td class="text-break"><?php echo $escape($automationSignalLabel((string) $row->automation_reason)); ?></td><td class="text-end"><?php echo $escape($duration($row->duration_seconds)); ?></td></tr><?php endforeach; ?></tbody>
+				</table>
+				<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_HUMAN_OUTLIERS_NOTE'); ?></p>
 			<?php elseif ($kind === 'automationnetwork') : ?>
 				<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_AUTOMATION_NOTE'); ?></p>
 				<table class="table pa-table mb-0" id="pa-report-table">

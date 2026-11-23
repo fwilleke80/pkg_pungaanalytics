@@ -49,6 +49,7 @@ For eligible frontend page views and custom events, Punga Analytics stores:
 - Public page path
 - Joomla component and view name
 - External referrer hostname for ordinary page views
+- External referrer path when the browser supplies it; query strings and fragments are discarded
 - Broad traffic-source category for ordinary page views: direct, search,
   social, AI assistant, referral, or internal
 - Final HTTP response status for ordinary page views
@@ -68,7 +69,7 @@ It does **not** store:
 
 - Raw IP addresses
 - Complete User-Agent strings
-- Complete referrer URLs
+- Complete referrer URLs or referrer query strings/fragments
 - Joomla user IDs with events
 - Usernames or email addresses
 - Persistent cross-day visitor identifiers
@@ -89,7 +90,7 @@ The permanent reports preserve:
 
 - Daily clean-human visitor-day/page-view, suspected-automation, detected-bot, authenticated-view, and generic custom-event totals
 - Site-local hour-of-day and weekday totals, including configured custom events
-- Countries, pages, referrers, traffic-source categories, browser languages,
+- Countries, pages, referrer hosts, detailed referrer paths when supplied, traffic-source categories, browser languages,
   devices, browsers, and detected bots
 - Not-found paths with separate human, suspected-automated, and detected-bot request totals, first and last
   occurrence, and the most common external referrer
@@ -453,7 +454,10 @@ The classifier currently considers signals such as:
 - repeated page views without any configured custom-event engagement
 
 A hosting/cloud ASN contributes to the score but **never reaches the automation
-threshold on its own**. Configured custom-event engagement reduces suspicion.
+threshold on its own**. Configured custom-event engagement reduces suspicion in
+proportion to engagement density rather than acting as a blanket exemption. Very
+high page-view volumes (100+ and 250+ page views in one visitor-day) add stronger
+signals, so one isolated event cannot make a bulk crawler look human.
 The classifier is intentionally biased toward leaving ambiguous traffic in the
 human category rather than aggressively discarding legitimate visitors.
 
@@ -499,9 +503,9 @@ The administrator dashboard includes:
 - Configurable generic item-ranking cards for events such as plays and downloads
 - Countries pie chart, localized country names, Unicode flags, and exact table
 - Networks / ASNs with clean-human, suspected-automated, and detected-bot columns plus organization names, full report, CSV, and daily row history
-- External referrers
+- External referrer hosts plus a separate **Referrer pages** table when the browser sends the source path; query strings and fragments are never stored
 - Browser-language, device-category, and browser-family pie charts with exact tables
-- Dedicated Traffic Quality area for suspected automation and detected bots
+- Dedicated Traffic Quality area for suspected automation and detected bots, including a retained-raw-data **Human traffic outliers** diagnostic for unusually high-volume visitor-days that still classify as human
 - Custom event types
 - Row-level daily history links for pages, 404 paths, countries, networks/ASNs, sources, referrers, languages, devices, browsers, bots, event types, and configured event items
 - Clearly labeled paginated full-report links on dashboard panels
@@ -606,6 +610,8 @@ A trusted two-letter country header can be used instead of the local DB-IP datab
 
 Install newer versions directly over the existing package.
 
+System maintenance actions return to the System page with a Joomla success or error message after they run.
+
 ## Resetting statistics
 
 Use **Components → Punga Analytics → System → Reset all statistics** to
@@ -666,10 +672,10 @@ Enabling query-string storage can collect search terms and other user input. It 
 - Country and ASN data must currently be updated manually.
 - Requests served before the collector runs, for example by an earlier full-page cache plugin, may not be recorded.
 - Punga Analytics cannot infer a media play from a page view; the media extension must emit a [custom event](#custom-event-bridge).
-- Traffic-source categorisation is heuristic and depends on the referrer header supplied by the visitor's browser.
+- Traffic-source categorisation is heuristic and depends on the referrer header supplied by the visitor's browser. Modern referrer policies often send only the origin for cross-site navigation, so detailed Referrer pages are best-effort and may be unavailable even when a hostname is known.
 - Cookieless sessions cannot be reconstructed for days whose raw events were already archived before version 0.9.0, because the older aggregates do not preserve event ordering.
 
 
 ### Suspected automation tuning
 
-Hosting/cloud infrastructure alone is not an automation verdict. When configured semantic engagement events exist, hosting/cloud traffic without any such engagement supplies a second signal and can be classified provisionally. Later engagement automatically re-evaluates the complete visitor-day.
+Hosting/cloud infrastructure alone is not an automation verdict. When configured semantic engagement events exist, hosting/cloud traffic without any such engagement supplies a second signal and can be classified provisionally. Later engagement automatically re-evaluates the complete visitor-day. Engagement credit is density-based: several meaningful interactions can reduce suspicion substantially, while one isolated event among hundreds of page views no longer cancels bulk-traffic signals. Visitor-days at 100 and 250 page views receive additional volume signals. The Traffic Quality page also lists high-volume visitor-days that remain human so false negatives can be inspected directly while raw data is retained.

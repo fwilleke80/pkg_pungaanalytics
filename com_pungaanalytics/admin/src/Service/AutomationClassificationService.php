@@ -156,20 +156,45 @@ final class AutomationClassificationService
 			$reasons[] = 'high_volume';
 		}
 
+		if ($pageviews >= 100)
+		{
+			$score += 2;
+			$reasons[] = 'very_high_volume';
+		}
+
+		if ($pageviews >= 250)
+		{
+			$score += 2;
+			$reasons[] = 'extreme_volume';
+		}
+
 		if (!$hostingNetwork && $hasEngagementDefinitions && $pageviews >= 6 && $engagementEvents === 0)
 		{
 			$score += 1;
 			$reasons[] = 'no_engagement';
 		}
 
-		if ($engagementEvents > 0)
+		if ($engagementEvents > 0 && $pageviews > 0)
 		{
-			$score -= 3;
+			$engagementDensity = $engagementEvents / $pageviews;
+
+			if ($engagementEvents >= 4 && $engagementDensity >= 0.25)
+			{
+				$score -= 3;
+			}
+			elseif ($engagementEvents >= 2 && $engagementDensity >= 0.10)
+			{
+				$score -= 2;
+			}
+			elseif ($engagementDensity >= 0.05)
+			{
+				$score -= 1;
+			}
 		}
 
-		$score = max(0, min(9, $score));
+		$score = max(0, min(15, $score));
 		$isAutomated = $score >= self::AUTOMATION_THRESHOLD;
-		$reason = $isAutomated ? implode(',', array_unique($reasons)) : '';
+		$reason = implode(',', array_unique($reasons));
 		$this->applyClassification($visitDate, $visitorHash, $score, $isAutomated, $reason);
 	}
 
@@ -226,7 +251,7 @@ final class AutomationClassificationService
 		$query = $db->getQuery(true)
 			->update($db->quoteName('#__pungaanalytics_events'))
 			->set($db->quoteName('is_automated') . ' = ' . ($automated ? '1' : '0'))
-			->set($db->quoteName('automation_score') . ' = ' . max(0, min(9, $score)))
+			->set($db->quoteName('automation_score') . ' = ' . max(0, min(15, $score)))
 			->set($db->quoteName('automation_reason') . ' = :reason')
 			->where($db->quoteName('visit_date') . ' = :visitDate')
 			->where($db->quoteName('visitor_hash') . ' = :visitorHash')

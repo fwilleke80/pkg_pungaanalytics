@@ -153,7 +153,7 @@ const initialisePungaAnalyticsDashboardTabs = () =>
 			dashboardView = parentView;
 			selectedChildViews[parentView] = selectedView;
 
-			const rangeChildView = document.querySelector('.pa-range-picker__menu input[name="childview"]');
+			const rangeChildView = document.querySelector('#paRangeForm input[name="childview"]');
 
 			if (rangeChildView)
 			{

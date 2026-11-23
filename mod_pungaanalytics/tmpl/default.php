@@ -17,7 +17,7 @@ if ($statistics === [])
 Factory::getApplication()->getDocument()->getWebAssetManager()->registerAndUseStyle(
 	'mod_pungaanalytics.admin',
 	'mod_pungaanalytics/admin.css',
-	['version' => '0.11.4']
+	['version' => '0.12.1']
 );
 
 $summary = $statistics['summary'];

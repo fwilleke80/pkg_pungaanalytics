@@ -274,6 +274,7 @@ final class StatisticsArchiveService
 			'referrer_host',
 			"`is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview' AND `referrer_host` <> ''"
 		);
+		$this->archiveReferrerDetails($cutoffDate);
 		$this->archiveDimension(
 			$cutoffDate,
 			'country',
@@ -372,6 +373,35 @@ final class StatisticsArchiveService
 			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
 			. ' AND ' . $filters
 			. ' GROUP BY `visit_date`, ' . $label . ' '
+			. 'ON DUPLICATE KEY UPDATE '
+			. '`label` = VALUES(`label`), '
+			. '`event_count` = `event_count` + VALUES(`event_count`)';
+
+		$db->setQuery($sql)->execute();
+	}
+
+	/**
+	 * Archives external referrer host + path without query strings or fragments.
+	 *
+	 * @param string $cutoffDate First retained raw-event date.
+	 *
+	 * @return void
+	 */
+	private function archiveReferrerDetails(string $cutoffDate): void
+	{
+		$db = $this->database;
+		$eventsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_events'));
+		$dimensionsTable = $db->quoteName($db->replacePrefix('#__pungaanalytics_daily_dimensions'));
+		$label = "CONCAT(`referrer_host`, `referrer_path`)";
+		$sql = 'INSERT INTO ' . $dimensionsTable . ' ('
+			. '`visit_date`, `dimension_key`, `label_hash`, `label`, `event_count`'
+			. ') SELECT `visit_date`, ' . $db->quote('referrer_detail') . ', '
+			. 'SHA2(' . $label . ', 256), ' . $label . ', COUNT(*) '
+			. 'FROM ' . $eventsTable
+			. ' WHERE `visit_date` < ' . $db->quote($cutoffDate)
+			. " AND `is_bot` = 0 AND `is_automated` = 0 AND `event_type` = 'pageview'"
+			. " AND `referrer_host` <> '' AND `referrer_path` <> ''"
+			. ' GROUP BY `visit_date`, `referrer_host`, `referrer_path` '
 			. 'ON DUPLICATE KEY UPDATE '
 			. '`label` = VALUES(`label`), '
 			. '`event_count` = `event_count` + VALUES(`event_count`)';

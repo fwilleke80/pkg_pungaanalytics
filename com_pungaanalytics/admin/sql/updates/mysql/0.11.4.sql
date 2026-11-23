@@ -1,1 +1,1 @@
--- Punga Analytics 0.11.4: no database schema changes.
+-- Punga Analytics 0.12.0: no database schema changes.

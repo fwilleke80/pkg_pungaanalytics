@@ -83,6 +83,7 @@ final class HtmlView extends BaseHtmlView
 			'countries',
 			'networks',
 			'referrers',
+			'referrerdetails',
 			'sources',
 			'languages',
 			'devices',
@@ -122,14 +123,14 @@ final class HtmlView extends BaseHtmlView
 		$document = $app->getDocument();
 		$webAssetManager = $document->getWebAssetManager();
 		$webAssetManager->registerAndUseStyle(
-			'com_pungaanalytics.admin.0.11.4',
-			'com_pungaanalytics/admin-0.11.4.css',
-			['version' => '0.11.4']
+			'com_pungaanalytics.admin.0.12.1',
+			'com_pungaanalytics/admin-0.12.1.css',
+			['version' => '0.12.1']
 		);
 		$webAssetManager->registerAndUseScript(
-			'com_pungaanalytics.dashboard.0.11.4',
-			'com_pungaanalytics/admin-0.11.4.js',
-			['version' => '0.11.4'],
+			'com_pungaanalytics.dashboard.0.12.1',
+			'com_pungaanalytics/admin-0.12.1.js',
+			['version' => '0.12.1'],
 			['defer' => true]
 		);
 

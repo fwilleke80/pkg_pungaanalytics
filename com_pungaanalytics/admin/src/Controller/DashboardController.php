@@ -131,11 +131,18 @@ final class DashboardController extends BaseController
 		Session::checkToken('request') or jexit(Text::_('JINVALID_TOKEN'));
 		$this->assertManagePermission();
 
-		/** @var \Punga\Component\PungaAnalytics\Administrator\Model\DashboardModel $model */
-		$model = $this->getModel('Dashboard');
-		$count = $model->reclassifyAutomation();
+		try
+		{
+			/** @var \Punga\Component\PungaAnalytics\Administrator\Model\DashboardModel $model */
+			$model = $this->getModel('Dashboard');
+			$count = $model->reclassifyAutomation();
+			$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_AUTOMATION_RECLASSIFIED', $count));
+		}
+		catch (\Throwable $exception)
+		{
+			$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_AUTOMATION_RECLASSIFY_FAILED', $exception->getMessage()), 'error');
+		}
 
-		$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_AUTOMATION_RECLASSIFIED', $count));
 		$this->setRedirect($this->getSystemRedirect());
 	}
 
@@ -149,12 +156,19 @@ final class DashboardController extends BaseController
 		Session::checkToken('request') or jexit(Text::_('JINVALID_TOKEN'));
 		$this->assertManagePermission();
 
-		/** @var \Punga\Component\PungaAnalytics\Administrator\Model\DashboardModel $model */
-		$model = $this->getModel('Dashboard');
-		$retentionDays = ComponentHelper::getParams('com_pungaanalytics')->get('retention_days', 180);
-		$count = $model->purgeExpired((int) $retentionDays);
+		try
+		{
+			/** @var \Punga\Component\PungaAnalytics\Administrator\Model\DashboardModel $model */
+			$model = $this->getModel('Dashboard');
+			$retentionDays = ComponentHelper::getParams('com_pungaanalytics')->get('retention_days', 180);
+			$count = $model->purgeExpired((int) $retentionDays);
+			$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_PURGED_EVENTS', $count));
+		}
+		catch (\Throwable $exception)
+		{
+			$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_PURGE_FAILED', $exception->getMessage()), 'error');
+		}
 
-		$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_PURGED_EVENTS', $count));
 		$this->setRedirect($this->getSystemRedirect());
 	}
 
@@ -168,11 +182,18 @@ final class DashboardController extends BaseController
 		Session::checkToken('request') or jexit(Text::_('JINVALID_TOKEN'));
 		$this->assertManagePermission();
 
-		/** @var \Punga\Component\PungaAnalytics\Administrator\Model\DashboardModel $model */
-		$model = $this->getModel('Dashboard');
-		$count = $model->resetStats();
+		try
+		{
+			/** @var \Punga\Component\PungaAnalytics\Administrator\Model\DashboardModel $model */
+			$model = $this->getModel('Dashboard');
+			$count = $model->resetStats();
+			$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_RESET_COMPLETE', $count));
+		}
+		catch (\Throwable $exception)
+		{
+			$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_RESET_FAILED', $exception->getMessage()), 'error');
+		}
 
-		$this->setMessage(Text::sprintf('COM_PUNGAANALYTICS_RESET_COMPLETE', $count));
 		$this->setRedirect($this->getSystemRedirect());
 	}
 

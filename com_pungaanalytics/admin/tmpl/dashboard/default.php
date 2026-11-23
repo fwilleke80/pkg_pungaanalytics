@@ -144,6 +144,8 @@ $automationSignalLabels = [
 	'rapid_enumeration' => Text::_('COM_PUNGAANALYTICS_SIGNAL_RAPID_ENUMERATION'),
 	'high_request_rate' => Text::_('COM_PUNGAANALYTICS_SIGNAL_HIGH_REQUEST_RATE'),
 	'high_volume' => Text::_('COM_PUNGAANALYTICS_SIGNAL_HIGH_VOLUME'),
+	'very_high_volume' => Text::_('COM_PUNGAANALYTICS_SIGNAL_VERY_HIGH_VOLUME'),
+	'extreme_volume' => Text::_('COM_PUNGAANALYTICS_SIGNAL_EXTREME_VOLUME'),
 	'no_engagement' => Text::_('COM_PUNGAANALYTICS_SIGNAL_NO_ENGAGEMENT'),
 ];
 $automationSignalLabel = static function (string $value) use ($automationSignalLabels): string
@@ -264,7 +266,7 @@ foreach ($rankingDefinitions as $definition)
 	];
 }
 
-foreach (['countries', 'referrers', 'sources', 'languages', 'devices', 'browsers', 'bots', 'events'] as $dimensionTable)
+foreach (['countries', 'referrers', 'referrerdetails', 'sources', 'languages', 'devices', 'browsers', 'bots', 'events'] as $dimensionTable)
 {
 	$dashboardSortDefinitions[$dimensionTable] = [
 		'defaultField' => 'count',
@@ -456,7 +458,7 @@ $sortableHeading = static function (
 	$classAttribute = $className === '' ? '' : ' class="' . $escape($className) . '"';
 	$tableView = match (true)
 	{
-		\in_array($table, ['activity', 'hours', 'weekdays', 'sources', 'referrers'], true) => 'traffic',
+		\in_array($table, ['activity', 'hours', 'weekdays', 'sources', 'referrers', 'referrerdetails'], true) => 'traffic',
 		\in_array($table, ['pages', 'notfound', 'events'], true) || \in_array($table, $rankingTableKeys, true) => 'content',
 		\in_array($table, ['countries', 'networks', 'languages', 'devices', 'browsers'], true) => 'audience',
 		$table === 'bots' || str_starts_with($table, 'automation') => 'quality',
@@ -472,7 +474,7 @@ $sortableHeading = static function (
 	};
 	$childView = match ($tableView)
 	{
-		'traffic' => \in_array($table, ['sources', 'referrers'], true) ? 'acquisition' : 'activity',
+		'traffic' => \in_array($table, ['sources', 'referrers', 'referrerdetails'], true) ? 'acquisition' : 'activity',
 		'content' => \in_array($table, $rankingTableKeys, true) ? 'engagement' : ($table === 'events' ? 'events' : 'pages'),
 		'audience' => $table,
 		'quality' => $table === 'bots' ? 'bots' : 'automated',
@@ -596,6 +598,8 @@ $automationCountryRows = $sortDashboardRows($this->data['automationCountries'] ?
 $automationNetworkRows = $sortDashboardRows($this->data['automationNetworks'] ?? [], 'automationnetworks');
 $automationPathRows = $sortDashboardRows($this->data['automationPaths'] ?? [], 'automationpaths');
 $automationReasonRows = $sortDashboardRows($this->data['automationReasons'] ?? [], 'automationreasons');
+$referrerDetailRows = $sortDashboardRows($this->data['referrerDetails'] ?? [], 'referrerdetails');
+$humanOutlierRows = $this->data['humanOutliers'] ?? [];
 $eventRankingRows = [];
 
 foreach ($this->data['customEventRankings'] ?? [] as $ranking)
@@ -681,6 +685,7 @@ $sortTableViews = [
 	'weekdays' => 'traffic',
 	'sources' => 'traffic',
 	'referrers' => 'traffic',
+	'referrerdetails' => 'traffic',
 	'pages' => 'content',
 	'notfound' => 'content',
 	'events' => 'content',
@@ -694,6 +699,7 @@ $sortTableViews = [
 	'automationnetworks' => 'quality',
 	'automationpaths' => 'quality',
 	'automationreasons' => 'quality',
+	'humanoutliers' => 'quality',
 ];
 
 foreach ($rankingTableKeys as $rankingTableKey)
@@ -715,7 +721,7 @@ if ($requestedTrafficView === '')
 $activeTrafficView = match (true)
 {
 	\in_array($this->sortTable, ['activity', 'hours', 'weekdays'], true) => 'activity',
-	\in_array($this->sortTable, ['sources', 'referrers'], true) => 'acquisition',
+	\in_array($this->sortTable, ['sources', 'referrers', 'referrerdetails'], true) => 'acquisition',
 	\in_array($requestedTrafficView, ['activity', 'sessions', 'acquisition'], true) => $requestedTrafficView,
 	default => 'activity',
 };
@@ -749,7 +755,7 @@ if ($requestedQualityView === '')
 }
 $activeQualityView = $this->sortTable === 'bots'
 	? 'bots'
-	: (str_starts_with($this->sortTable, 'automation')
+	: (str_starts_with($this->sortTable, 'automation') || $this->sortTable === 'humanoutliers'
 		? 'automated'
 		: (\in_array($requestedQualityView, ['automated', 'bots'], true) ? $requestedQualityView : 'automated'));
 
@@ -797,6 +803,21 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 	}
 }
 ?>
+<form action="<?php echo Route::_('index.php?option=com_pungaanalytics'); ?>" method="post" id="paRangeForm">
+	<input type="hidden" name="option" value="com_pungaanalytics">
+	<input type="hidden" name="task" value="dashboard.setRange">
+	<input type="hidden" name="dashboardview" value="<?php echo $escape($activeDashboardView); ?>">
+	<input type="hidden" name="childview" value="<?php echo $escape(match ($activeDashboardView)
+		{
+			'traffic' => $activeTrafficView,
+			'content' => $activeContentView,
+			'audience' => $activeAudienceView,
+			'quality' => $activeQualityView,
+			default => '',
+		}); ?>">
+	<?php echo HTMLHelper::_('form.token'); ?>
+</form>
+
 <form action="<?php echo Route::_('index.php?option=com_pungaanalytics'); ?>" method="post" id="adminForm" name="adminForm">
 	<input type="hidden" name="option" value="com_pungaanalytics">
 	<input type="hidden" name="task" value="">
@@ -821,29 +842,16 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 						<span class="pa-range-picker__chevron" aria-hidden="true"></span>
 					</summary>
 					<div class="pa-range-picker__menu">
-						<form action="<?php echo Route::_('index.php?option=com_pungaanalytics'); ?>" method="post">
-							<input type="hidden" name="task" value="dashboard.setRange">
-							<input type="hidden" name="dashboardview" value="<?php echo $escape($activeDashboardView); ?>">
-							<input type="hidden" name="childview" value="<?php echo $escape(match ($activeDashboardView)
-								{
-									'traffic' => $activeTrafficView,
-									'content' => $activeContentView,
-									'audience' => $activeAudienceView,
-									'quality' => $activeQualityView,
-									default => '',
-								}); ?>">
-							<?php foreach ($rangeOptions as $value => $label) : ?>
-								<button type="submit" name="days" value="<?php echo $escape($value); ?>"
-									class="<?php echo $selectedRange === $value ? 'is-active' : ''; ?>"
-									<?php echo $selectedRange === $value ? 'aria-current="page"' : ''; ?>>
-									<span><?php echo $escape($label); ?></span>
-									<?php if ($selectedRange === $value) : ?>
-										<span class="icon-check" aria-hidden="true"></span>
-									<?php endif; ?>
-								</button>
-							<?php endforeach; ?>
-							<?php echo HTMLHelper::_('form.token'); ?>
-						</form>
+						<?php foreach ($rangeOptions as $value => $label) : ?>
+							<button type="submit" form="paRangeForm" name="days" value="<?php echo $escape($value); ?>"
+								class="<?php echo $selectedRange === $value ? 'is-active' : ''; ?>"
+								<?php echo $selectedRange === $value ? 'aria-current="page"' : ''; ?>>
+								<span><?php echo $escape($label); ?></span>
+								<?php if ($selectedRange === $value) : ?>
+									<span class="icon-check" aria-hidden="true"></span>
+								<?php endif; ?>
+							</button>
+						<?php endforeach; ?>
 					</div>
 				</details>
 				<a class="btn btn-primary pa-export-all" href="<?php echo $exportAllUrl; ?>">
@@ -1291,7 +1299,35 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 							</section>
 						<?php endforeach; ?>
 					</div>
-				</div>
+				
+					<section class="pa-panel pa-panel--wide mt-3">
+						<header class="pa-panel__header">
+							<h3><?php echo Text::_('COM_PUNGAANALYTICS_REFERRER_PAGES'); ?></h3>
+							<a class="pa-view-all" href="<?php echo $reportUrl('referrerdetails'); ?>"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_ALL'); ?></a>
+						</header>
+						<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_REFERRER_PAGES_NOTE'); ?></p>
+						<div class="pa-panel__body pa-panel__body--flush">
+						<?php if ($referrerDetailRows === []) : ?>
+							<div class="pa-empty"><?php echo Text::_('COM_PUNGAANALYTICS_NO_DETAILED_REFERRERS'); ?></div>
+						<?php else : ?>
+							<table class="table pa-table mb-0" id="pa-table-referrerdetails">
+								<thead><tr>
+									<?php echo $sortableHeading('referrerdetails', 'label', Text::_('COM_PUNGAANALYTICS_REFERRER_PAGE'), 'asc'); ?>
+									<?php echo $sortableHeading('referrerdetails', 'count', Text::_('COM_PUNGAANALYTICS_CSV_COUNT'), 'desc', 'text-end'); ?>
+								</tr></thead>
+								<tbody>
+								<?php foreach ($referrerDetailRows as $row) : ?>
+									<tr>
+										<td class="text-break"><a href="<?php echo $escape('https://' . ltrim((string) $row->label, '/')); ?>" target="_blank" rel="noopener noreferrer"><?php echo $escape($row->label); ?></a></td>
+										<td class="text-end pa-count"><?php echo $number($row->count); ?></td>
+									</tr>
+								<?php endforeach; ?>
+								</tbody>
+							</table>
+						<?php endif; ?>
+						</div>
+					</section>
+</div>
 				<?php echo HTMLHelper::_('uitab.endTab'); ?>
 
 					<?php echo HTMLHelper::_('uitab.endTabSet'); ?>
@@ -1662,7 +1698,20 @@ foreach ($this->data['customEventRankings'] ?? [] as $ranking)
 				<section class="pa-summary-metrics"><article class="pa-summary-metric"><span class="pa-summary-metric__label"><span class="icon-users"></span><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED_VISITORS'); ?></span><strong><?php echo $number($summary->automated_visits ?? 0); ?></strong></article><article class="pa-summary-metric"><span class="pa-summary-metric__label"><span class="icon-eye"></span><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED'); ?></span><strong><?php echo $number($summary->automated_pageviews ?? 0); ?></strong></article></section>
 				<div class="pa-grid pa-grid--content"><?php $automationPanels = [[Text::_('COM_PUNGAANALYTICS_AUTOMATION_COUNTRIES'), $automationCountryRows, 'automationcountries', 'automationcountries'], [Text::_('COM_PUNGAANALYTICS_AUTOMATION_NETWORKS'), $automationNetworkRows, 'automationnetworks', 'automationnetworks'], [Text::_('COM_PUNGAANALYTICS_AUTOMATION_PATHS'), $automationPathRows, 'automationpaths', 'automationpaths'], [Text::_('COM_PUNGAANALYTICS_AUTOMATION_SIGNALS'), $automationReasonRows, 'automationreasons', 'automationreasons']]; foreach ($automationPanels as [$title, $rows, $tableKey, $reportKey]) : ?>
 				<section class="pa-panel"><header class="pa-panel__header"><h3><?php echo $escape($title); ?></h3><a class="pa-view-all" href="<?php echo $reportUrl($reportKey); ?>"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_ALL'); ?></a></header><div class="pa-panel__body pa-panel__body--flush"><?php if ($rows === []) : ?><div class="pa-empty"><?php echo Text::_('COM_PUNGAANALYTICS_NO_DATA'); ?></div><?php else : ?><table class="table pa-table mb-0" id="pa-table-<?php echo $escape($tableKey); ?>"><thead><tr><?php if ($tableKey === 'automationnetworks') : ?><?php echo $sortableHeading($tableKey, 'asn', Text::_('COM_PUNGAANALYTICS_ASN'), 'asc'); ?><?php echo $sortableHeading($tableKey, 'organization', Text::_('COM_PUNGAANALYTICS_TABLE_NETWORK'), 'asc'); ?><?php echo $sortableHeading($tableKey, 'automated_visits', Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED_VISITORS'), 'desc', 'text-end'); ?><?php echo $sortableHeading($tableKey, 'automated_pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED'), 'desc', 'text-end'); ?><?php else : ?><?php echo $sortableHeading($tableKey, 'label', Text::_('COM_PUNGAANALYTICS_CSV_LABEL'), 'asc'); ?><?php echo $sortableHeading($tableKey, 'visitors', Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED_VISITORS'), 'desc', 'text-end'); ?><?php echo $sortableHeading($tableKey, 'pageviews', Text::_('COM_PUNGAANALYTICS_TABLE_AUTOMATED'), 'desc', 'text-end'); ?><?php endif; ?></tr></thead><tbody>
-				<?php foreach ($rows as $row) : ?><tr><?php if ($tableKey === 'automationnetworks') : ?><td>AS<?php echo (int) $row->asn_number; ?></td><td class="text-break"><?php echo $escape($row->organization ?: Text::_('COM_PUNGAANALYTICS_UNKNOWN')); ?></td><td class="text-end"><?php echo $number($row->automated_visits); ?></td><td class="text-end pa-count"><?php echo $number($row->automated_pageviews); ?></td><?php else : ?><?php $automationLabel = $tableKey === 'automationcountries' ? $countryName((string) $row->label) : ($tableKey === 'automationreasons' ? $automationSignalLabel((string) $row->label) : (string) $row->label); ?><td class="text-break"><?php echo $escape($automationLabel); ?></td><td class="text-end"><?php echo $number($row->visitors); ?></td><td class="text-end pa-count"><?php echo $number($row->pageviews); ?></td><?php endif; ?></tr><?php endforeach; ?></tbody></table><?php endif; ?></div></section><?php endforeach; ?></div><p class="small text-muted mt-3"><?php echo Text::_('COM_PUNGAANALYTICS_AUTOMATION_ARCHIVE_NOTE'); ?></p></div><?php echo HTMLHelper::_('uitab.endTab'); ?>
+				<?php foreach ($rows as $row) : ?><tr><?php if ($tableKey === 'automationnetworks') : ?><td>AS<?php echo (int) $row->asn_number; ?></td><td class="text-break"><?php echo $escape($row->organization ?: Text::_('COM_PUNGAANALYTICS_UNKNOWN')); ?></td><td class="text-end"><?php echo $number($row->automated_visits); ?></td><td class="text-end pa-count"><?php echo $number($row->automated_pageviews); ?></td><?php else : ?><?php $automationLabel = $tableKey === 'automationcountries' ? $countryName((string) $row->label) : ($tableKey === 'automationreasons' ? $automationSignalLabel((string) $row->label) : (string) $row->label); ?><td class="text-break"><?php echo $escape($automationLabel); ?></td><td class="text-end"><?php echo $number($row->visitors); ?></td><td class="text-end pa-count"><?php echo $number($row->pageviews); ?></td><?php endif; ?></tr><?php endforeach; ?></tbody></table><?php endif; ?></div></section><?php endforeach; ?></div>
+				<section class="pa-panel pa-panel--wide mt-3">
+					<header class="pa-panel__header"><h3><?php echo Text::_('COM_PUNGAANALYTICS_HUMAN_OUTLIERS'); ?></h3><a class="pa-view-all" href="<?php echo $reportUrl('humanoutliers'); ?>"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_ALL'); ?></a></header>
+					<p class="pa-panel-note"><?php echo Text::_('COM_PUNGAANALYTICS_HUMAN_OUTLIERS_NOTE'); ?></p>
+					<div class="pa-panel__body pa-panel__body--flush">
+					<?php if ($humanOutlierRows === []) : ?><div class="pa-empty"><?php echo Text::_('COM_PUNGAANALYTICS_NO_DATA'); ?></div><?php else : ?>
+					<table class="table pa-table mb-0"><thead><tr>
+						<th><?php echo Text::_('COM_PUNGAANALYTICS_DATE'); ?></th><th class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_PAGEVIEWS'); ?></th><th class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_UNIQUE_PATHS'); ?></th><th class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_ENGAGEMENT_EVENTS'); ?></th><th><?php echo Text::_('COM_PUNGAANALYTICS_TABLE_NETWORK'); ?></th><th class="text-end"><?php echo Text::_('COM_PUNGAANALYTICS_AUTOMATION_SCORE'); ?></th><th><?php echo Text::_('COM_PUNGAANALYTICS_AUTOMATION_SIGNALS'); ?></th>
+					</tr></thead><tbody>
+					<?php foreach ($humanOutlierRows as $row) : ?><tr><td><?php echo $escape($row->visit_date); ?></td><td class="text-end"><?php echo $number($row->pageviews); ?></td><td class="text-end"><?php echo $number($row->unique_paths); ?></td><td class="text-end"><?php echo $number($row->engagement_events); ?></td><td class="text-break"><?php echo (int) $row->asn_number > 0 ? 'AS' . (int) $row->asn_number . ($row->organization !== '' ? ' — ' . $escape($row->organization) : '') : '—'; ?></td><td class="text-end"><?php echo (int) $row->automation_score; ?></td><td class="text-break"><?php echo $escape($automationSignalLabel((string) $row->automation_reason)); ?></td></tr><?php endforeach; ?>
+					</tbody></table><?php endif; ?>
+					</div>
+				</section>
+				<p class="small text-muted mt-3"><?php echo Text::_('COM_PUNGAANALYTICS_AUTOMATION_ARCHIVE_NOTE'); ?></p></div><?php echo HTMLHelper::_('uitab.endTab'); ?>
 				<?php echo HTMLHelper::_('uitab.addTab', 'pungaAnalyticsQualityTabs', 'pa-quality-bots', Text::_('COM_PUNGAANALYTICS_KNOWN_BOTS')); ?><div class="pa-dashboard-tab"><section class="pa-panel pa-panel--wide"><header class="pa-panel__header"><h3><?php echo Text::_('COM_PUNGAANALYTICS_BOT_NAMES'); ?></h3><a class="pa-view-all" href="<?php echo $reportUrl('bots'); ?>"><?php echo Text::_('COM_PUNGAANALYTICS_VIEW_ALL'); ?></a></header><div class="pa-panel__body pa-panel__body--flush"><?php $knownBotRows = $sortDashboardRows($this->data['bots'], 'bots'); ?><?php if ($knownBotRows === []) : ?><div class="pa-empty"><?php echo Text::_('COM_PUNGAANALYTICS_NO_DATA'); ?></div><?php else : ?><table class="table pa-table mb-0" id="pa-table-bots"><thead><tr><?php echo $sortableHeading('bots', 'label', Text::_('COM_PUNGAANALYTICS_TABLE_BOT'), 'asc'); ?><?php echo $sortableHeading('bots', 'count', Text::_('COM_PUNGAANALYTICS_CSV_COUNT'), 'desc', 'text-end'); ?></tr></thead><tbody><?php foreach ($knownBotRows as $row) : ?><tr><td><?php echo $escape($row->label); ?> <a class="pa-history-link" href="<?php echo $historyUrl('bot', (string) $row->label); ?>"><span class="icon-chart"></span></a></td><td class="text-end pa-count"><?php echo $number($row->count); ?></td></tr><?php endforeach; ?></tbody></table><?php endif; ?></div></section></div><?php echo HTMLHelper::_('uitab.endTab'); ?>
 				<?php echo HTMLHelper::_('uitab.endTabSet'); ?></div><?php endif; ?>
 

@@ -331,9 +331,9 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 		$secret = (string) $app->get('secret', '');
 		$visitorHash = substr(hash_hmac('sha256', $ipAddress . "\n" . $userAgent . "\n" . $visitDate, $secret), 0, 32);
 		$currentUri = Uri::getInstance();
-		[$referrerHost, $trafficSource] = $includeReferrer
+		[$referrerHost, $referrerPath, $trafficSource] = $includeReferrer
 			? $this->getReferrerContext($currentUri)
-			: ['', ''];
+			: ['', '', ''];
 
 		$row = (object) [
 			'visited_at' => Factory::getDate('now', 'UTC')->toSql(),
@@ -345,6 +345,7 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 			'component' => mb_substr((string) $eventData['component'], 0, 100),
 			'view_name' => mb_substr((string) $eventData['view_name'], 0, 100),
 			'referrer_host' => $referrerHost,
+			'referrer_path' => $referrerPath,
 			'traffic_source' => $trafficSource,
 			'country_code' => $this->getCountryCode(
 				$ipAddress,
@@ -678,7 +679,7 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 	 *
 	 * @param Uri $currentUri Current request URI.
 	 *
-	 * @return array{0:string, 1:string} External hostname and source category.
+	 * @return array{0:string, 1:string, 2:string} External hostname, privacy-minimised path, and source category.
 	 */
 	private function getReferrerContext(Uri $currentUri): array
 	{
@@ -686,7 +687,7 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 
 		if ($referrer === '')
 		{
-			return ['', 'direct'];
+			return ['', '', 'direct'];
 		}
 
 		$host = strtolower((string) parse_url($referrer, PHP_URL_HOST));
@@ -694,7 +695,7 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 
 		if ($host === '')
 		{
-			return ['', 'direct'];
+			return ['', '', 'direct'];
 		}
 
 		$comparisonHost = preg_replace('/^www\./', '', $host) ?: $host;
@@ -702,12 +703,22 @@ final class PungaAnalytics extends CMSPlugin implements SubscriberInterface
 
 		if ($comparisonHost === $comparisonCurrentHost)
 		{
-			return ['', 'internal'];
+			return ['', '', 'internal'];
 		}
 
 		$host = mb_substr($host, 0, 255);
+		$path = (string) parse_url($referrer, PHP_URL_PATH);
+		$path = preg_replace('/[\x00-\x1F\x7F]/u', '', $path) ?? '';
+		$path = $path === '/' ? '' : $path;
 
-		return [$host, $this->classifyTrafficSource($host)];
+		if ($path !== '' && !str_starts_with($path, '/'))
+		{
+			$path = '/' . $path;
+		}
+
+		$path = mb_substr($path, 0, 1024);
+
+		return [$host, $path, $this->classifyTrafficSource($host)];
 	}
 
 	/**

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension type="module" client="administrator" method="upgrade">
 	<name>MOD_PUNGAANALYTICS</name>
-	<version>0.11.4</version>
+	<version>0.12.1</version>
 	<targetplatform name="joomla" version="6.*" />
 	<creationDate>2026-11-16</creationDate>
 	<author>Frank Willeke</author>

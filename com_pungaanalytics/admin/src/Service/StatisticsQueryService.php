@@ -33,6 +33,7 @@ final class StatisticsQueryService
 		'countries' => ['title' => 'COM_PUNGAANALYTICS_COUNTRIES', 'kind' => 'country'],
 		'networks' => ['title' => 'COM_PUNGAANALYTICS_NETWORKS', 'kind' => 'network'],
 		'referrers' => ['title' => 'COM_PUNGAANALYTICS_REFERRERS', 'kind' => 'dimension'],
+		'referrerdetails' => ['title' => 'COM_PUNGAANALYTICS_REFERRER_PAGES', 'kind' => 'referrerdetail'],
 		'sources' => ['title' => 'COM_PUNGAANALYTICS_TRAFFIC_SOURCES', 'kind' => 'source'],
 		'languages' => ['title' => 'COM_PUNGAANALYTICS_LANGUAGES', 'kind' => 'dimension'],
 		'devices' => ['title' => 'COM_PUNGAANALYTICS_DEVICES', 'kind' => 'dimension'],
@@ -43,6 +44,7 @@ final class StatisticsQueryService
 		'automationnetworks' => ['title' => 'COM_PUNGAANALYTICS_AUTOMATION_NETWORKS', 'kind' => 'automationnetwork'],
 		'automationpaths' => ['title' => 'COM_PUNGAANALYTICS_AUTOMATION_PATHS', 'kind' => 'automation'],
 		'automationreasons' => ['title' => 'COM_PUNGAANALYTICS_AUTOMATION_SIGNALS', 'kind' => 'automation'],
+		'humanoutliers' => ['title' => 'COM_PUNGAANALYTICS_HUMAN_OUTLIERS', 'kind' => 'humanoutliers'],
 	];
 
 	/** Inactivity gap that starts a new cookieless session. */
@@ -136,6 +138,7 @@ final class StatisticsQueryService
 			'countries' => $this->getCountryRows($from, $to, 20),
 			'networks' => $this->getNetworkRows($from, $to, 20),
 			'referrers' => $this->getDimensionRows('referrer_host', $from, $to, 15, false, 'pageview', true),
+			'referrerDetails' => $this->getReferrerDetailRows($from, $to, 15),
 			'trafficSources' => $this->getTrafficSourceRows($from, $to),
 			'languages' => $this->getDimensionRows('language_code', $from, $to, 12, false, 'pageview', true),
 			'devices' => $this->getDimensionRows('device_type', $from, $to, 12, false, 'pageview', true),
@@ -145,6 +148,7 @@ final class StatisticsQueryService
 			'automationNetworks' => $this->getAutomatedNetworkRows($from, $to, 12),
 			'automationPaths' => $this->getAutomationDimensionRows('path', $from, $to, 12),
 			'automationReasons' => $this->getAutomationDimensionRows('reason', $from, $to, 12),
+			'humanOutliers' => $this->getHumanOutlierRows($from, $to, 15),
 		];
 	}
 
@@ -236,6 +240,7 @@ final class StatisticsQueryService
 			'countries' => $this->getCountryRows($from, $to, 0),
 			'networks' => $this->getNetworkRows($from, $to, 0),
 			'referrers' => $this->getDimensionRows('referrer_host', $from, $to, 0, false, 'pageview', true),
+			'referrerdetails' => $this->getReferrerDetailRows($from, $to, 0),
 			'sources' => $this->getTrafficSourceRows($from, $to),
 			'languages' => $this->getDimensionRows('language_code', $from, $to, 0, false, 'pageview', true),
 			'devices' => $this->getDimensionRows('device_type', $from, $to, 0, false, 'pageview', true),
@@ -246,6 +251,7 @@ final class StatisticsQueryService
 			'automationnetworks' => $this->getAutomatedNetworkRows($from, $to, 0),
 			'automationpaths' => $this->getAutomationDimensionRows('path', $from, $to, 0),
 			'automationreasons' => $this->getAutomationDimensionRows('reason', $from, $to, 0),
+			'humanoutliers' => $this->getHumanOutlierRows($from, $to, 0),
 			'history' => $this->getHistoryRows($historyDefinition, $from, $to),
 		};
 
@@ -843,6 +849,123 @@ final class StatisticsQueryService
 		}
 
 		return array_values($rows);
+	}
+
+	/**
+	 * Returns detailed external referrer pages when the browser supplied a path.
+	 *
+	 * Query strings and fragments are never stored. Origin-only referrers therefore
+	 * remain visible in the ordinary Referrers report but not in this detail view.
+	 *
+	 * @param string $from  Inclusive date.
+	 * @param string $to    Inclusive date.
+	 * @param int    $limit Maximum rows, or zero for all.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getReferrerDetailRows(string $from, string $to, int $limit): array
+	{
+		$db = $this->database;
+		$labelExpression = 'CONCAT(' . $db->quoteName('referrer_host') . ', ' . $db->quoteName('referrer_path') . ')';
+		$query = $db->getQuery(true)
+			->select([
+				$labelExpression . ' AS ' . $db->quoteName('label'),
+				'COUNT(*) AS ' . $db->quoteName('count'),
+			])
+			->from($db->quoteName('#__pungaanalytics_events'))
+			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('is_automated') . ' = 0')
+			->where($db->quoteName('event_type') . ' = ' . $db->quote('pageview'))
+			->where($db->quoteName('referrer_host') . ' <> ' . $db->quote(''))
+			->where($db->quoteName('referrer_path') . ' <> ' . $db->quote(''))
+			->group([$db->quoteName('referrer_host'), $db->quoteName('referrer_path')]);
+
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
+
+		return $this->mergeCountRows(
+			$db->loadObjectList(),
+			$this->getArchivedDimensionRows('referrer_detail', $from, $to),
+			$limit
+		);
+	}
+
+	/**
+	 * Returns high-volume visitor-days that are still classified as human.
+	 *
+	 * This diagnostic is necessarily raw-data-only because permanent aggregates
+	 * deliberately discard the anonymous visitor sequence after archival.
+	 *
+	 * @param string $from  Inclusive date.
+	 * @param string $to    Inclusive date.
+	 * @param int    $limit Maximum rows, or zero for all.
+	 *
+	 * @return array<int, object>
+	 */
+	private function getHumanOutlierRows(string $from, string $to, int $limit): array
+	{
+		$db = $this->database;
+		$engagementTypes = [];
+
+		foreach ($this->customEventDefinitions as $definition)
+		{
+			if ((bool) ($definition['record'] ?? false))
+			{
+				$engagementTypes[] = (string) $definition['event_type'];
+			}
+		}
+
+		$engagementExpression = '0';
+
+		if ($engagementTypes !== [])
+		{
+			$quotedTypes = implode(', ', array_map(
+				static fn(string $eventType): string => $db->quote($eventType),
+				$engagementTypes
+			));
+			$engagementExpression = 'SUM(CASE WHEN ' . $db->quoteName('event_type')
+				. ' IN (' . $quotedTypes . ') THEN 1 ELSE 0 END)';
+		}
+
+		$query = $db->getQuery(true)
+			->select([
+				$db->quoteName('visit_date'),
+				'MAX(' . $db->quoteName('asn_number') . ') AS ' . $db->quoteName('asn_number'),
+				'SUM(CASE WHEN ' . $db->quoteName('event_type') . ' = ' . $db->quote('pageview') . ' THEN 1 ELSE 0 END) AS ' . $db->quoteName('pageviews'),
+				'COUNT(DISTINCT CASE WHEN ' . $db->quoteName('event_type') . ' = ' . $db->quote('pageview') . ' THEN ' . $db->quoteName('path') . ' END) AS ' . $db->quoteName('unique_paths'),
+				$engagementExpression . ' AS ' . $db->quoteName('engagement_events'),
+				'MAX(' . $db->quoteName('automation_score') . ') AS ' . $db->quoteName('automation_score'),
+				'MAX(' . $db->quoteName('automation_reason') . ') AS ' . $db->quoteName('automation_reason'),
+				'MIN(' . $db->quoteName('visited_at') . ') AS ' . $db->quoteName('first_seen'),
+				'MAX(' . $db->quoteName('visited_at') . ') AS ' . $db->quoteName('last_seen'),
+			])
+			->from($db->quoteName('#__pungaanalytics_events'))
+			->where($db->quoteName('is_bot') . ' = 0')
+			->where($db->quoteName('is_automated') . ' = 0')
+			->group([$db->quoteName('visit_date'), $db->quoteName('visitor_hash')])
+			->having('SUM(CASE WHEN ' . $db->quoteName('event_type') . ' = ' . $db->quote('pageview') . ' THEN 1 ELSE 0 END) >= 5');
+
+		$this->applyDateRange($query, $from, $to);
+		$db->setQuery($query);
+		$rows = $db->loadObjectList();
+		$asnService = new AsnDatabaseService();
+
+		foreach ($rows as $row)
+		{
+			$first = strtotime((string) ($row->first_seen ?? ''));
+			$last = strtotime((string) ($row->last_seen ?? ''));
+			$row->duration_seconds = $first !== false && $last !== false ? max(0, $last - $first) : 0;
+			$row->organization = (int) ($row->asn_number ?? 0) > 0
+				? $asnService->getOrganization((int) $row->asn_number)
+				: '';
+		}
+
+		usort($rows, static fn(object $left, object $right): int =>
+			((int) $right->pageviews <=> (int) $left->pageviews)
+			?: ((int) $right->automation_score <=> (int) $left->automation_score)
+			?: ((string) $right->visit_date <=> (string) $left->visit_date));
+
+		return $limit > 0 ? array_slice($rows, 0, $limit) : $rows;
 	}
 
 	/**

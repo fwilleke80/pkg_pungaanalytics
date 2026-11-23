@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.12.1 — 2026-11-24
+
+- Fixed all System maintenance actions appearing to do nothing because the Reporting range form was invalidly nested inside Joomla's main `adminForm`.
+- Separated the Reporting range selector into its own independent form and explicitly associated its range buttons with that form.
+- Restored unambiguous Joomla controller task submission for country/ASN database updates, retained-traffic reclassification, raw-data archival, and statistics reset.
+- Added explicit Joomla error messages for retained-traffic reclassification, raw-data archival, and statistics reset failures, matching the existing country/ASN update behavior.
+- Preserved child-tab and reporting-range state while removing duplicate competing `task` fields from the browser's parsed form structure.
+- Added a 0.12.1 schema marker and refreshed versioned administrator assets.
+
+## 0.12.0 — 2026-11-23
+
+- Added privacy-minimised detailed external referrer capture: stores the external hostname and path when supplied by the browser, while never storing referrer query strings or fragments.
+- Added **Traffic → Acquisition → Referrer pages** with sortable dashboard preview, full report, CSV export, all-report ZIP inclusion, and permanent daily aggregation.
+- Documented that modern referrer policies may expose only the origin, so detailed source pages are best-effort; hostname-level Referrers remain complete for every referrer header Punga Analytics receives.
+- Reworked suspected-automation engagement weighting so one isolated configured event no longer removes a fixed three points regardless of hundreds of page views.
+- Added stronger 100-page and 250-page visitor-day volume signals while preserving the existing conservative multi-signal threshold.
+- Retained positive automation signal codes for human-classified visitor-days as well, enabling diagnostics without changing their classification.
+- Added **Traffic Quality → Suspected automation → Human traffic outliers**, showing high-volume retained human visitor-days with page views, unique paths, configured engagement events, ASN/network, score, signals, and duration; added a sortable full report and CSV export.
+- Changed administrator table-header wrapping to break only at normal word boundaries; short headings such as Count, Automated, and Auto visitors no longer split into disjoint letters.
+- Added the `referrer_path` raw-event field and permanent `referrer_detail` daily dimension; existing historical referrer paths cannot be reconstructed because complete referrer URLs were never stored.
+- Updated manifests, schema repair, release metadata, administrator assets, English/German language files, README, and source-package build metadata.
+
 ## 0.11.4 — 2026-11-17
 
 - Fixed the Joomla administrator sidebar collapsing after changing the reporting range.

@@ -103,6 +103,7 @@ final class ReportController extends BaseController
 			['countries', ''],
 			['networks', ''],
 			['referrers', ''],
+			['referrerdetails', ''],
 			['sources', ''],
 			['languages', ''],
 			['devices', ''],
@@ -113,6 +114,7 @@ final class ReportController extends BaseController
 			['automationnetworks', ''],
 			['automationpaths', ''],
 			['automationreasons', ''],
+			['humanoutliers', ''],
 		];
 		$activityData = $model->getExportData('activity', $range, '', '');
 
@@ -480,6 +482,53 @@ final class ReportController extends BaseController
 					(int) ($row->automated_pageviews ?? 0),
 					(int) $row->bot_pageviews,
 					(int) $row->total_pageviews,
+				]);
+			}
+
+			return;
+		}
+
+		if ($kind === 'referrerdetail')
+		{
+			fputcsv($stream, [
+				Text::_('COM_PUNGAANALYTICS_REFERRER_PAGE'),
+				Text::_('COM_PUNGAANALYTICS_CSV_COUNT'),
+			]);
+
+			foreach ($data['rows'] as $row)
+			{
+				fputcsv($stream, [(string) $row->label, (int) $row->count]);
+			}
+
+			return;
+		}
+
+		if ($kind === 'humanoutliers')
+		{
+			fputcsv($stream, [
+				Text::_('COM_PUNGAANALYTICS_DATE'),
+				Text::_('COM_PUNGAANALYTICS_PAGEVIEWS'),
+				Text::_('COM_PUNGAANALYTICS_UNIQUE_PATHS'),
+				Text::_('COM_PUNGAANALYTICS_ENGAGEMENT_EVENTS'),
+				Text::_('COM_PUNGAANALYTICS_ASN'),
+				Text::_('COM_PUNGAANALYTICS_NETWORK_ORGANIZATION'),
+				Text::_('COM_PUNGAANALYTICS_AUTOMATION_SCORE'),
+				Text::_('COM_PUNGAANALYTICS_AUTOMATION_SIGNALS'),
+				Text::_('COM_PUNGAANALYTICS_DURATION_SECONDS'),
+			]);
+
+			foreach ($data['rows'] as $row)
+			{
+				fputcsv($stream, [
+					(string) $row->visit_date,
+					(int) $row->pageviews,
+					(int) $row->unique_paths,
+					(int) $row->engagement_events,
+					(int) $row->asn_number > 0 ? 'AS' . (int) $row->asn_number : '',
+					(string) $row->organization,
+					(int) $row->automation_score,
+					(string) $row->automation_reason,
+					(int) $row->duration_seconds,
 				]);
 			}
 

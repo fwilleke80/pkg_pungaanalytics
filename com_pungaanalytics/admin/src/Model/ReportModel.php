@@ -105,6 +105,24 @@ final class ReportModel extends BaseDatabaseModel
 				'total_pageviews' => 'total_pageviews',
 			],
 		],
+		'referrerdetails' => [
+			'default' => 'count',
+			'direction' => 'desc',
+			'fields' => ['label' => 'label', 'count' => 'count'],
+		],
+		'humanoutliers' => [
+			'default' => 'pageviews',
+			'direction' => 'desc',
+			'fields' => [
+				'date' => 'visit_date',
+				'pageviews' => 'pageviews',
+				'paths' => 'unique_paths',
+				'engagement' => 'engagement_events',
+				'asn' => 'asn_number',
+				'score' => 'automation_score',
+				'duration' => 'duration_seconds',
+			],
+		],
 		'notfound' => [
 			'default' => 'total',
 			'direction' => 'desc',
@@ -185,6 +203,9 @@ final class ReportModel extends BaseDatabaseModel
 		'total_pageviews',
 		'asn_number',
 		'total',
+		'unique_paths',
+		'engagement_events',
+		'automation_score',
 	];
 
 	/**

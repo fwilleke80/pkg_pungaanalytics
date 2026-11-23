@@ -1,0 +1,1 @@
+-- Punga Analytics 0.12.0: detailed referrer paths, classifier diagnostics, and UI refinements. Schema changes are repaired by the installer script.

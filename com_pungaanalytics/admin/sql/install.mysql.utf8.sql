@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	`component` VARCHAR(100) NOT NULL DEFAULT '',
 	`view_name` VARCHAR(100) NOT NULL DEFAULT '',
 	`referrer_host` VARCHAR(255) NOT NULL DEFAULT '',
+	`referrer_path` VARCHAR(1024) NOT NULL DEFAULT '',
 	`traffic_source` VARCHAR(16) NOT NULL DEFAULT '',
 	`country_code` CHAR(2) NOT NULL DEFAULT 'ZZ',
 	`asn_number` BIGINT UNSIGNED NOT NULL DEFAULT 0,
@@ -42,6 +43,7 @@ CREATE TABLE IF NOT EXISTS `#__pungaanalytics_events` (
 	KEY `idx_pungaanalytics_item` (`item_type`, `item_id`(64)),
 	KEY `idx_pungaanalytics_path` (`path`(191)),
 	KEY `idx_pungaanalytics_referrer` (`referrer_host`),
+	KEY `idx_pungaanalytics_referrer_path` (`referrer_path`(191)),
 	KEY `idx_pungaanalytics_source_date` (`traffic_source`, `visit_date`),
 	KEY `idx_pungaanalytics_status_date` (`http_status`, `visit_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 DEFAULT COLLATE=utf8mb4_unicode_ci;
